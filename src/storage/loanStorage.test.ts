@@ -24,6 +24,14 @@ describe('versioned local loan records', () => {
     expect(JSON.parse(encodeLoans(records)).version).toBe(1)
   })
 
+  it('saves and restores an explicit zero minimum without treating it as missing data', () => {
+    const records = [{ ...loan, monthlyPaymentCents: 0 }]
+    expect(decodeLoans(encodeLoans(records))).toEqual(records)
+    const store = memoryStorage()
+    expect(saveLoans(records, null, false, store.access).ok).toBe(true)
+    expect(loadLoans(store.access)).toMatchObject({ loans: records, issue: null })
+  })
+
   it('preserves an empty saved plan and interest-only balances', () => {
     expect(decodeLoans(encodeLoans([]))).toEqual([])
     const interestOnly = { ...loan, principalCents: 0 }
@@ -44,7 +52,7 @@ describe('versioned local loan records', () => {
     { id: '' }, { id: 123 }, { id: 'a'.repeat(129) }, { name: '' }, { name: 'a'.repeat(81) },
     { type: 'private' }, { fromExample: 'false' }, { principalCents: '1800001' }, { principalCents: -1 },
     { principalCents: 1.5 }, { principalCents: 1_000_000_001 }, { accruedInterestCents: -1 },
-    { monthlyPaymentCents: 0 }, { annualRatePercent: 101 }, { annualRatePercent: 5.12345 },
+    { monthlyPaymentCents: -1 }, { monthlyPaymentCents: null }, { monthlyPaymentCents: '' }, { annualRatePercent: 101 }, { annualRatePercent: 5.12345 },
     { balanceDate: '2025-02-29' }, { nextPaymentDate: '2024-12-31' }, { balanceDate: '1899-01-01' },
   ])('validates stored fields without coercing them: %j', (changes) => {
     expect(() => decodeLoans(JSON.stringify({ version: 1, loans: [{ ...loan, ...changes }] }))).toThrow()

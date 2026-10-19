@@ -185,10 +185,11 @@ function useExample() {
               placeholder="200.00"
               required
               :aria-invalid="!!errors.monthlyPayment"
-              :aria-describedby="errors.monthlyPayment ? 'payment-error' : undefined"
+              :aria-describedby="errors.monthlyPayment ? 'payment-error payment-help' : 'payment-help'"
             />
           </div>
           <p v-if="errors.monthlyPayment" id="payment-error" class="field-error">{{ errors.monthlyPayment }}</p>
+          <p id="payment-help" class="field-hint">Enter $0 if nothing is currently required. Estimates assume this minimum stays the same until you update it; interest may still accrue.</p>
         </div>
       </div>
 

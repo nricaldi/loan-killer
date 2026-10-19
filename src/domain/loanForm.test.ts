@@ -33,7 +33,7 @@ describe('loan form validation', () => {
 
   it.each([
     ['name', ''], ['name', 'a'.repeat(81)], ['type', 'private'], ['principal', '-100'], ['accruedInterest', ''],
-    ['monthlyPayment', '0'], ['annualRate', ''], ['annualRate', '-1'], ['annualRate', '101'], ['annualRate', '1e2'],
+    ['monthlyPayment', ''], ['monthlyPayment', '-1'], ['monthlyPayment', '0.001'], ['annualRate', ''], ['annualRate', '-1'], ['annualRate', '101'], ['annualRate', '1e2'],
     ['annualRate', '5.12345'], ['balanceDate', '2025-02-29'], ['nextPaymentDate', '2024-12-31'], ['balanceDate', '1899-01-01'],
   ])('rejects invalid %s: %s', (field, value) => {
     const result = validateLoanForm({ ...values, [field]: value })
@@ -47,6 +47,12 @@ describe('loan form validation', () => {
 
   it('accepts a zero interest rate and same-day payment', () => {
     expect(validateLoanForm({ ...values, annualRate: '0', nextPaymentDate: values.balanceDate }).loan).not.toBeNull()
+  })
+
+  it.each(['0', '0.00'])('accepts an explicit zero minimum: %s', (monthlyPayment) => {
+    const result = validateLoanForm({ ...values, monthlyPayment })
+    expect(result.errors).toEqual({})
+    expect(result.loan?.monthlyPaymentCents).toBe(0)
   })
 
   it('requires new or edited balances to match the other loans’ snapshot date', () => {

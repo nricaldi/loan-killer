@@ -40,14 +40,15 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
     </div>
     <section v-else class="unpaid-panel" aria-labelledby="unpaid-heading">
       <span class="unpaid-icon" aria-hidden="true">↗</span>
-      <p class="eyebrow">LET’S CHECK THAT PAYMENT</p>
-      <h2 id="unpaid-heading">{{ loanCount > 1 ? 'Some loans need a payment check.' : projection.status === 'insufficient-payment' ? 'This payment isn’t getting you to zero.' : 'The payoff is beyond this projection.' }}</h2>
+      <p class="eyebrow">{{ portfolio.monthlyPaymentCents === 0 ? 'WITH YOUR CURRENT MINIMUMS' : 'LET’S CHECK THAT PAYMENT' }}</p>
+      <h2 id="unpaid-heading">{{ portfolio.monthlyPaymentCents === 0 ? 'No payoff date with $0 minimum payments.' : loanCount > 1 ? 'Some loans need a payment check.' : projection.status === 'insufficient-payment' ? 'This payment isn’t getting you to zero.' : 'The payoff is beyond this projection.' }}</h2>
+      <p v-if="blockedLoans.some(({ loan }) => loan.monthlyPaymentCents === 0)">A $0 minimum stays at $0 in this estimate until you update it. Interest may still accrue. Try extra payments below to see a possible payoff plan.</p>
       <p v-if="loanCount > 1">At least one loan doesn’t pay off within its 1,200-payment limit. An overall payoff date and complete interest total would be misleading, so we haven’t shown them. Open an individual loan to inspect its schedule.</p>
-      <p v-else-if="projection.status === 'insufficient-payment'">Over a full year at the end of the projection, this payment doesn’t cover new interest. Your balance isn’t decreasing. Double-check your minimum with your servicer, or enter a higher monthly payment.</p>
-      <p v-else>The loan still has a balance after 1,200 monthly payments. We cap estimates there rather than show an unreliable finish date. Check your figures or try a higher payment.</p>
+      <p v-else-if="projection.status === 'insufficient-payment' && portfolio.monthlyPaymentCents > 0">Over a full year at the end of the projection, this payment doesn’t cover new interest. Your balance isn’t decreasing. Double-check your minimum with your servicer, or enter a higher monthly payment.</p>
+      <p v-else-if="portfolio.monthlyPaymentCents > 0">The loan still has a balance after 1,200 monthly payments. We cap estimates there rather than show an unreliable finish date. Check your figures or try a higher payment.</p>
       <p class="unpaid-footnote">No baseline payoff date or complete interest total is shown because the loan does not pay off within the projection.</p>
       <ul v-if="loanCount > 1" class="blocked-loans">
-        <li v-for="entry in blockedLoans" :key="entry.loan.id"><strong>{{ entry.loan.name }}</strong> — {{ entry.projection.status === 'insufficient-payment' ? 'Payment doesn’t cover ongoing interest.' : 'Beyond the projection limit.' }}</li>
+        <li v-for="entry in blockedLoans" :key="entry.loan.id"><strong>{{ entry.loan.name }}</strong> — {{ entry.loan.monthlyPaymentCents === 0 ? 'No payoff date with a $0 minimum.' : entry.projection.status === 'insufficient-payment' ? 'Payment doesn’t cover ongoing interest.' : 'Beyond the projection limit.' }}</li>
       </ul>
       <template v-else>
         <PaymentSchedule :payments="projection.schedule.slice(0, 12)" />

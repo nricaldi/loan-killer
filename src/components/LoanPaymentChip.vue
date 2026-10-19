@@ -9,7 +9,7 @@ const emit = defineEmits<{ select: []; payment: [cents: number] }>()
 const id = useId()
 const amount = ref((props.loan.monthlyPaymentCents / 100).toFixed(2))
 const cents = computed(() => parseMoney(amount.value))
-const invalid = computed(() => cents.value === null || cents.value === 0)
+const invalid = computed(() => cents.value === null)
 
 watch(() => props.loan.monthlyPaymentCents, (value) => {
   if (parseMoney(amount.value) !== value) amount.value = (value / 100).toFixed(2)
@@ -33,7 +33,7 @@ function updatePayment(event: Event) {
       <label :for="`${id}-payment`">Min. / month</label>
       <div class="payment-input"><span aria-hidden="true">$</span><input :id="`${id}-payment`" :value="amount" type="text" inputmode="decimal" :aria-label="`Monthly minimum for ${loan.name}`" :aria-invalid="invalid" :aria-describedby="invalid ? `${id}-error` : 'loan-payment-help'" @input="updatePayment" /></div>
     </div>
-    <p v-if="invalid" :id="`${id}-error`" class="field-error" role="status">Use $0.01–$10,000,000, up to 2 decimals. Estimate uses the last valid minimum.</p>
+    <p v-if="invalid" :id="`${id}-error`" class="field-error" role="status">Use $0–$10,000,000, up to 2 decimals. Estimate uses the last valid minimum.</p>
     <slot />
   </div>
 </template>

@@ -85,7 +85,7 @@ function toggleLoan(id: string) {
 }
 
 function updateMinimum(id: string, cents: number) {
-  if (!Number.isSafeInteger(cents) || cents <= 0 || cents > 1_000_000_000) return
+  if (!Number.isSafeInteger(cents) || cents < 0 || cents > 1_000_000_000) return
   const loan = loans.value.find((loan) => loan.id === id)
   if (!loan || loan.monthlyPaymentCents === cents) return
   setLoans(loans.value.map((loan) => loan.id === id ? { ...loan, monthlyPaymentCents: cents } : loan))

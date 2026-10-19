@@ -58,7 +58,6 @@ export function validateLoan(loan: Loan): void {
   if (loan.principalCents + loan.accruedInterestCents === 0) {
     throw new Error('The loan must have a balance remaining.')
   }
-  if (loan.monthlyPaymentCents === 0) throw new Error('The monthly payment must be greater than zero.')
   if (!Number.isFinite(loan.annualRatePercent) || loan.annualRatePercent < 0 || loan.annualRatePercent > 100) {
     throw new Error('The annual interest rate must be between 0% and 100%.')
   }

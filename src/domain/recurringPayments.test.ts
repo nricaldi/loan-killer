@@ -25,6 +25,29 @@ const other: LoanRecord = {
 }
 
 describe('extra monthly budget', () => {
+  it('pays off a zero-minimum loan using monthly extras and still accounts for daily interest', () => {
+    const input = { ...loan, monthlyPaymentCents: 0, annualRatePercent: 12 }
+    const result = projectRecurringPayments([input], 10_000)?.projection
+    const fixed = projectLoan({ ...input, monthlyPaymentCents: 10_000 })
+    expect(result?.status).toBe('paid-off')
+    if (!result || result.status !== 'paid-off' || fixed.status !== 'paid-off') throw new Error('Expected payoff')
+    expect(result.payoffDate).toBe(fixed.payoffDate)
+    expect(result.totalPaymentsCents).toBe(fixed.totalPaymentsCents)
+    expect(result.schedule.every(({ kind }) => kind === 'monthly-extra')).toBe(true)
+    expect(input.monthlyPaymentCents).toBe(0)
+  })
+
+  it('rolls freed minimums toward a zero-minimum loan without adding phantom required payments', () => {
+    const result = projectRecurringPayments([
+      { ...loan, principalCents: 10_000 },
+      { ...other, monthlyPaymentCents: 0 },
+    ], 1_000)
+    expect(result?.projection).toMatchObject({ status: 'paid-off', totalPaymentsCents: 60_000 })
+    expect(result?.monthlyPaymentCents).toBe(10_000)
+    expect(result?.loans[1]?.projection.schedule[0]).toMatchObject({ date: '2025-02-01', kind: 'monthly-extra', paymentCents: 1_000 })
+    expect(result?.loans[1]?.projection.schedule[1]).toMatchObject({ date: '2025-03-01', kind: 'monthly-extra', paymentCents: 11_000 })
+  })
+
   it('starts at the earliest next due date, not the snapshot or today', () => {
     expect(recurringStartDate([other, loan])).toBe('2025-02-01')
     const result = projectRecurringPayments([loan], 10_000)

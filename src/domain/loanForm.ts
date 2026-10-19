@@ -34,7 +34,7 @@ export function validateLoanForm(values: LoanFormValues, requiredBalanceDate?: s
   if (principalCents === null) errors.principal = 'Enter $0–$10,000,000 with up to two decimal places.'
   if (accruedInterestCents === null) errors.accruedInterest = 'Enter $0–$10,000,000 with up to two decimal places.'
   if (principalCents === 0 && accruedInterestCents === 0) errors.principal = 'Enter a remaining loan balance.'
-  if (monthlyPaymentCents === null || monthlyPaymentCents === 0) errors.monthlyPayment = 'Enter $0.01–$10,000,000 with up to two decimal places.'
+  if (monthlyPaymentCents === null) errors.monthlyPayment = 'Enter $0–$10,000,000 with up to two decimal places.'
   if (!/^\d+(?:\.\d{1,4})?$/.test(values.annualRate.trim()) || !Number.isFinite(annualRatePercent) || annualRatePercent > 100) {
     errors.annualRate = 'Enter a rate from 0 to 100, with up to four decimal places.'
   }

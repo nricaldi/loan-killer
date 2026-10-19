@@ -94,6 +94,23 @@ describe('single-loan payoff projection', () => {
     expect(result).not.toHaveProperty('remainingInterestCents')
   })
 
+  it.each([0, 12])('keeps a zero-payment loan unpaid at %s%% interest without inventing payoff totals', (annualRatePercent) => {
+    const result = projectLoan({ ...loan, annualRatePercent, monthlyPaymentCents: 0 })
+    expect(result.status).toBe('insufficient-payment')
+    expect(result).not.toHaveProperty('payoffDate')
+    expect(result).not.toHaveProperty('remainingInterestCents')
+    expect(result.schedule.every(({ paymentCents, principalCents }) => paymentCents === 0 && principalCents === loan.principalCents)).toBe(true)
+    expect(result.schedule[0]?.balanceCents).toBe(annualRatePercent === 0 ? 100_000 : 101_019)
+  })
+
+  it('allows a one-time payoff on a loan with no required monthly payment', () => {
+    const input = { ...loan, monthlyPaymentCents: 0 }
+    expect(projectLoan(input, { date: loan.balanceDate, amountCents: 100_000 })).toMatchObject({
+      status: 'paid-off', payoffDate: loan.balanceDate, totalPaymentsCents: 100_000,
+    })
+    expect(projectLoan(input, { date: loan.balanceDate, amountCents: 50_000 }).status).toBe('insufficient-payment')
+  })
+
   it('does not mistake one short initial period for sustainable repayment', () => {
     const result = projectLoan({ ...loan, balanceDate: '2025-01-30', nextPaymentDate: '2025-01-31', monthlyPaymentCents: 500 })
     expect(result.schedule[0]?.principalPaidCents).toBeGreaterThan(0)
@@ -148,7 +165,7 @@ describe('single-loan payoff projection', () => {
     { principalCents: Number.NaN },
     { principalCents: 1_000_000_001 },
     { principalCents: 0, accruedInterestCents: 0 },
-    { monthlyPaymentCents: 0 },
+    { monthlyPaymentCents: -1 },
     { monthlyPaymentCents: Number.POSITIVE_INFINITY },
     { accruedInterestCents: -1 },
     { annualRatePercent: -1 },

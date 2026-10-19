@@ -10,6 +10,23 @@ const loan: LoanRecord = {
 }
 
 describe('editable loan chip', () => {
+  it('emits a zero minimum but never saves blank or negative values', async () => {
+    const wrapper = mount(LoanPaymentChip, { props: { loan, selected: true } })
+    await wrapper.get('input').setValue('0')
+    expect(wrapper.emitted('payment')).toEqual([[0]])
+    expect(wrapper.get('input').attributes('aria-invalid')).toBe('false')
+    await wrapper.setProps({ loan: { ...loan, monthlyPaymentCents: 0 } })
+    for (const value of ['', '-1', '0.001']) {
+      await wrapper.get('input').setValue(value)
+      expect(wrapper.get('input').attributes('aria-invalid')).toBe('true')
+      expect(wrapper.emitted('payment')).toEqual([[0]])
+    }
+    await wrapper.get('input').setValue('0.00')
+    expect(wrapper.get('input').attributes('aria-invalid')).toBe('false')
+    expect(wrapper.emitted('select')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('shows the saved principal plus unpaid interest and its balance date on each card', async () => {
     const wrapper = mount(LoanPaymentChip, { props: { loan: { ...loan, accruedInterestCents: 2500 }, selected: false } })
     expect(wrapper.get('.chip-balance strong').text()).toBe('$1,025.00')
