@@ -89,6 +89,10 @@ function viewLoan(id: string) {
   visibleLoanId.value = id
 }
 
+function toggleLoan(id: string) {
+  visibleLoanId.value = visibleLoanId.value === id ? null : id
+}
+
 function updateMinimum(id: string, cents: number) {
   if (!Number.isSafeInteger(cents) || cents <= 0 || cents > 1_000_000_000) return
   const loan = loans.value.find((loan) => loan.id === id)
@@ -148,15 +152,13 @@ function removeLoan(id: string) {
             <template #loans>
               <div class="loan-controls">
                 <div class="loan-controls-heading">
-                  <nav class="overview-tabs" aria-label="Loan overview">
-                    <button type="button" :aria-pressed="visibleLoanId === null" @click="visibleLoanId = null">All loans ({{ loans.length }})</button>
-                  </nav>
+                  <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
                   <a class="scenario-link" href="#extra-payment">Try extra payments ↓</a>
                 </div>
                 <div class="loan-chips" role="group" aria-label="Loans and monthly minimums">
-                  <LoanPaymentChip v-for="loan in sortedLoans" :key="loan.id" :loan="loan" :selected="visibleLoanId === loan.id" @select="viewLoan(loan.id)" @payment="updateMinimum(loan.id, $event)" />
+                  <LoanPaymentChip v-for="loan in sortedLoans" :key="loan.id" :loan="loan" :selected="visibleLoanId === null || visibleLoanId === loan.id" @select="toggleLoan(loan.id)" @payment="updateMinimum(loan.id, $event)" />
                 </div>
-                <p id="loan-payment-help" class="loan-controls-note">Select a loan to focus the chart. Minimum edits save automatically and update your estimate. Extra payments below are hypothetical.</p>
+                <p id="loan-payment-help" class="loan-controls-note">Select a loan to focus the chart; select it again to show all loans. Minimum edits save automatically. Extra payments below are hypothetical.</p>
               </div>
             </template>
             <template #simulator>
@@ -250,9 +252,7 @@ main { display: flex; flex-direction: column; gap: var(--space-5); padding-block
 .storage-status.needs-attention { order: -1; }
 .loan-controls { margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
 .loan-controls-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.overview-tabs button { border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); padding: var(--space-2) var(--space-4); font-size: var(--font-sm); min-height: 2.75rem; }
-.overview-tabs button[aria-pressed='true'] { background: var(--blue-light); border-color: var(--blue-border); color: var(--text-link); font-weight: 600; }
+.loan-view-label { margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
 .scenario-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.75rem; margin-left: auto; padding: var(--space-2) var(--space-3); color: var(--text-link); font-size: var(--font-xs); text-underline-offset: 0.2em; }
 .loan-chips { display: flex; gap: var(--space-3); overflow-x: auto; padding: var(--space-2) var(--space-1); margin-inline: calc(-1 * var(--space-1)); }
 .loan-controls-note { margin: var(--space-2) 0 0; font-size: var(--font-xs); color: var(--text-muted); line-height: 1.6; }

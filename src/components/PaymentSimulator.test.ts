@@ -28,8 +28,8 @@ const otherLoan: LoanRecord = {
 
 let wrapper: VueWrapper
 
-function mountSimulator(loans: LoanRecord[] = [loan]) {
-  wrapper = mount(PaymentSimulator, { props: { loans }, attachTo: document.body })
+function mountSimulator(loans: LoanRecord[] = [loan], embedded = false) {
+  wrapper = mount(PaymentSimulator, { props: { loans, embedded }, attachTo: document.body })
 }
 
 async function compare(amount: string) {
@@ -50,7 +50,8 @@ afterEach(() => {
 describe('one-time payment simulator', () => {
   it('clearly labels a payment today as hypothetical and preserves scheduled minimums', () => {
     mountSimulator()
-    expect(wrapper.text()).toContain('WHAT-IF · NOT A REAL PAYMENT')
+    expect(wrapper.text()).not.toContain('WHAT-IF · NOT A REAL PAYMENT')
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Modeled for today, Jan 1, 2025')
     expect(wrapper.text()).toContain('Scheduled minimums continue unless the loan is paid off')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
@@ -328,6 +329,45 @@ const strategyLoans: LoanRecord[] = [
 ]
 
 describe('strategy selection and milestones', () => {
+  it('exposes one-time controls and strategy cards without requiring disclosure or refresh', async () => {
+    mountSimulator(strategyLoans, true)
+    expect(wrapper.get('#extra-payment-amount').element.closest('details')).toBeNull()
+    expect(wrapper.get('#extra-payment-target').element.closest('details')).toBeNull()
+    expect(wrapper.get('.strategy-picker').element.closest('details')).toBeNull()
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Refresh comparison')
+    await wrapper.get('#extra-payment-amount').setValue('100')
+    const firstTotal = wrapper.get('.live-result').text()
+    expect(firstTotal).toContain('$100.00 applied to Undergraduate loan')
+    const firstPreview = wrapper.emitted('preview')?.at(-1)?.[0]
+    await wrapper.get('#extra-payment-target').setValue(otherLoan.id)
+    expect(wrapper.get('.live-result').text()).toContain('$100.00 applied to Graduate loan')
+    expect(wrapper.get('.live-result').text()).not.toBe(firstTotal)
+    expect(wrapper.emitted('preview')?.at(-1)?.[0]).not.toEqual(firstPreview)
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('100')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+  })
+
+  it('updates combined previews immediately from radio cards without changing the lump-sum target', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.get('#extra-payment-amount').setValue('25')
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    const before = wrapper.get('.live-result').text()
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
+    expect(wrapper.get('.live-result').text()).not.toBe(before)
+    expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(loan.id)
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('25')
+    expect(wrapper.get('[data-scenario-id="combined"] button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.emitted('preview')?.at(-1)?.[1]).toContain('Smallest balance first')
+  })
+
+  it('shows excess one-time money as unused next to the controls', async () => {
+    mountSimulator([loan], true)
+    await wrapper.get('#extra-payment-amount').setValue('2000')
+    expect(wrapper.get('.live-result').text()).toContain('$1,025.00 applied to Undergraduate loan')
+    expect(wrapper.get('.live-result').text()).toContain('$975.00 unused; it isn’t moved to another loan')
+  })
+
   it('compares the same budget and displays the measured interest-versus-first-payoff tradeoff', async () => {
     mountSimulator(strategyLoans)
     await wrapper.get('#extra-monthly-amount').setValue('50')
@@ -345,7 +385,7 @@ describe('strategy selection and milestones', () => {
 
   it('applies a strategy selected in the form and updates the chart and payoff timeline', async () => {
     mountSimulator(strategyLoans)
-    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
     expect(wrapper.get('[data-strategy-id="smallest-balance"] button').attributes('aria-pressed')).toBe('true')
@@ -362,7 +402,7 @@ describe('strategy selection and milestones', () => {
     const baseline = wrapper.get('[data-scenario-id="minimum"]').text()
     const oneTime = wrapper.get('[data-scenario-id="one-time"]').text()
     await wrapper.get('[data-strategy-id="smallest-balance"] button').trigger('click')
-    expect(wrapper.get<HTMLSelectElement>('#repayment-strategy').element.value).toBe('smallest-balance')
+    expect(wrapper.get<HTMLInputElement>('input[type="radio"][value="smallest-balance"]').element.checked).toBe(true)
     expect(wrapper.get('[data-scenario-id="monthly"] button').attributes('aria-pressed')).toBe('true')
     expect(wrapper.get('[data-scenario-id="minimum"]').text()).toBe(baseline)
     expect(wrapper.get('[data-scenario-id="one-time"]').text()).toBe(oneTime)
@@ -387,14 +427,14 @@ describe('strategy selection and milestones', () => {
     mountSimulator(strategyLoans)
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
-    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     expect(wrapper.get('[data-strategy-id="smallest-balance"] button').attributes('aria-pressed')).toBe('true')
     expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-04-01')
   })
 
   it('explains why zero monthly extra and one-time-only plans do not change by strategy', async () => {
     mountSimulator(strategyLoans)
-    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     await compare('100')
     expect(wrapper.text()).toContain('changing strategy does not change any payment')
     expect(wrapper.find('[data-strategy-id]').exists()).toBe(false)
@@ -450,11 +490,11 @@ describe('strategy selection and milestones', () => {
 
   it('resets strategy, results, and milestones when clearing the scenario', async () => {
     mountSimulator(strategyLoans)
-    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
     await wrapper.get('.result-heading button').trigger('click')
-    expect(wrapper.get<HTMLSelectElement>('#repayment-strategy').element.value).toBe('highest-rate')
+    expect(wrapper.get<HTMLInputElement>('input[type="radio"][value="highest-rate"]').element.checked).toBe(true)
     expect(wrapper.find('[data-testid="payoff-milestones"]').exists()).toBe(false)
   })
 })

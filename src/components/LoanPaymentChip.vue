@@ -40,8 +40,8 @@ function updatePayment(event: Event) {
 .chip-name { display: block; width: 100%; padding: 0; min-height: 1.5rem; border: 0; background: transparent; color: var(--text-link); text-align: left; font-size: var(--font-sm); font-weight: 650; overflow-wrap: anywhere; }
 .chip-name[aria-pressed='true'] { text-decoration: underline; text-underline-offset: 0.25em; }
 .chip-payment { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-1); }
-label { font-size: var(--font-xs); color: var(--text-secondary); }
-.payment-input { position: relative; width: 6.5rem; flex-shrink: 0; }
+label { font-size: var(--font-xs); color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+.payment-input { position: relative; flex: 1; min-width: 0; }
 .payment-input span { position: absolute; left: var(--space-2); top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: var(--font-xs); pointer-events: none; }
 input { width: 100%; min-height: 2.75rem; padding: var(--space-2) var(--space-2) var(--space-2) 1.3rem; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); font-variant-numeric: tabular-nums; }
 input[aria-invalid='true'] { border-color: var(--danger); }
