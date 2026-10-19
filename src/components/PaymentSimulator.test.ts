@@ -329,6 +329,21 @@ const strategyLoans: LoanRecord[] = [
 ]
 
 describe('strategy selection and milestones', () => {
+  it('shows one-time savings immediately and keeps them separate from monthly extras', async () => {
+    mountSimulator(strategyLoans, true)
+    expect(wrapper.find('.one-time-impact').exists()).toBe(false)
+    await wrapper.get('#extra-payment-amount').setValue('100')
+    const firstImpact = wrapper.get('.one-time-impact').text()
+    expect(firstImpact).toContain('You’ll save in interest')
+    expect(firstImpact).toContain('Debt-free across all loans')
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    expect(wrapper.get('.one-time-impact').text()).toBe(firstImpact)
+    await wrapper.get('#extra-payment-target').setValue(otherLoan.id)
+    expect(wrapper.get('.one-time-impact').text()).not.toBe(firstImpact)
+    await wrapper.get('#extra-payment-amount').setValue('0')
+    expect(wrapper.find('.one-time-impact').exists()).toBe(false)
+  })
+
   it('exposes one-time controls and strategy cards without requiring disclosure or refresh', async () => {
     mountSimulator(strategyLoans, true)
     expect(wrapper.get('#extra-payment-amount').element.closest('details')).toBeNull()

@@ -284,6 +284,22 @@ async function addSecondLoan(overrides: Record<string, string> = {}) {
 }
 
 describe('interactive payment workspace', () => {
+  it('puts saved remaining balances and edit actions directly on the visible loan cards', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    expect(wrapper.findAll('.chip-balance strong').map((value) => value.text())).toEqual(['$1,025.00', '$500.00'])
+    const edit = wrapper.get<HTMLButtonElement>('[aria-label="Edit Direct Loan 02"]')
+    expect(edit.element.closest('.loan-chip')).not.toBeNull()
+    expect(edit.element.closest('details')).toBeNull()
+    edit.element.focus()
+    await edit.trigger('click')
+    await wrapper.get('#principal').setValue('750')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.findAll('.chip-balance strong').map((value) => value.text())).toEqual(['$1,025.00', '$750.00'])
+    expect(document.activeElement).toBe(edit.element)
+    expect(wrapper.text()).not.toContain('Manage loan details')
+  })
+
   it('shows selection on loan cards and toggles between focused and combined views without an all-loans button', async () => {
     await enterLoan()
     await addSecondLoan()
@@ -319,8 +335,8 @@ describe('interactive payment workspace', () => {
     await addSecondLoan({ '#loan-name': 'Loan 2' })
     const savedIds = JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans.map((loan: { id: string }) => loan.id)
     expect(wrapper.findAll('.chip-name').map((chip) => chip.text())).toEqual(['Loan 2', 'loan 10'])
-    expect(wrapper.findAll('.loan-title').map((button) => button.text())).toEqual(['Loan 2', 'loan 10'])
-    expect(wrapper.findAll('#extra-payment-target option').map((option) => option.text())).toEqual(['1. Loan 2 · 0%', '2. loan 10 · 0%'])
+    expect(wrapper.findAll('.loan-list .chip-name').map((button) => button.text())).toEqual(['Loan 2', 'loan 10'])
+    expect(wrapper.findAll('#extra-payment-target option').map((option) => option.text())).toEqual(['Loan 2 · 0%', 'loan 10 · 0%'])
     remountApp()
     expect(wrapper.findAll('.chip-name').map((chip) => chip.text())).toEqual(['Loan 2', 'loan 10'])
     expect(wrapper.findAll('[data-chip-id]').map((chip) => chip.attributes('data-chip-id')).sort()).toEqual([...savedIds].sort())
@@ -356,12 +372,12 @@ describe('interactive payment workspace', () => {
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
   })
 
-  it('keeps the simulator and a single shared chart together, with management collapsed below', async () => {
+  it('keeps the simulator and a single shared chart together without a management section or outer panel', async () => {
     await enterLoan()
     expect(wrapper.find('.journey-panel #extra-payment').exists()).toBe(true)
-    expect(wrapper.get('.loan-management').attributes('open')).toBeUndefined()
-    const journey = wrapper.get('.journey-panel').element
-    expect(journey.compareDocumentPosition(wrapper.get('.loan-management').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(wrapper.find('.loan-management').exists()).toBe(false)
+    expect(wrapper.get('.journey-panel').classes()).not.toContain('panel')
+    expect(wrapper.get('.loan-list').element.closest('details')).toBeNull()
     const saved = localStorage.getItem(LOAN_STORAGE_KEY)
     await wrapper.get('#extra-monthly-slider').setValue('100')
     expect(wrapper.get('.preview-payoff').text()).toContain('Apr 1, 2025')
@@ -464,7 +480,7 @@ describe('multiple-loan dashboard', () => {
   it('switches between combined and individual loan details', async () => {
     await enterLoan()
     await addSecondLoan()
-    await wrapper.get('[aria-label="View Direct Loan 02"]').trigger('click')
+    await wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').trigger('click')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$500.00')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('Mar 15, 2025')
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
@@ -484,11 +500,11 @@ describe('multiple-loan dashboard', () => {
     await wrapper.get('#loan-name').setValue('Renamed loan')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id')).sort()).toEqual([...ids].sort())
-    expect(wrapper.find('[aria-label="View Renamed loan"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Show Renamed loan in chart"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
     await wrapper.get('.loan-chip.selected .chip-name').trigger('click')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,525.00')
-    expect(wrapper.get('[aria-label="View Direct Loan 02"]').element.closest('li')?.textContent).toContain('$500.00')
+    expect(wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').element.closest('li')?.textContent).toContain('$500.00')
   })
 
   it('cancels adding a loan without saving a partial draft', async () => {
@@ -521,7 +537,7 @@ describe('multiple-loan dashboard', () => {
   it('returns to the combined view after removing the loan being viewed', async () => {
     await enterLoan()
     await addSecondLoan()
-    await wrapper.get('[aria-label="View Direct Loan 02"]').trigger('click')
+    await wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').trigger('click')
     await wrapper.get('[aria-label="Remove Direct Loan 02"]').trigger('click')
     await wrapper.get('.remove-button').trigger('click')
     expect(wrapper.get('.loan-view-label').text()).toBe('Showing all loans')
@@ -541,9 +557,9 @@ describe('multiple-loan dashboard', () => {
     expect(wrapper.find('[data-testid="remaining-interest"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="total-payments"]').exists()).toBe(false)
     expect(wrapper.find('figure').exists()).toBe(false)
-    await wrapper.get('[aria-label="View Direct Loan 01"]').trigger('click')
+    await wrapper.get('[aria-label="Show Direct Loan 01 in chart"]').trigger('click')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
-    await wrapper.get('[aria-label="View Direct Loan 02"]').trigger('click')
+    await wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').trigger('click')
     expect(wrapper.text()).toContain('This payment isn’t getting you to zero.')
     expect(wrapper.findAll('tbody tr')).toHaveLength(12)
   })
@@ -706,7 +722,7 @@ describe('local loan persistence', () => {
     await wrapper.get('.remove-button').trigger('click')
     remountApp()
     expect(wrapper.findAll('[data-loan-id]')).toHaveLength(1)
-    expect(wrapper.find('[aria-label="View Renamed loan"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Show Renamed loan in chart"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$700.00')
     await wrapper.get('[aria-label="Remove Renamed loan"]').trigger('click')
     await wrapper.get('.remove-button').trigger('click')
@@ -782,7 +798,7 @@ describe('local loan persistence', () => {
     expect(wrapper.find('.storage-notice [role="alert"]').exists()).toBe(false)
     expect(document.activeElement).toBe(wrapper.get('.storage-notice').element)
     remountApp()
-    expect(wrapper.find('[aria-label="View Direct Loan 01"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Show Direct Loan 01 in chart"]').exists()).toBe(true)
   })
 
   it('protects unsupported formats and explicitly warns before replacing them with an empty plan', async () => {
@@ -841,6 +857,6 @@ describe('local loan persistence', () => {
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(otherCopy)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
     remountApp()
-    expect(wrapper.find('[aria-label="View Other tab’s loan"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Show Other tab’s loan in chart"]').exists()).toBe(true)
   })
 })

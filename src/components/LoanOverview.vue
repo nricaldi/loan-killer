@@ -55,7 +55,7 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
       </section>
     </div>
 
-    <section class="panel journey-panel" aria-label="Explore your payment journey">
+    <section class="journey-panel" aria-label="Explore your payment journey">
       <slot name="loans" />
       <div class="journey-content">
         <div class="journey-visual">
@@ -149,7 +149,7 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
 .stat-value { margin: var(--space-3) 0 var(--space-2); font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 600; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .unavailable-value { font-size: var(--font-lg); }
 .stat-note { color: var(--text-muted); font-size: var(--font-xs); margin: 0; line-height: 1.6; }
-.journey-panel { padding: var(--space-5); }
+.journey-panel { min-width: 0; }
 .journey-content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.5fr); align-items: start; gap: var(--space-5); }
 .journey-visual, .journey-controls { min-width: 0; }
 .payoff-summary { margin: var(--space-3) 0 0; font-size: var(--font-sm); line-height: 1.7; }
@@ -170,5 +170,5 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
 .blocked-loans li + li { margin-top: var(--space-3); }
 @media (max-width: 55rem) { .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .total-card { grid-column: 1 / -1; } }
 @media (max-width: 60rem) { .journey-content { display: flex; flex-direction: column; } .journey-visual, .journey-controls { width: 100%; } .journey-controls { order: -1; } }
-@media (max-width: 35rem) { .balance-card, .stat-card, .total-card, .journey-panel { padding: var(--space-4); } .balance-facts { grid-template-columns: 1fr 1fr; } .balance-facts > div:last-child { grid-column: 1 / -1; } .summary-grid { gap: var(--space-3); } .stat-value { font-size: clamp(1.1rem, 5.5vw, 1.5rem); } .starting-balance small { font-size: var(--font-xs); } }
+@media (max-width: 35rem) { .balance-card, .stat-card, .total-card { padding: var(--space-4); } .balance-facts { grid-template-columns: 1fr 1fr; } .balance-facts > div:last-child { grid-column: 1 / -1; } .summary-grid { gap: var(--space-3); } .stat-value { font-size: clamp(1.1rem, 5.5vw, 1.5rem); } .starting-balance small { font-size: var(--font-xs); } }
 </style>

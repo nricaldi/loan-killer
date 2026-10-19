@@ -9,6 +9,7 @@ import { recurringStartDate, strategyNames, type RepaymentStrategy } from '../do
 import { formatDate, money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentStrategyPicker from './PaymentStrategyPicker.vue'
+import OneTimePaymentImpact from './OneTimePaymentImpact.vue'
 
 const props = defineProps<{ loans: readonly LoanRecord[]; embedded?: boolean }>()
 const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string] }>()
@@ -110,7 +111,7 @@ async function clear() {
     <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
       <div class="monthly-controls">
         <div class="monthly-heading">
-          <div><p class="eyebrow">THE MONTHLY DIFFERENCE</p><label for="extra-monthly-amount">Extra per month, across all loans</label></div>
+          <div><p class="eyebrow">THE MONTHLY DIFFERENCE</p><label for="extra-monthly-amount">Extra monthly budget</label></div>
           <div class="amount-input monthly-input">
             <span aria-hidden="true">$</span>
             <input id="extra-monthly-amount" v-model="monthlyAmount" type="text" inputmode="decimal" required :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" />
@@ -121,6 +122,7 @@ async function clear() {
         <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
         <div class="slider-labels" aria-hidden="true"><span>$0 extra</span><span>{{ money(sliderMaximum * 100) }} extra</span></div>
         <p class="monthly-budget" data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
+        <p class="form-note">One extra amount for your whole plan, not for each loan.</p>
       </div>
       <div class="one-time-controls">
         <label for="extra-payment-amount">One-time extra payment</label>
@@ -132,18 +134,19 @@ async function clear() {
           <div class="scenario-field">
             <label class="sr-only" for="extra-payment-target">Send it to</label>
             <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : 'extra-target-help'">
-              <option v-for="(loan, index) in loans" :key="loan.id" :value="loan.id">{{ index + 1 }}. {{ loan.name }} · {{ loan.annualRatePercent }}%</option>
+              <option v-for="loan in loans" :key="loan.id" :value="loan.id">{{ loan.name }} · {{ loan.annualRatePercent }}%</option>
             </select>
             <p v-if="errors.target" id="extra-target-error" class="field-error">{{ errors.target }}</p>
           </div>
         </div>
         <p id="extra-target-help" class="form-note">Switch loans to instantly compare the impact of the same extra money.</p>
+        <OneTimePaymentImpact v-if="result && result.request.oneTimeCents > 0" :comparison="result.oneTime" />
       </div>
       <div v-if="embedded && result" class="live-result">
         <template v-if="selectedPlan?.portfolio.projection.status === 'paid-off'">
           <p>Preview total <strong>{{ money(selectedPlan.portfolio.projection.totalPaymentsCents) }}</strong><br />Interest <strong>{{ money(selectedPlan.portfolio.projection.remainingInterestCents) }}</strong></p>
           <p>Debt-free <strong>{{ formatDate(selectedPlan.portfolio.projection.payoffDate) }}</strong></p>
-          <p v-if="selectedPlan.savings">{{ money(Math.abs(selectedPlan.savings.interestCents)) }} {{ selectedPlan.savings.interestCents >= 0 ? 'interest saved' : 'additional interest' }}</p>
+          <p v-if="selected !== 'one-time' && selectedPlan.savings">{{ money(Math.abs(selectedPlan.savings.interestCents)) }} {{ selectedPlan.savings.interestCents >= 0 ? 'interest saved' : 'additional interest' }} for the selected plan</p>
         </template>
         <p v-else>No complete payoff estimate for this preview.</p>
         <p v-if="result.request.oneTimeCents > 0 && selected !== 'monthly'" class="form-note">{{ money(result.oneTime.appliedCents) }} applied to {{ result.oneTime.targetBaseline.loan.name }}.<template v-if="result.oneTime.unusedCents > 0"> {{ money(result.oneTime.unusedCents) }} unused; it isn’t moved to another loan.</template></p>

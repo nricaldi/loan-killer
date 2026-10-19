@@ -4,7 +4,6 @@ import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanModal from './components/LoanModal.vue'
 import LoanOverview from './components/LoanOverview.vue'
-import LoanPaymentChip from './components/LoanPaymentChip.vue'
 import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
 import { useLoanStorage } from './composables/useLoanStorage'
@@ -85,10 +84,6 @@ function editLoan(id: string, event: MouseEvent) {
   editorOpen.value = true
 }
 
-function viewLoan(id: string) {
-  visibleLoanId.value = id
-}
-
 function toggleLoan(id: string) {
   visibleLoanId.value = visibleLoanId.value === id ? null : id
 }
@@ -155,9 +150,17 @@ function removeLoan(id: string) {
                   <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
                   <a class="scenario-link" href="#extra-payment">Try extra payments ↓</a>
                 </div>
-                <div class="loan-chips" role="group" aria-label="Loans and monthly minimums">
-                  <LoanPaymentChip v-for="loan in sortedLoans" :key="loan.id" :loan="loan" :selected="visibleLoanId === null || visibleLoanId === loan.id" @select="toggleLoan(loan.id)" @payment="updateMinimum(loan.id, $event)" />
-                </div>
+                <LoanList
+                  v-if="portfolio"
+                  :loans="portfolio.loans"
+                  :editing-id="editingId"
+                  :visible-loan-id="visibleLoanId"
+                  @add="addLoan"
+                  @edit="editLoan"
+                  @view="toggleLoan"
+                  @payment="updateMinimum"
+                  @remove="removeLoan"
+                />
                 <p id="loan-payment-help" class="loan-controls-note">Select a loan to focus the chart; select it again to show all loans. Minimum edits save automatically. Extra payments below are hypothetical.</p>
               </div>
             </template>
@@ -173,17 +176,6 @@ function removeLoan(id: string) {
           <button class="primary-button" type="button" @click="addLoan">Add your first loan</button>
           <button class="text-button" type="button" @click="addLoan">Just exploring? Try an example in the loan form</button>
         </section>
-        <details v-if="portfolio" class="loan-management">
-          <summary>Manage loan details ({{ loans.length }})</summary>
-          <LoanList
-            :loans="portfolio.loans"
-            :editing-id="editingId"
-            @add="addLoan"
-            @edit="editLoan"
-            @view="viewLoan"
-            @remove="removeLoan"
-          />
-        </details>
       </div>
 
       <LoanStorageNotice
@@ -254,9 +246,7 @@ main { display: flex; flex-direction: column; gap: var(--space-5); padding-block
 .loan-controls-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .loan-view-label { margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
 .scenario-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.75rem; margin-left: auto; padding: var(--space-2) var(--space-3); color: var(--text-link); font-size: var(--font-xs); text-underline-offset: 0.2em; }
-.loan-chips { display: flex; gap: var(--space-3); overflow-x: auto; padding: var(--space-2) var(--space-1); margin-inline: calc(-1 * var(--space-1)); }
 .loan-controls-note { margin: var(--space-2) 0 0; font-size: var(--font-xs); color: var(--text-muted); line-height: 1.6; }
-.loan-management > summary { cursor: pointer; color: var(--text-link); font-size: var(--font-sm); font-weight: 600; padding-block: var(--space-3); }
 .empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
 .empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
 .empty-state > p:not(.eyebrow) { max-width: 30rem; color: var(--text-muted); font-size: var(--font-sm); line-height: 1.8; margin: var(--space-3) 0 var(--space-5); }
