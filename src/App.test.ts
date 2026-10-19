@@ -172,9 +172,14 @@ describe('single-loan baseline', () => {
     const startingBalance = wrapper.get('[data-testid="starting-balance"]').element
     expect(startingBalance.compareDocumentPosition(total) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(wrapper.find('.summary-grid [data-testid="monthly-minimum"]').exists()).toBe(false)
-    expect(wrapper.get('.summary-grid [data-testid="principal-total"]').text()).toBe('$1,000.00')
+    expect(wrapper.get('.balance-details [data-testid="principal-total"]').text()).toBe('$1,000.00')
     expect(wrapper.find('.summary-grid [data-testid="remaining-interest"]').exists()).toBe(true)
-    expect(wrapper.get('.cost-note').text()).toContain('already accrued +')
+    expect(wrapper.findAll('.summary-grid section')).toHaveLength(3)
+    for (const card of wrapper.findAll('.summary-grid section')) {
+      expect(card.findAll('p')).toHaveLength(2)
+      expect(card.find('.eyebrow').exists()).toBe(true)
+    }
+    expect(wrapper.find('.summary-grid .stat-note').exists()).toBe(false)
     expect(wrapper.get('.balance-chart svg').text()).toContain('Projected loan balance')
     expect(wrapper.find('.payments-chart').exists()).toBe(false)
     expect(wrapper.get('.chart-switch button:last-child').attributes('aria-pressed')).toBe('true')
@@ -385,6 +390,35 @@ describe('interactive payment workspace', () => {
     remountApp()
     expect(wrapper.findAll('.chip-name').map((chip) => chip.text())).toEqual(['Loan 2', 'loan 10'])
     expect(wrapper.findAll('[data-chip-id]').map((chip) => chip.attributes('data-chip-id')).sort()).toEqual([...savedIds].sort())
+  })
+
+  it('places accessible edit and remove icons beside each loan name without changing chart selection', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    expect(wrapper.find('.scenario-link').exists()).toBe(false)
+    for (const name of ['Direct Loan 01', 'Direct Loan 02']) {
+      const card = wrapper.get(`[aria-label="Edit ${name}"]`).element.closest('.loan-chip')
+      const edit = wrapper.get(`[aria-label="Edit ${name}"]`)
+      const remove = wrapper.get(`[aria-label="Remove ${name}"]`)
+      expect(edit.element.closest('.chip-header')).not.toBeNull()
+      expect(remove.element.closest('.chip-header')).not.toBeNull()
+      expect(edit.text()).toBe('')
+      expect(remove.text()).toBe('')
+      expect(edit.find('svg[aria-hidden="true"]').exists()).toBe(true)
+      expect(remove.find('svg[aria-hidden="true"]').exists()).toBe(true)
+      expect(edit.attributes('title')).toBe(`Edit ${name}`)
+      expect(remove.attributes('title')).toBe(`Remove ${name}`)
+      expect(card?.querySelector('.chip-balance span')).toBeNull()
+    }
+    await wrapper.get('[aria-label="Remove Direct Loan 02"]').trigger('click')
+    expect(wrapper.findAll('.loan-chip.selected')).toHaveLength(2)
+    expect(document.activeElement).toBe(wrapper.get('.remove-confirmation .text-button').element)
+    await wrapper.get('.remove-confirmation .text-button').trigger('click')
+    expect(document.activeElement).toBe(wrapper.get('[aria-label="Remove Direct Loan 02"]').element)
+    await editLoan('Direct Loan 02')
+    expect(wrapper.findAll('.loan-chip.selected')).toHaveLength(2)
+    await wrapper.get('.form-actions .text-button').trigger('click')
+    expect(document.activeElement).toBe(wrapper.get('[aria-label="Edit Direct Loan 02"]').element)
   })
 
   it('updates a saved minimum and the main projection live without losing input focus', async () => {
@@ -722,7 +756,7 @@ describe('one-time scenarios in the loan dashboard', () => {
     await editLoan()
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
     expect(wrapper.get<HTMLInputElement>('#monthly-payment').element.value).toBe('300.00')
-    expect(wrapper.get('.scenario-link').attributes('href')).toBe('#extra-payment')
+    expect(wrapper.find('.scenario-link').exists()).toBe(false)
   })
 
   it('clears a previous scenario when saved balances change, but not for unapplied edits', async () => {

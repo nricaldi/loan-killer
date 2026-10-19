@@ -27,10 +27,11 @@ describe('editable loan chip', () => {
     wrapper.unmount()
   })
 
-  it('shows the saved principal plus unpaid interest and its balance date on each card', async () => {
+  it('shows the saved principal plus unpaid interest without a date description', async () => {
     const wrapper = mount(LoanPaymentChip, { props: { loan: { ...loan, accruedInterestCents: 2500 }, selected: false } })
     expect(wrapper.get('.chip-balance strong').text()).toBe('$1,025.00')
-    expect(wrapper.get('.chip-balance span').text()).toBe('left as of Oct 19, 2026')
+    expect(wrapper.find('.chip-balance span').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Oct 19, 2026')
     await wrapper.setProps({ loan: { ...loan, principalCents: 50000, accruedInterestCents: 1000 } })
     expect(wrapper.get('.chip-balance strong').text()).toBe('$510.00')
     wrapper.unmount()

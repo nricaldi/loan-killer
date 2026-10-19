@@ -28,22 +28,18 @@ const paidOffProjection = computed(() => projection.value.status === 'paid-off' 
       <section class="stat-card">
         <p class="eyebrow">STARTING BALANCE</p>
         <p class="stat-value" data-testid="starting-balance">{{ money(balanceCents) }}</p>
-        <p class="stat-note">As of {{ formatDate(portfolio.balanceDate) }} · {{ title }}</p>
       </section>
       <section class="stat-card">
         <p class="eyebrow">TOTAL INTEREST TO PAY</p>
         <p v-if="paidOffProjection" class="stat-value" data-testid="remaining-interest">{{ money(paidOffProjection.remainingInterestCents) }}</p>
         <p v-else class="stat-value unavailable-value">Not available</p>
-        <p v-if="paidOffProjection" class="stat-note cost-note">Includes {{ money(portfolio.accruedInterestCents) }} already accrued + {{ money(paidOffProjection.futureInterestCents) }} projected.</p>
-        <p v-else class="stat-note">A complete payoff estimate is needed.</p>
       </section>
       <section v-if="paidOffProjection" class="total-card" aria-labelledby="cost-heading">
         <p id="cost-heading" class="eyebrow">ESTIMATED TOTAL TO REPAY</p>
         <p class="total-value" data-testid="total-payments">{{ money(paidOffProjection.totalPaymentsCents) }}</p>
-        <p class="stat-note">Includes <strong data-testid="principal-total">{{ money(portfolio.principalCents) }}</strong> principal + interest.<br />From here, with your saved minimums.</p>
       </section>
       <section v-else class="stat-card">
-        <p class="eyebrow">ESTIMATED TOTAL TO REPAY</p><p class="stat-value unavailable-value">Not available</p><p class="stat-note">Check the payment warning below.</p>
+        <p class="eyebrow">ESTIMATED TOTAL TO REPAY</p><p class="stat-value unavailable-value">Not available</p>
       </section>
     </div>
 
@@ -67,7 +63,7 @@ const paidOffProjection = computed(() => projection.value.status === 'paid-off' 
       <details class="balance-details">
         <summary>Rates and interest details</summary>
         <div class="balance-facts">
-          <div><span>Starting principal</span><strong>{{ money(portfolio.principalCents) }}</strong></div>
+          <div><span>Starting principal</span><strong data-testid="principal-total">{{ money(portfolio.principalCents) }}</strong></div>
           <div><span>{{ loanCount > 1 ? 'Principal-weighted rate' : 'Fixed interest rate' }}</span><strong>{{ rate }}</strong></div>
           <div><span>Interest at starting principal</span><strong>~{{ money(portfolio.annualInterestCents / 12) }}<small> / month</small></strong></div>
         </div>
@@ -95,17 +91,14 @@ const paidOffProjection = computed(() => projection.value.status === 'paid-off' 
 .balance-facts small { font-size: var(--font-xs); font-weight: 400; white-space: nowrap; }
 .balance-note { color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; margin: var(--space-4) 0 0; }
 .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
-.stat-card, .total-card { min-width: 0; padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.stat-card, .total-card { min-width: 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .total-card { background: var(--highlight-background); border-color: var(--highlight-background); color: var(--highlight-text); }
-.total-card .eyebrow, .total-card .stat-note { color: var(--highlight-muted); }
-.total-card strong { color: var(--highlight-text); }
-.total-value { font-size: clamp(2rem, 3.5vw, 2.75rem); font-weight: 650; line-height: 1.15; letter-spacing: -0.05em; margin: var(--space-3) 0 var(--space-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.stat-value { margin: var(--space-3) 0 var(--space-2); font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 600; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.total-card .eyebrow { color: var(--highlight-muted); }
+.total-value { font-size: clamp(1.5rem, 2.5vw, 1.85rem); font-weight: 650; line-height: 1.2; letter-spacing: -0.05em; margin: var(--space-2) 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat-value { margin: var(--space-2) 0 0; font-size: clamp(1.35rem, 2.25vw, 1.65rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .unavailable-value { font-size: var(--font-lg); }
-.stat-note { color: var(--text-muted); font-size: var(--font-xs); margin: 0; line-height: 1.6; }
 .journey-panel { min-width: 0; }
 .journey-content { display: grid; gap: var(--space-5); min-width: 0; }
-.cost-note { color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; }
 @media (max-width: 55rem) { .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .total-card { grid-column: 1 / -1; } }
 @media (max-width: 35rem) { .balance-card, .stat-card, .total-card { padding: var(--space-4); } .balance-facts { grid-template-columns: 1fr 1fr; } .balance-facts > div:last-child { grid-column: 1 / -1; } .summary-grid { gap: var(--space-3); } .stat-value { font-size: clamp(1.1rem, 5.5vw, 1.5rem); } .starting-balance small { font-size: var(--font-xs); } }
 </style>

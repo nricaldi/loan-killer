@@ -46,6 +46,9 @@
   --font-sm: 0.875rem;
   --font-md: 1rem;
   --font-lg: 1.25rem;
+  --size-icon: 1rem;
+  --size-icon-button: 2rem;
+  --size-touch-target: 2.75rem;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;

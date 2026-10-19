@@ -142,10 +142,7 @@ function removeLoan(id: string) {
           <LoanOverview :portfolio="visiblePortfolio" :comparison="preview">
             <template #loans>
               <div class="loan-controls">
-                <div class="loan-controls-heading">
-                  <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
-                  <a class="scenario-link" href="#extra-payment">Try extra payments ↓</a>
-                </div>
+                <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
                 <LoanList
                   v-if="portfolio"
                   :loans="portfolio.loans"
@@ -241,9 +238,7 @@ main { display: flex; flex-direction: column; gap: var(--space-5); padding-block
 .workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .storage-status.needs-attention { order: -1; }
 .loan-controls { margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
-.loan-controls-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.loan-view-label { margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
-.scenario-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.75rem; margin-left: auto; padding: var(--space-2) var(--space-3); color: var(--text-link); font-size: var(--font-xs); text-underline-offset: 0.2em; }
+.loan-view-label { margin: 0 0 var(--space-2); font-size: var(--font-xs); color: var(--text-secondary); }
 .loan-controls-note { margin: var(--space-2) 0 0; font-size: var(--font-xs); color: var(--text-muted); line-height: 1.6; }
 .empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
 .empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
@@ -261,5 +256,5 @@ main { display: flex; flex-direction: column; gap: var(--space-5); padding-block
 .site-footer p { font-size: var(--font-xs); margin: 0; }
 .footer-version { font-size: 0.6rem; letter-spacing: 0.1em; }
 @media (max-width: 65rem) { .app-shell { padding-inline: var(--space-6); } }
-@media (max-width: 35rem) { .app-shell { padding-inline: var(--space-4); } .brand { font-size: 1.25rem; gap: var(--space-2); } .brand-icon { width: 2rem; height: 2rem; } .empty-state { padding: var(--space-7) var(--space-4); } .footer-version { display: none; } .site-footer { justify-content: center; } .scenario-link { margin-left: 0; } }
+@media (max-width: 35rem) { .app-shell { padding-inline: var(--space-4); } .brand { font-size: 1.25rem; gap: var(--space-2); } .brand-icon { width: 2rem; height: 2rem; } .empty-state { padding: var(--space-7) var(--space-4); } .footer-version { display: none; } .site-footer { justify-content: center; } }
 </style>
