@@ -9,7 +9,7 @@ import { recurringStartDate, strategyNames, type RepaymentStrategy } from '../do
 import { formatDate, money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentStrategyPicker from './PaymentStrategyPicker.vue'
-import OneTimePaymentImpact from './OneTimePaymentImpact.vue'
+import PaymentPlanSummary from './PaymentPlanSummary.vue'
 
 const props = defineProps<{ loans: readonly LoanRecord[]; embedded?: boolean }>()
 const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string] }>()
@@ -119,7 +119,7 @@ async function clear() {
     <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
       <div class="monthly-controls">
         <div class="monthly-heading">
-          <div><p class="eyebrow">THE MONTHLY DIFFERENCE</p><label for="extra-monthly-amount">Extra monthly budget</label></div>
+          <label for="extra-monthly-amount">Extra monthly budget</label>
           <div class="amount-input monthly-input">
             <span aria-hidden="true">$</span>
             <input id="extra-monthly-amount" v-model="monthlyAmount" type="text" inputmode="decimal" required :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" />
@@ -129,23 +129,7 @@ async function clear() {
         <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
         <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
         <div class="slider-labels" aria-hidden="true"><span>$0 extra</span><span>{{ money(sliderMaximum * 100) }} extra</span></div>
-        <p class="monthly-budget" data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
         <p class="form-note">One extra amount for your whole plan, not for each loan.</p>
-        <div class="strategy-field">
-          <PaymentStrategyPicker v-model="strategy" />
-          <p v-if="errors.strategy" id="strategy-error" class="field-error">{{ errors.strategy }}</p>
-          <div class="strategy-target" aria-live="polite" aria-atomic="true">
-            <template v-if="result && result.request.extraMonthlyCents > 0">
-              <p>First allocation · {{ formatDate(result.recurringStartDate) }}</p>
-              <ul v-if="firstMonthlyAllocation.length">
-                <li v-for="target in firstMonthlyAllocation" :key="target.id"><strong>{{ target.name }}</strong><span>{{ money(target.amountCents) }}</span></li>
-              </ul>
-              <p v-else>No active balance remains for the extra budget on this date.</p>
-              <p>Extra money and freed minimums follow this strategy as balances change.</p>
-            </template>
-            <p v-else>Add an extra monthly budget to see which loans it targets first.</p>
-          </div>
-        </div>
       </div>
       <div class="one-time-controls">
         <label for="extra-payment-amount">One-time extra payment</label>
@@ -163,18 +147,26 @@ async function clear() {
           </div>
         </div>
         <p id="extra-target-help" class="form-note">Switch loans to instantly compare the impact of the same extra money.</p>
-        <OneTimePaymentImpact v-if="result && result.request.oneTimeCents > 0" :comparison="result.oneTime" />
       </div>
-      <div v-if="embedded && result" class="live-result">
-        <template v-if="selectedPlan?.portfolio.projection.status === 'paid-off'">
-          <p>Preview total <strong>{{ money(selectedPlan.portfolio.projection.totalPaymentsCents) }}</strong></p>
-          <p>Interest <strong>{{ money(selectedPlan.portfolio.projection.remainingInterestCents) }}</strong></p>
-          <p>Debt-free <strong>{{ formatDate(selectedPlan.portfolio.projection.payoffDate) }}</strong></p>
-          <p v-if="selected !== 'one-time' && selectedPlan.savings">{{ money(Math.abs(selectedPlan.savings.interestCents)) }} {{ selectedPlan.savings.interestCents >= 0 ? 'interest saved' : 'additional interest' }} for the selected plan</p>
-        </template>
-        <p v-else>No complete payoff estimate for this preview.</p>
-        <p v-if="result.request.oneTimeCents > 0 && selected !== 'monthly'" class="form-note">{{ money(result.oneTime.appliedCents) }} applied to {{ result.oneTime.targetBaseline.loan.name }}.<template v-if="result.oneTime.unusedCents > 0"> {{ money(result.oneTime.unusedCents) }} unused; it isn’t moved to another loan.</template></p>
-        <button class="text-button" type="button" @click="clear">Reset extra payments</button>
+      <div class="strategy-field">
+        <PaymentStrategyPicker v-model="strategy" />
+        <p v-if="errors.strategy" id="strategy-error" class="field-error">{{ errors.strategy }}</p>
+        <div class="strategy-target" aria-live="polite" aria-atomic="true">
+          <template v-if="result && result.request.extraMonthlyCents > 0">
+            <p>First allocation · {{ formatDate(result.recurringStartDate) }}</p>
+            <ul v-if="firstMonthlyAllocation.length">
+              <li v-for="target in firstMonthlyAllocation" :key="target.id"><strong>{{ target.name }}</strong><span>{{ money(target.amountCents) }}</span></li>
+            </ul>
+            <p v-else>No active balance remains for the extra budget on this date.</p>
+            <p>Extra money and freed minimums follow this strategy as balances change.</p>
+          </template>
+          <p v-else>Add an extra monthly budget to see which loans it targets first.</p>
+        </div>
+      </div>
+      <PaymentPlanSummary v-if="result" :result="result" :selected="selected" @clear="clear" />
+      <div v-else class="summary-placeholder">
+        <p data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
+        <p>Enter an extra payment to see how much interest and time you could save.</p>
       </div>
       <details class="payment-rules" :open="!embedded">
         <summary>How extra payments are allocated</summary>
@@ -208,54 +200,46 @@ async function clear() {
 .embedded .simulator-heading { gap: var(--space-2); }
 .embedded .scenario-form { margin-top: var(--space-4); }
 .embedded .monthly-controls { padding: 0; border: 0; margin: 0; }
-.embedded .monthly-input { width: 7rem; }
-.embedded .monthly-heading label { font-size: var(--font-xs); }
-.embedded .monthly-heading .eyebrow { display: none; }
-.embedded .monthly-budget { font-size: var(--font-xs); }
-.embedded .strategy-field { padding-top: var(--space-3); margin-top: var(--space-3); }
 .payment-rules, .comparison-details { margin-top: var(--space-3); }
 .one-time-controls { padding-left: var(--space-5); border-left: 1px solid var(--border); }
 .one-time-controls .form-note { margin-bottom: 0; }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
-.live-result { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3) var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); font-size: var(--font-sm); line-height: 1.8; }
-.live-result p { margin: 0; }
-.live-result strong { display: block; font-size: var(--font-lg); }
-.live-result .form-note { flex-basis: 100%; }
+.payment-summary, .summary-placeholder { grid-column: 1 / -1; }
+.summary-placeholder { padding: var(--space-4); border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.7; }
+.summary-placeholder p { margin: 0; }
 .plan-comparison { padding: var(--space-5); min-width: 0; }
-.strategy-target { margin-top: var(--space-3); padding: var(--space-3); background: var(--surface-muted); border-radius: var(--radius-sm); font-size: var(--font-xs); color: var(--text-secondary); line-height: 1.6; }
+.strategy-target { grid-column: 2; grid-row: 1; padding: var(--space-3); background: var(--surface-muted); border-radius: var(--radius-sm); font-size: var(--font-xs); color: var(--text-secondary); line-height: 1.6; }
 .strategy-target p { margin: 0; }
 .strategy-target p:last-child:not(:first-child) { margin-top: var(--space-2); }
 .strategy-target ul { padding: 0; margin: var(--space-2) 0; list-style: none; }
 .strategy-target li { display: flex; justify-content: space-between; gap: var(--space-3); }
 .strategy-target strong { color: var(--text); overflow-wrap: anywhere; }
 .strategy-target span { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.simulator-heading, .monthly-heading { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: var(--space-4); }
+.simulator-heading { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: var(--space-4); }
 h2 { font-size: clamp(1.4rem, 3vw, 1.85rem); letter-spacing: -0.04em; }
 .section-intro, .form-note, .simulator-footnote { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.8; }
 .section-intro { font-size: var(--font-sm); margin: var(--space-3) 0 0; }
-.scenario-form { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-4) var(--space-5); margin-top: var(--space-5); }
+.scenario-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-5); margin-top: var(--space-5); }
 .scenario-form > * { min-width: 0; }
 .payment-rules, .scenario-form > .date-warning, .scenario-form > .field-error { grid-column: 1 / -1; }
-.scenario-fields { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-2); align-items: start; }
+.scenario-fields { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--space-2); align-items: start; }
 .scenario-field { min-width: 0; }
 .scenario-field input, .scenario-field select { height: 3rem; }
-label { display: block; font-size: var(--font-xs); font-weight: 600; margin-bottom: var(--space-2); }
-input:not([type='range']), select { min-width: 0; width: 100%; min-height: 2.9rem; padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); }
+label { display: block; font-size: var(--font-xs); font-weight: 600; line-height: 1.6; margin-bottom: var(--space-2); }
+input:not([type='range']), select { min-width: 0; width: 100%; height: 3rem; padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); }
 input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--danger); }
 .amount-input { position: relative; }
 .amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: var(--font-sm); pointer-events: none; }
 .amount-input input { padding-left: 1.7rem; }
 .monthly-controls { min-width: 0; }
-.monthly-heading { align-items: center; }
-.monthly-heading label { margin: 0; font-size: var(--font-sm); }
-.monthly-input { width: 10rem; }
+.monthly-input { width: 7rem; }
 input[type='range'] { display: block; width: 100%; min-height: 2.5rem; margin: var(--space-3) 0 0; accent-color: var(--chart-line); cursor: pointer; }
 .slider-labels { display: flex; justify-content: space-between; color: var(--text-muted); font-size: var(--font-xs); }
-.monthly-budget { margin: var(--space-3) 0 0; font-size: var(--font-sm); font-weight: 600; line-height: 1.8; }
-.strategy-field { margin-top: var(--space-4); border-top: 1px solid var(--border); padding-top: var(--space-4); }
+.strategy-field { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; gap: var(--space-4); border-top: 1px solid var(--border); padding-top: var(--space-4); }
+.strategy-field > .field-error { grid-column: 1 / -1; }
 .field-error { color: var(--danger); font-size: var(--font-xs); line-height: 1.7; margin: var(--space-2) 0 0; }
 .date-warning { background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.8; }
 .simulator-footnote { margin: var(--space-5) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--border); }
-@media (max-width: 48rem) { .scenario-form { grid-template-columns: 1fr; } .one-time-controls { padding: var(--space-4) 0 0; border-left: 0; border-top: 1px solid var(--border); } }
-@media (max-width: 35rem) { .simulator, .plan-comparison { padding: var(--space-4); } .monthly-input { width: 100%; } }
+@media (max-width: 48rem) { .scenario-form, .strategy-field { grid-template-columns: 1fr; } .strategy-target { grid-column: auto; grid-row: auto; } .one-time-controls { padding: var(--space-4) 0 0; border-left: 0; border-top: 1px solid var(--border); } }
+@media (max-width: 35rem) { .simulator, .plan-comparison { padding: var(--space-4); } }
 </style>

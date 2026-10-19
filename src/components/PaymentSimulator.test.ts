@@ -191,6 +191,41 @@ describe('one-time payment simulator', () => {
 })
 
 describe('monthly and combined payment scenarios', () => {
+  it('keeps the unified summary in sync with plans selected in the comparison section', async () => {
+    mountSimulator([loan], true)
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('#extra-payment-amount').setValue('300')
+    expect(wrapper.findAll('#extra-payment .payment-summary')).toHaveLength(1)
+    expect(wrapper.find('.live-result').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).toBe(wrapper.get('[data-testid="extra-interest-saved"]').text())
+    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toBe('2 months sooner')
+    expect(wrapper.get('[data-testid="monthly-budget"]').element.closest('.payment-summary')).not.toBeNull()
+    await wrapper.get('[data-scenario-id="monthly"] button').trigger('click')
+    expect(wrapper.get('.payment-summary h3').text()).toBe('With $100.00 extra each month')
+    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toBe('1 month sooner')
+    await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
+    expect(wrapper.get('.payment-summary h3').text()).toBe('With $300.00 toward Undergraduate loan today')
+    expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$0.00 extra = $300.00')
+    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).toBe(wrapper.get('[data-testid="extra-interest-saved"]').text())
+  })
+
+  it('preserves the last valid summary and budget while invalid edits are clearly flagged', async () => {
+    mountSimulator([loan], true)
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    const summary = wrapper.get('.payment-summary').text()
+    const input = wrapper.get<HTMLInputElement>('#extra-monthly-amount')
+    input.element.focus()
+    await input.setValue('1.234')
+    expect(wrapper.get('.payment-summary').text()).toBe(summary)
+    expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$100.00 extra = $400.00')
+    expect(wrapper.text()).toContain('last valid comparison')
+    expect(document.activeElement).toBe(input.element)
+    await wrapper.get('.payment-summary button').trigger('click')
+    expect(wrapper.find('.payment-summary').exists()).toBe(false)
+    expect(wrapper.get('.summary-placeholder [data-testid="monthly-budget"]').text()).toContain('$0.00 extra = $300.00')
+    expect(document.activeElement).toBe(input.element)
+  })
+
   it('emits a live chart preview and clears it on reset and unmount', async () => {
     mountSimulator()
     await wrapper.get('#extra-monthly-amount').setValue('100')
@@ -331,7 +366,7 @@ const strategyLoans: LoanRecord[] = [
 describe('strategy selection and milestones', () => {
   it('shows the first actual monthly allocation beside the budget and updates it with the strategy', async () => {
     mountSimulator(strategyLoans, true)
-    expect(wrapper.find('.monthly-controls .strategy-picker').exists()).toBe(true)
+    expect(wrapper.find('.strategy-field .strategy-picker').exists()).toBe(true)
     expect(wrapper.get('.strategy-target').text()).toContain('Add an extra monthly budget')
     await wrapper.get('#extra-monthly-amount').setValue('50')
     expect(wrapper.get('.strategy-target').text()).toContain('Feb 1, 2025')
@@ -379,19 +414,23 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.get('.strategy-target li strong').text()).toBe('Graduate loan')
   })
 
-  it('shows one-time savings immediately and keeps them separate from monthly extras', async () => {
+  it('combines one-time and monthly payments into one live summary with a shared budget', async () => {
     mountSimulator(strategyLoans, true)
-    expect(wrapper.find('.one-time-impact').exists()).toBe(false)
+    expect(wrapper.find('.payment-summary').exists()).toBe(false)
     await wrapper.get('#extra-payment-amount').setValue('100')
-    const firstImpact = wrapper.get('.one-time-impact').text()
+    const firstImpact = wrapper.get('.payment-summary').text()
     expect(firstImpact).toContain('You’ll save in interest')
     expect(firstImpact).toContain('Debt-free across all loans')
     await wrapper.get('#extra-monthly-amount').setValue('50')
-    expect(wrapper.get('.one-time-impact').text()).toBe(firstImpact)
-    await wrapper.get('#extra-payment-target').setValue(otherLoan.id)
-    expect(wrapper.get('.one-time-impact').text()).not.toBe(firstImpact)
-    await wrapper.get('#extra-payment-amount').setValue('0')
+    expect(wrapper.get('.payment-summary').text()).not.toBe(firstImpact)
+    expect(wrapper.get('.payment-summary h3').text()).toContain('$50.00 extra each month')
+    expect(wrapper.findAll('.payment-summary')).toHaveLength(1)
     expect(wrapper.find('.one-time-impact').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="monthly-budget"]').element.closest('.payment-summary')).not.toBeNull()
+    await wrapper.get('#extra-payment-target').setValue(otherLoan.id)
+    expect(wrapper.get('.payment-summary').text()).toContain('$100.00 applied to Graduate loan')
+    await wrapper.get('#extra-payment-amount').setValue('0')
+    expect(wrapper.get('.payment-summary h3').text()).toBe('With $50.00 extra each month')
   })
 
   it('exposes one-time controls and strategy cards without requiring disclosure or refresh', async () => {
@@ -402,12 +441,12 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Refresh comparison')
     await wrapper.get('#extra-payment-amount').setValue('100')
-    const firstTotal = wrapper.get('.live-result').text()
+    const firstTotal = wrapper.get('.payment-summary').text()
     expect(firstTotal).toContain('$100.00 applied to Undergraduate loan')
     const firstPreview = wrapper.emitted('preview')?.at(-1)?.[0]
     await wrapper.get('#extra-payment-target').setValue(otherLoan.id)
-    expect(wrapper.get('.live-result').text()).toContain('$100.00 applied to Graduate loan')
-    expect(wrapper.get('.live-result').text()).not.toBe(firstTotal)
+    expect(wrapper.get('.payment-summary').text()).toContain('$100.00 applied to Graduate loan')
+    expect(wrapper.get('.payment-summary').text()).not.toBe(firstTotal)
     expect(wrapper.emitted('preview')?.at(-1)?.[0]).not.toEqual(firstPreview)
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('100')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
@@ -417,9 +456,9 @@ describe('strategy selection and milestones', () => {
     mountSimulator(strategyLoans, true)
     await wrapper.get('#extra-payment-amount').setValue('25')
     await wrapper.get('#extra-monthly-amount').setValue('50')
-    const before = wrapper.get('.live-result').text()
+    const before = wrapper.get('.payment-summary').text()
     await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
-    expect(wrapper.get('.live-result').text()).not.toBe(before)
+    expect(wrapper.get('.payment-summary').text()).not.toBe(before)
     expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(loan.id)
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('25')
     expect(wrapper.get('[data-scenario-id="combined"] button').attributes('aria-pressed')).toBe('true')
@@ -429,8 +468,8 @@ describe('strategy selection and milestones', () => {
   it('shows excess one-time money as unused next to the controls', async () => {
     mountSimulator([loan], true)
     await wrapper.get('#extra-payment-amount').setValue('2000')
-    expect(wrapper.get('.live-result').text()).toContain('$1,025.00 applied to Undergraduate loan')
-    expect(wrapper.get('.live-result').text()).toContain('$975.00 unused; it isn’t moved to another loan')
+    expect(wrapper.get('.payment-summary').text()).toContain('$1,025.00 applied to Undergraduate loan')
+    expect(wrapper.get('.payment-summary').text()).toContain('$975.00 unused; it isn’t moved to another loan')
   })
 
   it('compares the same budget and displays the measured interest-versus-first-payoff tradeoff', async () => {
