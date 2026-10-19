@@ -3,13 +3,15 @@ import { computed, nextTick, ref } from 'vue'
 import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanOverview from './components/LoanOverview.vue'
+import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
+import { useLoanStorage } from './composables/useLoanStorage'
 import type { Loan } from './domain/loan'
 import { projectPortfolio, type LoanRecord } from './domain/portfolio'
 import { formatDate, money } from './format'
 
-const loans = ref<LoanRecord[]>([])
-const editingId = ref<string | null>(null)
+const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
+const editingId = ref<string | null>(loans.value[0]?.id ?? null)
 const visibleLoanId = ref<string | null>(null)
 const editor = ref<HTMLElement | null>(null)
 const lastAction = ref('')
@@ -47,7 +49,7 @@ async function focusEditor() {
 async function saveLoan(loan: Loan, fromExample: boolean) {
   const isNew = !editingLoan.value
   const record: LoanRecord = { ...loan, id: editingId.value ?? crypto.randomUUID(), fromExample }
-  loans.value = isNew ? [...loans.value, record] : loans.value.map((item) => item.id === record.id ? record : item)
+  setLoans(isNew ? [...loans.value, record] : loans.value.map((item) => item.id === record.id ? record : item))
   editingId.value = record.id
   portfolioRevision.value++
   lastAction.value = `${isNew ? 'Added' : 'Updated'} ${record.name}.`
@@ -84,7 +86,7 @@ function cancelEditing() {
 
 function removeLoan(id: string) {
   const removed = loans.value.find((loan) => loan.id === id)
-  loans.value = loans.value.filter((loan) => loan.id !== id)
+  setLoans(loans.value.filter((loan) => loan.id !== id))
   portfolioRevision.value++
   if (editingId.value === id) editingId.value = null
   if (visibleLoanId.value === id) visibleLoanId.value = null
@@ -123,13 +125,13 @@ function removeLoan(id: string) {
         </div>
       </section>
 
-      <aside class="storage-notice" aria-label="Data storage notice">
-        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M10 2 3.5 5v4.5c0 4.2 6.5 7.5 6.5 7.5s6.5-3.3 6.5-7.5V5L10 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
-          <path d="m7 9.5 2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <p><strong>Just in this tab.</strong> Your loan details aren’t uploaded or saved. Refreshing or closing the page clears them.</p>
-      </aside>
+      <LoanStorageNotice
+        :issue="storageIssue"
+        :requires-replacement="requiresReplacement"
+        :loan-count="loans.length"
+        @retry="retrySaving"
+        @replace="replaceSavedCopy"
+      />
 
       <div class="workspace">
         <div ref="editor" class="loan-workspace">
@@ -231,7 +233,7 @@ function removeLoan(id: string) {
     <footer class="site-footer">
       <span>loan<span class="brand-light">killer</span>.</span>
       <p>Small steps. A smaller balance. You’ve got this.</p>
-      <span class="footer-version">THE STRATEGIES · V0.5</span>
+      <span class="footer-version">LOCAL PLANNER · V0.6</span>
     </footer>
   </div>
 </template>
@@ -256,10 +258,6 @@ h1 > span::after { position: absolute; content: ''; height: 0.32em; bottom: 0.05
 .chapter-label > span { font-size: 2.25rem; color: var(--text-placeholder); font-weight: 300; letter-spacing: -0.05em; }
 .chapter-label > div { font-size: var(--font-sm); font-weight: 600; }
 .chapter-label small { display: block; margin-top: var(--space-2); color: var(--text-muted); font-weight: 400; font-size: var(--font-xs); }
-.storage-notice { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-6); padding: var(--space-3) var(--space-4); background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); }
-.storage-notice svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; color: var(--text-link); }
-.storage-notice p { margin: 0; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.7; }
-.storage-notice strong { font-weight: 600; }
 .workspace { display: grid; grid-template-columns: minmax(20rem, 0.85fr) minmax(0, 1.6fr); align-items: start; gap: var(--space-6); }
 .loan-workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }

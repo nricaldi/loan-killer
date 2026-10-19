@@ -19,6 +19,7 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 6. Select **What if I pay extra?**, choose a one-time target and amount, and set an extra monthly amount using the slider or exact amount field. Use 0 to leave either out, then **Compare payment**. Your saved loan figures and baseline remain unchanged.
 7. All four plans show payoff dates, interest, total payments, and savings. Use a plan’s **View** button to inspect its curve against the baseline and its payment schedule. Monthly-only is selected by default when only monthly extra is positive; both positive selects the combined plan.
 8. Choose **Monthly payoff strategy** before updating, or use the strategy comparison cards to inspect highest-rate-first versus smallest-balance-first using the last comparison’s same inputs. Follow the projected milestones to see which loans reach zero first.
+9. Confirmed loan changes save automatically in this browser. Reopen the same site to restore your loan list and baseline without re-entering it. Draft fields and hypothetical scenarios still reset.
 
 All balances must come from the **same date**. After adding the first loan, the date is shared and read-only on additional loans. You can change the date while editing the only remaining loan. This avoids combining snapshots from different dates or guessing which payments you already made.
 
@@ -39,8 +40,23 @@ All balances must come from the **same date**. After adding the first loan, the 
 - A projected loan-by-loan milestone timeline with baseline date comparisons, simultaneous-payoff grouping, and explicit unresolved loans.
 - Explicit handling of insufficient payments and the 1,200-payment projection limit.
 - Responsive layouts, keyboard focus, and reduced-motion support.
+- Local persistence for confirmed loans, with restore validation, save-failure warnings, and explicit recovery rather than silent overwrites.
 
-**No account, backend, analytics, or persistence.** Loan details remain in memory in the current tab; refreshing or closing it clears them. The app does not connect to or send payments to your servicer.
+**No account, backend, analytics, or sync.** Confirmed loan records are kept in this browser’s local storage. The app does not upload them, connect to your servicer, or send payments.
+
+## Local persistence
+
+- **Add loan**, **Update loan**, and confirmed removals save the complete loan list, including stable IDs, example labels, rates, integer-cent amounts, and original balance/payment dates. Removing the last loan saves an empty plan so deleted loans do not return after refresh.
+- Saved loans restore on startup; the first loan is prefilled for editing and the combined overview is shown. No write is made just because the app mounts.
+- Only loan records persist. Unapplied/invalid edits, canceled drafts, selected views, scenario amounts, strategy selections, projected schedules, and milestones are not stored. They are recomputed or reset when returning.
+- Stored records use a versioned JSON envelope under the single `loan-killer.loans` localStorage key. Records and portfolio invariants are validated before use. Unknown formats or any invalid record block restoration of the entire saved plan rather than silently omitting a loan. Unrecognized extra fields are not used or written.
+- If browser access or a write fails, the app still works with the current in-memory plan and clearly warns that changes may be lost on refresh. **Retry saving** saves the latest complete in-memory plan when ordinary writes become available again.
+- Failed restoration never triggers an automatic overwrite, including after entering new loans. **Replace saved copy** requires a separate confirmation, including an explicit warning if the current plan is empty. This recovery action only replaces this app’s loan key, not unrelated site data.
+- Before ordinary saves, the app checks that the saved copy still matches what this tab last loaded or saved. A changed copy produces a warning instead of being overwritten automatically. There is no live tab synchronization or merging; avoid simultaneous edits across tabs. Reloading uses the saved copy and discards any unsaved changes in the current tab.
+- Storage is scoped to the exact browser profile and origin: protocol, hostname, and port. `localhost:5173`, `127.0.0.1:5173`, and `127.0.0.1:4173` have separate saved copies. Moving to a different address or device does not transfer loans.
+- Anyone using the same browser profile can access the data. The app does not encrypt its JSON copy. Clearing site data, storage eviction, or closing a private-browsing session can remove it. This is convenience storage, not a backup.
+- Balances and dates are restored exactly as entered, not advanced to today. The app does not know which real payments happened. Check your figures and next-payment dates when returning; overdue next-payment dates still block new what-if calculations until updated.
+- Export/import, backups, accounts, and cloud synchronization are intentionally **not** part of this feature.
 
 ## Extra payment today
 
@@ -105,7 +121,7 @@ npm run test:watch
 npm run preview    # serve the production build after npm run build
 ```
 
-Tests cover single-loan and portfolio engines, all four scenarios, both strategies, dynamic allocation, rollover, milestones, dates, caps, rounding, form validation, the slider, loan management, and baseline/scenario isolation. The calculation engines in `src/domain/` are independent of Vue. The chart uses SVG without a charting dependency.
+Tests cover the financial engines and UI, plus local storage round-trips, strict restoration, durable updates/removals, draft isolation, storage failures, recovery, and changed-copy protection. The calculation engines in `src/domain/` are independent of Vue. The chart uses SVG without a charting dependency.
 
 ## Feature chunks
 
@@ -114,5 +130,6 @@ Tests cover single-loan and portfolio engines, all four scenarios, both strategi
 3. ✅ A hypothetical one-time payment today, targeting a chosen loan.
 4. ✅ Extra monthly payments, including comparison with a combined one-time payment.
 5. ✅ Highest-rate-first versus smallest-balance-first strategies and payoff milestones.
+6. ✅ Local persistence for loans only, without export/import.
 
-Persistence and actual balance history are intentionally deferred.
+Actual balance history, export/import, and synchronization remain deferred.

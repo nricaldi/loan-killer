@@ -1,10 +1,12 @@
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
+import { encodeLoans, LOAN_STORAGE_KEY } from './storage/loanStorage'
 
 let wrapper: VueWrapper
 
 beforeEach(() => {
+  localStorage.removeItem(LOAN_STORAGE_KEY)
   vi.useFakeTimers()
   vi.setSystemTime(new Date(2025, 0, 1, 12))
   wrapper = mount(App, { attachTo: document.body })
@@ -12,6 +14,8 @@ beforeEach(() => {
 
 afterEach(() => {
   wrapper.unmount()
+  vi.restoreAllMocks()
+  localStorage.removeItem(LOAN_STORAGE_KEY)
   vi.useRealTimers()
 })
 
@@ -33,9 +37,10 @@ async function enterLoan(overrides: Record<string, string> = {}) {
 }
 
 describe('single-loan baseline', () => {
-  it('starts with an empty state and an explicit temporary-storage warning', () => {
+  it('starts with an empty state and explains local saving and its limits', () => {
     expect(wrapper.text()).toContain('Let’s find yours.')
-    expect(wrapper.text()).toContain('Refreshing or closing the page clears them.')
+    expect(wrapper.text()).toContain('Kept in this browser.')
+    expect(wrapper.text()).toContain('Drafts and what-if scenarios aren’t saved.')
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(false)
     expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-01-01')
   })
@@ -85,7 +90,7 @@ describe('single-loan baseline', () => {
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(true)
   })
 
-  it('clears the form and estimate without persisting the loan', async () => {
+  it('persists confirmed removal and restores loans added afterwards', async () => {
     await enterLoan()
     await wrapper.get('[aria-label="Remove Direct Loan 01"]').trigger('click')
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(true)
@@ -93,11 +98,12 @@ describe('single-loan baseline', () => {
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(false)
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('')
     expect(document.activeElement).toBe(wrapper.get('#loan-name').element)
+    expect(JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans).toEqual([])
     await enterLoan()
     wrapper.unmount()
     wrapper = mount(App, { attachTo: document.body })
-    expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(false)
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('')
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
   })
 
   it('warns about insufficient payments without inventing a payoff or interest total', async () => {
@@ -393,5 +399,165 @@ describe('strategy integration', () => {
     await wrapper.get('form').trigger('submit')
     expect(wrapper.find('[data-testid="payoff-milestones"]').exists()).toBe(false)
     expect(wrapper.get<HTMLSelectElement>('#repayment-strategy').element.value).toBe('highest-rate')
+  })
+})
+
+function remountApp() {
+  wrapper.unmount()
+  wrapper = mount(App, { attachTo: document.body })
+}
+
+describe('local loan persistence', () => {
+  it('restores multiple loans, stable IDs, all fields and combined totals after a reload', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    const ids = wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id'))
+    remountApp()
+    expect(wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id'))).toEqual(ids)
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,525.00')
+    expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$550.00')
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
+    await wrapper.get('[aria-label="Edit Direct Loan 02"]').trigger('click')
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('500.00')
+    expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-02-15')
+  })
+
+  it('persists updates and confirmed removals, without resurrecting removed loans', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    await wrapper.get('#principal').setValue('700')
+    await wrapper.get('#loan-name').setValue('Renamed loan')
+    await wrapper.get('form').trigger('submit')
+    await wrapper.get('[aria-label="Remove Direct Loan 01"]').trigger('click')
+    await wrapper.get('.remove-button').trigger('click')
+    remountApp()
+    expect(wrapper.findAll('[data-loan-id]')).toHaveLength(1)
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Renamed loan')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$700.00')
+    await wrapper.get('[aria-label="Remove Renamed loan"]').trigger('click')
+    await wrapper.get('.remove-button').trigger('click')
+    remountApp()
+    expect(wrapper.find('[data-testid="starting-balance"]').exists()).toBe(false)
+  })
+
+  it('does not save invalid or unapplied edits, canceled drafts, or hypothetical scenarios', async () => {
+    await enterLoan()
+    const saved = localStorage.getItem(LOAN_STORAGE_KEY)
+    await wrapper.get('#principal').setValue('-1')
+    await wrapper.get('form').trigger('submit')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+    await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('#extra-payment-amount').setValue('300')
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+    remountApp()
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+    await wrapper.get('.add-button').trigger('click')
+    await wrapper.get('#loan-name').setValue('Unsaved draft')
+    await wrapper.get('.form-actions .text-button').trigger('click')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+  })
+
+  it('keeps snapshot dates and entered balances instead of assuming real payments happened overnight', async () => {
+    await enterLoan()
+    vi.setSystemTime(new Date(2025, 2, 1, 12))
+    remountApp()
+    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-01-01')
+    expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-02-01')
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
+    expect(wrapper.text()).toContain('A next payment date is in the past')
+  })
+
+  it('restores explicitly labeled example loans and never writes unrelated site storage', async () => {
+    const unrelated = 'loan-killer-test-unrelated'
+    localStorage.setItem(unrelated, 'keep me')
+    await wrapper.get('.example-button').trigger('click')
+    remountApp()
+    expect(wrapper.text()).toContain('From example')
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('18000.00')
+    expect(localStorage.getItem(unrelated)).toBe('keep me')
+    localStorage.removeItem(unrelated)
+  })
+
+  it('preserves corrupt saved data until the user explicitly confirms replacement', async () => {
+    const original = '{ unreadable loans'
+    localStorage.setItem(LOAN_STORAGE_KEY, original)
+    remountApp()
+    expect(wrapper.get('.storage-notice [role="alert"]').text()).toContain('Saved loans couldn’t be restored')
+    await enterLoan()
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(original)
+    await wrapper.get('.replace-copy').trigger('click')
+    expect(document.activeElement).toBe(wrapper.get('.cancel-replacement').element)
+    await wrapper.get('.cancel-replacement').trigger('click')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(original)
+    expect(document.activeElement).toBe(wrapper.get('.replace-copy').element)
+    await wrapper.get('.replace-copy').trigger('click')
+    await wrapper.get('.replacement-confirmation button:last-child').trigger('click')
+    expect(wrapper.find('.storage-notice [role="alert"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(wrapper.get('.storage-notice').element)
+    remountApp()
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
+  })
+
+  it('protects unsupported formats and explicitly warns before replacing them with an empty plan', async () => {
+    const future = '{"version":2,"loans":[]}'
+    localStorage.setItem(LOAN_STORAGE_KEY, future)
+    remountApp()
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(future)
+    await wrapper.get('.replace-copy').trigger('click')
+    expect(wrapper.get('.replacement-confirmation').text()).toContain('empty plan')
+    await wrapper.get('.cancel-replacement').trigger('click')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(future)
+  })
+
+  it('continues in memory if storage is inaccessible and can recover after explicit confirmation', async () => {
+    const getter = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError') })
+    remountApp()
+    await enterLoan()
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    expect(wrapper.find('.storage-notice [role="alert"]').exists()).toBe(true)
+    getter.mockRestore()
+    await wrapper.get('.replace-copy').trigger('click')
+    await wrapper.get('.replacement-confirmation button:last-child').trigger('click')
+    remountApp()
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+  })
+
+  it('shows write failures honestly, keeps memory edits, and retries the latest plan', async () => {
+    await enterLoan()
+    const saved = localStorage.getItem(LOAN_STORAGE_KEY)
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Full', 'QuotaExceededError') })
+    await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+    expect(wrapper.get('.storage-notice [role="alert"]').text()).toContain('couldn’t be saved')
+    write.mockRestore()
+    await wrapper.get('.storage-actions button').trigger('click')
+    expect(wrapper.find('.storage-notice [role="alert"]').exists()).toBe(false)
+    remountApp()
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
+  })
+
+  it('does not silently overwrite another tab’s newer saved loan list', async () => {
+    await enterLoan()
+    const otherCopy = encodeLoans([{
+      id: 'other-tab', name: 'Other tab’s loan', type: 'subsidized', fromExample: false,
+      principalCents: 50_000, accruedInterestCents: 0, annualRatePercent: 3,
+      monthlyPaymentCents: 10_000, balanceDate: '2025-01-01', nextPaymentDate: '2025-02-15',
+    }])
+    localStorage.setItem(LOAN_STORAGE_KEY, otherCopy)
+    await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.get('.storage-notice [role="alert"]').text()).toContain('changed in another tab')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(otherCopy)
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
+    remountApp()
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Other tab’s loan')
   })
 })
