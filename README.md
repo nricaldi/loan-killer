@@ -18,6 +18,7 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 5. **Remove** asks for confirmation and only removes the selected loan from this planner, not your servicer account.
 6. Select **What if I pay extra?**, choose a one-time target and amount, and set an extra monthly amount using the slider or exact amount field. Use 0 to leave either out, then **Compare payment**. Your saved loan figures and baseline remain unchanged.
 7. All four plans show payoff dates, interest, total payments, and savings. Use a plan’s **View** button to inspect its curve against the baseline and its payment schedule. Monthly-only is selected by default when only monthly extra is positive; both positive selects the combined plan.
+8. Choose **Monthly payoff strategy** before updating, or use the strategy comparison cards to inspect highest-rate-first versus smallest-balance-first using the last comparison’s same inputs. Follow the projected milestones to see which loans reach zero first.
 
 All balances must come from the **same date**. After adding the first loan, the date is shared and read-only on additional loans. You can change the date while editing the only remaining loan. This avoids combining snapshots from different dates or guessing which payments you already made.
 
@@ -31,9 +32,11 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Combined balances, monthly minimums, principal-weighted rate, remaining interest, and an overall debt-free date.
 - Combined schedules that respect each loan’s due dates, group payments on the same day, and include interest accruing between due dates on other loans.
 - A one-time payment simulator with interest/principal allocation, unused-overpayment handling, payoff and interest comparisons, overlaid balance curves, and a scenario schedule.
-- Extra monthly payments with a slider, exact cents entry, a visible starting monthly budget, highest-rate-first allocation, and freed-minimum rollover.
+- Extra monthly payments with a slider, exact cents entry, a visible starting monthly budget, selectable allocation strategy, and freed-minimum rollover.
 - A four-plan comparison: minimums, one-time only, monthly only, and combined; each has its own complete-or-unavailable payoff estimates.
 - Both the selected loan’s payoff change and the whole plan’s payoff change, so an earlier individual payoff isn’t mistaken for an earlier overall debt-free date.
+- Same-budget strategy comparisons with actual interest, finish-date differences, and first projected loan payoffs.
+- A projected loan-by-loan milestone timeline with baseline date comparisons, simultaneous-payoff grouping, and explicit unresolved loans.
 - Explicit handling of insufficient payments and the 1,200-payment projection limit.
 - Responsive layouts, keyboard focus, and reduced-motion support.
 
@@ -56,14 +59,27 @@ All balances must come from the **same date**. After adding the first loan, the 
 
 - The monthly amount is **one additional budget across the plan**, not an extra payment for every loan. It begins on the earliest entered next-payment date and recurs on that original day, clamped for shorter months (January 31 → February 28 → March 31).
 - Every loan still gets its minimum on its own entered due dates, unless already paid off. On a shared payment date the order is: one-time payment, all minimums due that day, then the extra/rollover pool.
-- Extra and freed budget goes to the active loan with the highest nominal interest rate, covering interest before principal. Equal rates use stable loan IDs as the tie-breaker. A paid-off target passes the remainder to the next active loan on the same day.
+- Extra and freed budget follows the chosen strategy, covering interest before principal. A paid-off target passes the remainder to the next active loan on the same day.
 - A positive monthly increase enables rollover: the original minimum for a paid-off loan becomes available on each of that loan’s original monthly due dates. The unused portion of a final minimum also becomes available that same day. Minimums due on other dates are not spent early or skipped.
 - This maintains the starting minimum-payment budget plus the extra monthly amount as loans finish. Available cash follows the entered due dates; initial and final partial cycles can spend less. All actual payments are capped at amounts owed, with no unused final budget counted as spending or carried forward after all loans are paid off.
 - **Minimum-only and one-time-only plans do not roll over payments.** With $0 extra monthly, the monthly plan exactly matches the baseline and the combined plan exactly matches one-time only; zero does not silently enable a rollover-only strategy.
-- The one-time target dropdown only affects the lump sum. It does not override monthly highest-rate allocation. Unused one-time overpayment is never redirected, including in the combined plan; recycling future minimums is a separate part of the monthly budget.
+- The one-time target dropdown only affects the lump sum. It does not override the monthly strategy. Unused one-time overpayment is never redirected, including in the combined plan; recycling future minimums is a separate part of the monthly budget.
 - The comparison includes all applied payments in every total, not just the future scheduled minimums. A plan that never pays off within the model’s limit has no complete interest or payment total. Savings require both it and the baseline to have a complete payoff estimate.
 - Monthly/combined schedules are capped at 1,200 original monthly due slots per loan and 1,200 monthly-extra slots. If unpaid, they report the projection limit rather than infer an interest-coverage classification from irregular extra-payment rows.
-- These remain fixed-rate, simple-interest estimates, not servicer transactions. Smallest-balance-first strategy comparisons and payoff milestones are the next feature chunk.
+- These remain fixed-rate, simple-interest estimates, not servicer transactions.
+
+## Strategies and projected milestones
+
+- **Highest rate first (avalanche)** directs extra monthly and freed minimum-payment money to the active loan with the highest nominal fixed rate. This remains the default.
+- **Smallest balance first (snowball)** directs it to the active loan with the smallest current total balance, including unpaid interest and interest accrued through that payment date. Priorities are re-evaluated after all minimums due that day; they are not frozen to original loan sizes. A lump sum may also change the next target.
+- Equal-priority loans use stable loan IDs to break ties. Reordering the displayed loan records does not change the result.
+- Both approaches use the same budget, scheduled due dates, rollover policy, fixed one-time target, and applied lump sum. Strategy only changes monthly and combined plans with positive extra monthly money. Zero monthly extra still means no rollover and no strategy-dependent change to the baseline.
+- The comparison shows actual modeled interest differences and calendar finish-date differences rather than declaring a guaranteed winner. Neither a cheaper result nor an earlier first payoff guarantees an earlier overall finish. Non-capitalized unpaid interest and per-payment rounding can also affect the cost ordering.
+- Changing the form strategy is a draft edit until **Update comparison**. Strategy card buttons switch between already-computed results for the last captured amounts and payment date, update the form strategy, and preserve the selected plan. Other unapplied money edits remain drafts; they are not silently used by a strategy button.
+- Strategy-to-strategy cost and time comparisons require both strategies to fully pay off, even if the minimum-payment baseline does not. Savings versus baseline separately require a complete baseline. The first known individual payoff may still be shown for an otherwise incomplete plan.
+- Milestones use the selected plan’s actual simulated payoff dates, not allocation priority. Loans reaching zero on the same date share a milestone; duplicate names remain distinct through their IDs. The remaining-loan count only reaches zero when all loans have a known complete payoff.
+- Each loan’s timing change is compared with that loan’s own baseline date, not the whole plan’s date. Unavailable baseline dates are labeled as unknown, and later dates are not disguised as positive savings.
+- These are **projected milestones, not actual repayment history**. Known payoffs are shown even when another loan remains unresolved; unresolved loans never receive an invented date or debt-free milestone. Original minimums are reference amounts, not a claim that cash becomes available immediately on the payoff date.
 
 ## Calculation assumptions
 
@@ -89,7 +105,7 @@ npm run test:watch
 npm run preview    # serve the production build after npm run build
 ```
 
-Tests cover single-loan and portfolio engines, all four scenarios, monthly budget allocation, rollover, dates, caps, rounding, form validation, the slider, loan management, and baseline/scenario isolation. The calculation engines in `src/domain/` are independent of Vue. The chart uses SVG without a charting dependency.
+Tests cover single-loan and portfolio engines, all four scenarios, both strategies, dynamic allocation, rollover, milestones, dates, caps, rounding, form validation, the slider, loan management, and baseline/scenario isolation. The calculation engines in `src/domain/` are independent of Vue. The chart uses SVG without a charting dependency.
 
 ## Feature chunks
 
@@ -97,6 +113,6 @@ Tests cover single-loan and portfolio engines, all four scenarios, monthly budge
 2. ✅ Multiple loans and combined dashboard.
 3. ✅ A hypothetical one-time payment today, targeting a chosen loan.
 4. ✅ Extra monthly payments, including comparison with a combined one-time payment.
-5. ⬜ Highest-rate-first versus smallest-balance-first strategies and payoff milestones.
+5. ✅ Highest-rate-first versus smallest-balance-first strategies and payoff milestones.
 
 Persistence and actual balance history are intentionally deferred.

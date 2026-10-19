@@ -4,11 +4,14 @@ import { daysBetween } from '../domain/dates'
 import type { Projection } from '../domain/loan'
 import type { ExtraScenarioId, PaymentScenarios } from '../domain/paymentScenarios'
 import { dateDistance, formatDate, money } from '../format'
+import { strategyNames, type RepaymentStrategy } from '../domain/recurringPayments'
 import BalanceChart from './BalanceChart.vue'
+import PayoffMilestones from './PayoffMilestones.vue'
 import PaymentSchedule from './PaymentSchedule.vue'
+import StrategyComparison from './StrategyComparison.vue'
 
 const props = defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId }>()
-const emit = defineEmits<{ select: [scenario: ExtraScenarioId]; clear: [] }>()
+const emit = defineEmits<{ select: [scenario: ExtraScenarioId]; strategy: [strategy: RepaymentStrategy]; clear: [] }>()
 const selectedPlan = computed(() => {
   const plan = props.result.scenarios.find(({ id }) => id === props.selected)
   if (!plan) throw new Error('Missing selected scenario.')
@@ -19,8 +22,12 @@ const baselinePaid = computed(() => baseline.value.projection.status === 'paid-o
 const selectedProjection = computed(() => selectedPlan.value.portfolio.projection)
 const selectedPaid = computed(() => selectedProjection.value.status === 'paid-off' ? selectedProjection.value : null)
 const chartProjection = computed(() => baselinePaid.value ?? selectedPaid.value)
-const chartLabel = computed(() => props.selected === 'one-time' ? 'With one-time payment'
-  : props.selected === 'monthly' ? 'With extra monthly payments' : 'With one-time + monthly payments')
+const activeStrategyName = computed(() => strategyNames[props.result.request.strategy])
+const chartLabel = computed(() => {
+  if (props.selected === 'one-time') return 'With one-time payment'
+  const label = props.selected === 'monthly' ? 'With extra monthly payments' : 'With one-time + monthly payments'
+  return props.result.request.extraMonthlyCents > 0 ? `${label} · ${activeStrategyName.value}` : label
+})
 const chartComparison = computed(() => baselinePaid.value && selectedPaid.value
   ? { projection: selectedPaid.value, label: chartLabel.value } : undefined)
 const targetScenario = computed(() => selectedPlan.value.portfolio.loans.find(({ loan }) => loan.id === props.result.request.loanId))
@@ -28,7 +35,7 @@ const additionalInterest = computed(() => (selectedPlan.value.savings?.interestC
 const includesOneTime = computed(() => props.selected !== 'monthly')
 const announcement = computed(() => {
   const savings = selectedPlan.value.savings
-  return `Comparison updated. Viewing ${selectedPlan.value.label}. ${savings
+  return `Comparison updated. Viewing ${selectedPlan.value.label}${props.selected !== 'one-time' && props.result.request.extraMonthlyCents > 0 ? `, ${activeStrategyName.value}` : ''}. ${savings
     ? `${money(Math.abs(savings.interestCents))} ${savings.interestCents >= 0 ? 'interest saved' : 'additional interest'}. ${payoffChange(baseline.value.projection, selectedProjection.value)} overall.`
     : 'Complete savings are not available because at least one plan does not pay off within the limit.'}`
 })
@@ -52,6 +59,7 @@ function payoffDate(projection: Projection): string {
         <h3 v-if="selected === 'one-time'">{{ money(result.oneTime.appliedCents) }} toward {{ result.oneTime.targetScenario.loan.name }}</h3>
         <h3 v-else-if="selected === 'monthly'">{{ money(result.request.extraMonthlyCents) }} extra per month</h3>
         <h3 v-else>{{ money(result.oneTime.appliedCents) }} today + {{ money(result.request.extraMonthlyCents) }} extra per month</h3>
+        <p v-if="selected !== 'one-time' && result.request.extraMonthlyCents > 0" class="section-note">Monthly allocation: {{ activeStrategyName }}. Minimum amounts and due dates stay the same.</p>
       </div>
       <button class="text-button" type="button" @click="emit('clear')">Clear scenario</button>
     </div>
@@ -88,8 +96,10 @@ function payoffDate(projection: Projection): string {
       </div>
     </section>
 
-    <p v-if="result.request.extraMonthlyCents > 0" class="budget-note" data-testid="monthly-budget-note">Monthly and combined plans keep a starting budget of <strong>{{ money(result.monthlyBudgetCents) }} per month</strong>: {{ money(baseline.monthlyPaymentCents) }} in minimums + {{ money(result.request.extraMonthlyCents) }} extra. Extra starts {{ formatDate(result.recurringStartDate) }}, once per month across the plan. All minimums keep their own due dates. Freed minimums and unused final minimums roll into the highest-rate active loan on their original due dates. Minimum-only and one-time-only plans do not roll payments over. Final payments are capped; nothing more is spent after all loans reach zero.</p>
+    <p v-if="result.request.extraMonthlyCents > 0" class="budget-note" data-testid="monthly-budget-note">Monthly and combined plans keep a starting budget of <strong>{{ money(result.monthlyBudgetCents) }} per month</strong>: {{ money(baseline.monthlyPaymentCents) }} in minimums + {{ money(result.request.extraMonthlyCents) }} extra. Extra starts {{ formatDate(result.recurringStartDate) }}, once per month across the plan. All minimums keep their own due dates. Freed minimums and unused final minimums roll into the {{ result.request.strategy === 'highest-rate' ? 'highest-rate active loan' : 'active loan with the smallest current balance' }} on their original due dates. Minimum-only and one-time-only plans do not roll payments over. Final payments are capped; nothing more is spent after all loans reach zero.</p>
     <p v-else class="budget-note">With $0 extra monthly, the monthly plan matches the baseline and the combined plan matches one-time only. Rollover is off.</p>
+
+    <StrategyComparison :result="result" :selected="selected" @strategy="emit('strategy', $event)" @scenario="emit('select', $event)" />
 
     <div v-if="includesOneTime" class="allocation">
       <h3>Where today’s one-time payment goes</h3>
@@ -116,7 +126,8 @@ function payoffDate(projection: Projection): string {
       />
       <p class="section-note">{{ baselinePaid && selectedPaid ? 'Dashed: your baseline. Solid: the selected plan. Both are estimates, not actual history.' : 'Only the plan with a complete payoff estimate is charted.' }}</p>
     </template>
-    <PaymentSchedule v-if="selectedPaid" :key="selected" :payments="selectedPaid.schedule" :combined="selectedPlan.portfolio.loans.length > 1" />
+    <PaymentSchedule v-if="selectedPaid" :key="`${selected}-${result.request.strategy}`" :payments="selectedPaid.schedule" :combined="selectedPlan.portfolio.loans.length > 1" />
+    <PayoffMilestones :portfolio="selectedPlan.portfolio" :baseline="baseline" :plan-label="`${selectedPlan.label}${selected !== 'one-time' && result.request.extraMonthlyCents > 0 ? ` · ${activeStrategyName}` : ''}`" />
     <p class="sr-only" role="status" aria-atomic="true">{{ announcement }}</p>
   </div>
 </template>

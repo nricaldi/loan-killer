@@ -10,6 +10,19 @@ import {
 } from './portfolio'
 import { oneTimePaymentAvailability } from './oneTimePayment'
 
+export type RepaymentStrategy = 'highest-rate' | 'smallest-balance'
+
+export const strategyNames: Record<RepaymentStrategy, string> = {
+  'highest-rate': 'Highest rate first',
+  'smallest-balance': 'Smallest balance first',
+}
+
+export function validateRepaymentStrategy(strategy: string): asserts strategy is RepaymentStrategy {
+  if (strategy !== 'highest-rate' && strategy !== 'smallest-balance') {
+    throw new Error('Choose highest rate first or smallest balance first.')
+  }
+}
+
 interface DueDate {
   loans: number[]
   extraMonthly: boolean
@@ -29,7 +42,9 @@ export function projectRecurringPayments(
   loans: readonly LoanRecord[],
   extraMonthlyCents: number,
   extraPayment?: TargetedOneTimePayment,
+  strategy: RepaymentStrategy = 'highest-rate',
 ): PortfolioProjection | null {
+  validateRepaymentStrategy(strategy)
   if (!Number.isSafeInteger(extraMonthlyCents) || extraMonthlyCents < 0 || extraMonthlyCents > 1_000_000_000) {
     throw new Error('The extra monthly amount must be in whole cents between $0 and $10,000,000.')
   }
@@ -68,9 +83,6 @@ export function projectRecurringPayments(
     balance: { date: loan.balanceDate, principalCents: loan.principalCents, accruedInterestCents: loan.accruedInterestCents },
     schedule: [],
   }))
-  const priority = [...ledgers].sort((left, right) =>
-    right.loan.annualRatePercent - left.loan.annualRatePercent || left.loan.id.localeCompare(right.loan.id),
-  )
   function pay(ledger: LoanLedger, date: string, amount: number, kind: Payment['kind']): number {
     if (amount <= 0 || ledger.balance.principalCents + ledger.balance.accruedInterestCents === 0) return 0
     const payment = calculatePayment(ledger.loan, ledger.balance, date, amount, kind)
@@ -94,7 +106,15 @@ export function projectRecurringPayments(
       const used = pay(ledger, date, ledger.loan.monthlyPaymentCents, 'scheduled')
       extraBudget += ledger.loan.monthlyPaymentCents - used
     }
-    for (const ledger of priority) {
+    // Snowball priorities use today's balances after minimums, not the initial loan sizes.
+    const priority = ledgers
+      .filter(({ balance }) => balance.principalCents + balance.accruedInterestCents > 0)
+      .map((ledger) => ({ ledger, balanceCents: balanceAtDate(ledger.loan, ledger.balance, date) }))
+      .sort((left, right) => (strategy === 'highest-rate'
+        ? right.ledger.loan.annualRatePercent - left.ledger.loan.annualRatePercent
+        : left.balanceCents - right.balanceCents)
+        || left.ledger.loan.id.localeCompare(right.ledger.loan.id))
+    for (const { ledger } of priority) {
       if (extraBudget <= 0) break
       if (balanceAtDate(ledger.loan, ledger.balance, date) > 0) {
         extraBudget -= pay(ledger, date, extraBudget, 'monthly-extra')

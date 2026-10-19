@@ -3,9 +3,9 @@ import { computed, nextTick, ref } from 'vue'
 import { today } from '../domain/dates'
 import { parseMoney } from '../domain/loanForm'
 import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
-import { comparePaymentScenarios, type ExtraScenarioId, type PaymentScenarios } from '../domain/paymentScenarios'
+import { comparePaymentScenarios, selectPaymentStrategy, type ExtraScenarioId, type PaymentScenarios } from '../domain/paymentScenarios'
 import type { LoanRecord } from '../domain/portfolio'
-import { recurringStartDate } from '../domain/recurringPayments'
+import { recurringStartDate, strategyNames, type RepaymentStrategy } from '../domain/recurringPayments'
 import { formatDate, money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 
@@ -13,8 +13,9 @@ const props = defineProps<{ loans: readonly LoanRecord[] }>()
 const targetId = ref(props.loans[0]?.id ?? '')
 const amount = ref('0')
 const monthlyAmount = ref('0')
+const strategy = ref<RepaymentStrategy>('highest-rate')
 const paymentDate = ref(today())
-const errors = ref<{ target?: string; amount?: string; monthly?: string; general?: string }>({})
+const errors = ref<{ target?: string; amount?: string; monthly?: string; strategy?: string; general?: string }>({})
 const form = ref<HTMLFormElement | null>(null)
 const result = ref<PaymentScenarios | null>(null)
 const selected = ref<ExtraScenarioId>('one-time')
@@ -28,6 +29,7 @@ const hasChanges = computed(() => result.value !== null && (
   targetId.value !== result.value.request.loanId
   || parseMoney(amount.value) !== result.value.request.oneTimeCents
   || enteredMonthlyCents.value !== result.value.request.extraMonthlyCents
+  || strategy.value !== result.value.request.strategy
 ))
 
 function updateSlider(event: Event) {
@@ -42,6 +44,7 @@ async function compare() {
   if (!props.loans.some((loan) => loan.id === targetId.value)) errors.value.target = 'Choose a loan for the one-time payment.'
   if (oneTimeCents === null) errors.value.amount = 'Enter $0–$10,000,000 with up to two decimal places, without commas.'
   if (extraMonthlyCents === null) errors.value.monthly = 'Enter $0–$10,000,000 with up to two decimal places, without commas.'
+  if (strategy.value !== 'highest-rate' && strategy.value !== 'smallest-balance') errors.value.strategy = 'Choose a monthly payoff strategy.'
   if (unavailable.value) errors.value.general = unavailable.value
   if (Object.keys(errors.value).length || oneTimeCents === null || extraMonthlyCents === null) {
     await nextTick()
@@ -50,14 +53,21 @@ async function compare() {
     firstError?.focus()
     return
   }
-  result.value = comparePaymentScenarios(props.loans, { loanId: targetId.value, oneTimeCents, extraMonthlyCents, date: paymentDate.value })
+  result.value = comparePaymentScenarios(props.loans, { loanId: targetId.value, oneTimeCents, extraMonthlyCents, date: paymentDate.value, strategy: strategy.value })
   selected.value = extraMonthlyCents > 0 ? oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time'
+}
+
+function chooseStrategy(choice: RepaymentStrategy) {
+  if (!result.value) return
+  result.value = selectPaymentStrategy(result.value, choice)
+  strategy.value = choice
 }
 
 async function clear() {
   result.value = null
   amount.value = '0'
   monthlyAmount.value = '0'
+  strategy.value = 'highest-rate'
   errors.value = {}
   await nextTick()
   form.value?.querySelector<HTMLInputElement>('#extra-payment-amount')?.focus()
@@ -107,8 +117,17 @@ async function clear() {
         <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
         <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
         <div class="slider-labels" aria-hidden="true"><span>$0 extra</span><span>{{ money(sliderMaximum * 100) }} extra</span></div>
-        <p id="monthly-help" class="form-note">{{ startDate ? `Starts ${formatDate(startDate)}, then monthly on that date’s day, adjusted for shorter months.` : '' }} This is one extra amount for the plan, not per loan. Highest interest rate first; all minimums keep their own due dates. A positive monthly increase also rolls freed minimums forward on their original due dates.</p>
+        <p id="monthly-help" class="form-note">{{ startDate ? `Starts ${formatDate(startDate)}, then monthly on that date’s day, adjusted for shorter months.` : '' }} This is one extra amount for the plan, not per loan. {{ strategyNames[strategy] }}; all minimums keep their own due dates. A positive monthly increase also rolls freed minimums forward on their original due dates.</p>
         <p class="monthly-budget" data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
+        <div class="strategy-field">
+          <label for="repayment-strategy">Monthly payoff strategy</label>
+          <select id="repayment-strategy" v-model="strategy" required :aria-invalid="!!errors.strategy" :aria-describedby="errors.strategy ? 'strategy-error strategy-help' : 'strategy-help'">
+            <option value="highest-rate">Highest rate first (avalanche)</option>
+            <option value="smallest-balance">Smallest balance first (snowball)</option>
+          </select>
+          <p v-if="errors.strategy" id="strategy-error" class="field-error">{{ errors.strategy }}</p>
+          <p id="strategy-help" class="form-note">Choose how extra monthly money and freed minimums are allocated. Both strategies pay every minimum first. Smallest balance includes unpaid interest. Strategy does not change your one-time target or enable rollover when extra monthly is $0.</p>
+        </div>
       </div>
 
       <div class="compare-actions"><button class="primary-button" type="submit">{{ result ? 'Update comparison' : 'Compare payment' }} <span aria-hidden="true">→</span></button><p class="form-note">Compare minimums, one-time only, monthly only, and both. Use 0 for either amount to leave it out.</p></div>
@@ -117,7 +136,7 @@ async function clear() {
       <p v-else-if="hasChanges" class="date-warning" role="status">Inputs changed. Update the comparison to use these figures; the results below still show your last comparison.</p>
     </form>
 
-    <ScenarioComparison v-if="result" :result="result" :selected="selected" @select="selected = $event" @clear="clear" />
+    <ScenarioComparison v-if="result" :result="result" :selected="selected" @select="selected = $event" @strategy="chooseStrategy" @clear="clear" />
     <p class="simulator-footnote">These are hypothetical payments, not transactions. Your baseline and entered balances stay unchanged. Loan edits clear this scenario. We don’t model paid-ahead status; check your servicer’s overpayment instructions.</p>
   </section>
 </template>
@@ -145,6 +164,7 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--da
 input[type='range'] { display: block; width: 100%; min-height: 2.5rem; margin: var(--space-3) 0 0; accent-color: var(--chart-line); cursor: pointer; }
 .slider-labels { display: flex; justify-content: space-between; color: var(--text-muted); font-size: var(--font-xs); }
 .monthly-budget { margin: var(--space-3) 0 0; font-size: var(--font-sm); font-weight: 600; line-height: 1.8; }
+.strategy-field { margin-top: var(--space-4); border-top: 1px solid var(--blue-border); padding-top: var(--space-4); }
 .compare-actions { align-items: center; justify-content: start; margin-top: var(--space-5); }
 .compare-actions button { display: flex; justify-content: space-between; gap: var(--space-5); }
 .compare-actions p { flex: 1; margin: 0; min-width: 12rem; }

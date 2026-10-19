@@ -118,8 +118,8 @@ function removeLoan(id: string) {
           <p class="page-description">Understand what you owe, what interest adds, and when you’ll be done.</p>
         </div>
         <div class="chapter-label">
-          <span>04</span>
-          <div>Your next move<small>One payment. A monthly habit. Or both.</small></div>
+          <span>05</span>
+          <div>Your way forward<small>Choose an approach. See each milestone.</small></div>
         </div>
       </section>
 
@@ -207,7 +207,7 @@ function removeLoan(id: string) {
             freed payments aren’t rolled over to other loans in this baseline.
             A hypothetical extra payment goes to unpaid interest, then principal, and does not
             replace a scheduled minimum or change the next due date. Paid-ahead status isn’t modeled.
-            Monthly-increase scenarios target the highest rate and roll freed minimums forward
+            Monthly-increase scenarios follow your chosen strategy and roll freed minimums forward
             on their original due dates, keeping the original monthly budget plus the extra amount.
           </p>
           <details>
@@ -231,7 +231,7 @@ function removeLoan(id: string) {
     <footer class="site-footer">
       <span>loan<span class="brand-light">killer</span>.</span>
       <p>Small steps. A smaller balance. You’ve got this.</p>
-      <span class="footer-version">THE SCENARIOS · V0.4</span>
+      <span class="footer-version">THE STRATEGIES · V0.5</span>
     </footer>
   </div>
 </template>

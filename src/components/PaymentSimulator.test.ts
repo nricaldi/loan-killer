@@ -289,7 +289,7 @@ describe('monthly and combined payment scenarios', () => {
     expect(wrapper.get('[data-testid="extra-interest-saved"]').text()).toBe('Not available')
     expect(wrapper.get('[data-testid="extra-time-saved"]').text()).toBe('Not available')
     expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).not.toBe('Beyond projection limit')
-    expect(wrapper.get('figure svg title').text()).toBe('With extra monthly payments')
+    expect(wrapper.get('figure svg title').text()).toBe('With extra monthly payments · Highest rate first')
     await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
     expect(wrapper.find('figure').exists()).toBe(false)
     expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('Not available')
@@ -303,5 +303,145 @@ describe('monthly and combined payment scenarios', () => {
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+  })
+})
+
+const strategyLoans: LoanRecord[] = [
+  { ...loan, principalCents: 100_000, accruedInterestCents: 0, annualRatePercent: 12, monthlyPaymentCents: 10_000 },
+  { ...otherLoan, principalCents: 20_000, accruedInterestCents: 0, annualRatePercent: 3, monthlyPaymentCents: 5_000 },
+]
+
+describe('strategy selection and milestones', () => {
+  it('compares the same budget and displays the measured interest-versus-first-payoff tradeoff', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$200.00 per month')
+    expect(wrapper.get('[data-strategy-id="highest-rate"]').text()).toContain('$40.17')
+    expect(wrapper.get('[data-strategy-id="highest-rate"]').text()).toContain('Jun 15, 2025')
+    expect(wrapper.get('[data-strategy-id="smallest-balance"]').text()).toContain('$42.12')
+    expect(wrapper.get('[data-strategy-id="smallest-balance"]').text()).toContain('Apr 1, 2025')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Highest rate first costs $1.95 less interest')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('same debt-free date')
+    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-06-15')
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,240.17')
+  })
+
+  it('applies a strategy selected in the form and updates the chart and payoff timeline', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    expect(wrapper.get('[data-strategy-id="smallest-balance"] button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,242.12')
+    expect(wrapper.get('figure svg').text()).toContain('Smallest balance first')
+    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-04-01')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('smallest current balance')
+  })
+
+  it('switches cached strategies while preserving the selected scenario and the baseline', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    const baseline = wrapper.get('[data-scenario-id="minimum"]').text()
+    const oneTime = wrapper.get('[data-scenario-id="one-time"]').text()
+    await wrapper.get('[data-strategy-id="smallest-balance"] button').trigger('click')
+    expect(wrapper.get<HTMLSelectElement>('#repayment-strategy').element.value).toBe('smallest-balance')
+    expect(wrapper.get('[data-scenario-id="monthly"] button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-scenario-id="minimum"]').text()).toBe(baseline)
+    expect(wrapper.get('[data-scenario-id="one-time"]').text()).toBe(oneTime)
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,242.12')
+    expect(wrapper.get('[role="status"]').text()).toContain('Smallest balance first')
+    expect(wrapper.text()).not.toContain('Inputs changed.')
+  })
+
+  it('does not silently apply draft money values when inspecting another cached strategy', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    await wrapper.get('#extra-monthly-amount').setValue('1000')
+    await wrapper.get('[data-strategy-id="smallest-balance"] button').trigger('click')
+    expect(wrapper.text()).toContain('results below still show your last comparison')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$200.00 per month')
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,242.12')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('1000')
+  })
+
+  it('labels unapplied strategy edits and retains the old results until update', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    expect(wrapper.text()).toContain('Inputs changed.')
+    expect(wrapper.get('[data-strategy-id="highest-rate"] button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-06-15')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-04-01')
+  })
+
+  it('explains why zero monthly extra and one-time-only plans do not change by strategy', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await compare('100')
+    expect(wrapper.text()).toContain('changing strategy does not change any payment')
+    expect(wrapper.find('[data-strategy-id]').exists()).toBe(false)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await wrapper.get('.scenario-form').trigger('submit')
+    await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
+    expect(wrapper.text()).toContain('Strategy doesn’t change the one-time target')
+    expect(wrapper.find('[data-strategy-id]').exists()).toBe(false)
+    const compareMonthly = wrapper.findAll('.comparison-links button').find((button) => button.text() === 'Compare monthly strategies')
+    await compareMonthly?.trigger('click')
+    expect(wrapper.findAll('[data-strategy-id]')).toHaveLength(2)
+  })
+
+  it('shows that either strategy has identical results when there is only one loan', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await compare('0')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('same estimated remaining interest')
+    expect(wrapper.text()).toContain('With one loan, allocation order can’t change the result')
+  })
+
+  it('keeps unresolved loans separate from known milestones and withholds a cost winner', async () => {
+    mountSimulator([
+      { ...loan, principalCents: 1_000_000_000, accruedInterestCents: 0, annualRatePercent: 100, monthlyPaymentCents: 1 },
+      { ...otherLoan, principalCents: 100, monthlyPaymentCents: 100 },
+    ])
+    await wrapper.get('#extra-monthly-amount').setValue('0.01')
+    await compare('0')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Complete payoff estimates are needed')
+    expect(wrapper.get('[data-testid="unresolved-milestones"]').text()).toContain('Undergraduate loan')
+    expect(wrapper.findAll('[data-milestone-date]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="payoff-milestones"]').text()).toContain('1 loan remaining')
+    expect(wrapper.find('.finish-milestone').exists()).toBe(false)
+  })
+
+  it('derives the cost winner instead of assuming highest rate is always cheapest', async () => {
+    mountSimulator([
+      { ...loan, principalCents: 0, accruedInterestCents: 100_600, annualRatePercent: 100, monthlyPaymentCents: 1_000 },
+      { ...otherLoan, principalCents: 10_000, annualRatePercent: 12, monthlyPaymentCents: 1_000 },
+    ])
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Smallest balance first costs')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Smallest balance first finishes 14 days sooner')
+  })
+
+  it('compares calendar finish dates in the correct direction when strategies finish on different days', async () => {
+    mountSimulator([{ ...strategyLoans[0]!, principalCents: 96_200 }, strategyLoans[1]!])
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Highest rate first finishes 17 days sooner')
+  })
+
+  it('resets strategy, results, and milestones when clearing the scenario', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#repayment-strategy').setValue('smallest-balance')
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    await wrapper.get('.result-heading button').trigger('click')
+    expect(wrapper.get<HTMLSelectElement>('#repayment-strategy').element.value).toBe('highest-rate')
+    expect(wrapper.find('[data-testid="payoff-milestones"]').exists()).toBe(false)
   })
 })
