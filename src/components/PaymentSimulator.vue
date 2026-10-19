@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { today } from '../domain/dates'
 import { parseMoney } from '../domain/loanForm'
 import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
 import { comparePaymentScenarios, selectPaymentStrategy, type ExtraScenarioId, type PaymentScenarios } from '../domain/paymentScenarios'
-import type { LoanRecord } from '../domain/portfolio'
+import type { LoanRecord, PortfolioProjection } from '../domain/portfolio'
 import { recurringStartDate, strategyNames, type RepaymentStrategy } from '../domain/recurringPayments'
 import { formatDate, money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 
-const props = defineProps<{ loans: readonly LoanRecord[] }>()
+const props = defineProps<{ loans: readonly LoanRecord[]; embedded?: boolean }>()
+const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string] }>()
+let resetting = false
 const targetId = ref(props.loans[0]?.id ?? '')
 const amount = ref('0')
 const monthlyAmount = ref('0')
@@ -31,12 +33,24 @@ const hasChanges = computed(() => result.value !== null && (
   || enteredMonthlyCents.value !== result.value.request.extraMonthlyCents
   || strategy.value !== result.value.request.strategy
 ))
+const selectedPlan = computed(() => result.value?.scenarios.find(({ id }) => id === selected.value))
+const chartLabel = computed(() => {
+  if (selected.value === 'one-time') return 'With one-time payment'
+  const label = selected.value === 'monthly' ? 'With extra monthly payments' : 'With one-time + monthly payments'
+  return `${label} · ${strategyNames[strategy.value]}`
+})
+
+watch([targetId, amount, monthlyAmount, strategy], () => {
+  if (!resetting) void compare(false)
+})
+watch([result, selected], () => emit('preview', selectedPlan.value?.portfolio ?? null, chartLabel.value))
+onBeforeUnmount(() => emit('preview', null, ''))
 
 function updateSlider(event: Event) {
   if (event.target instanceof HTMLInputElement) monthlyAmount.value = event.target.value
 }
 
-async function compare() {
+async function compare(focusErrors = true) {
   paymentDate.value = today()
   const oneTimeCents = parseMoney(amount.value)
   const extraMonthlyCents = enteredMonthlyCents.value
@@ -47,9 +61,15 @@ async function compare() {
   if (strategy.value !== 'highest-rate' && strategy.value !== 'smallest-balance') errors.value.strategy = 'Choose a monthly payoff strategy.'
   if (unavailable.value) errors.value.general = unavailable.value
   if (Object.keys(errors.value).length || oneTimeCents === null || extraMonthlyCents === null) {
+    if (!focusErrors) return
     await nextTick()
     const firstError = form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
       ?? form.value?.querySelector<HTMLElement>('[role="alert"]')
+    let details = firstError?.closest('details') ?? null
+    while (details) {
+      details.open = true
+      details = details.parentElement?.closest('details') ?? null
+    }
     firstError?.focus()
     return
   }
@@ -64,47 +84,30 @@ function chooseStrategy(choice: RepaymentStrategy) {
 }
 
 async function clear() {
+  resetting = true
   result.value = null
   amount.value = '0'
   monthlyAmount.value = '0'
   strategy.value = 'highest-rate'
   errors.value = {}
   await nextTick()
-  form.value?.querySelector<HTMLInputElement>('#extra-payment-amount')?.focus()
+  resetting = false
+  form.value?.querySelector<HTMLInputElement>(props.embedded ? '#extra-monthly-amount' : '#extra-payment-amount')?.focus()
 }
 </script>
 
 <template>
-  <section id="extra-payment" class="panel simulator" aria-labelledby="extra-payment-heading" tabindex="-1">
+  <section id="extra-payment" class="simulator" :class="{ panel: !embedded, embedded }" aria-labelledby="extra-payment-heading" tabindex="-1">
     <div class="simulator-heading">
       <div>
-        <p class="eyebrow">TODAY’S EXTRA. TOMORROW’S HABIT.</p>
+        <p v-if="!embedded" class="eyebrow">TODAY’S EXTRA. TOMORROW’S HABIT.</p>
         <h2 id="extra-payment-heading">What could paying more change?</h2>
-        <p class="section-intro">Try a one-time payment, a monthly increase, or both. Your actual loan details stay unchanged.</p>
+        <p class="section-intro">Adjust the amount to update the chart live. Your saved minimums stay unchanged.</p>
       </div>
       <span class="hypothetical-badge">WHAT-IF · NOT A REAL PAYMENT</span>
     </div>
 
-    <form ref="form" class="scenario-form" novalidate @submit.prevent="compare">
-      <div class="scenario-fields">
-        <div class="scenario-field">
-          <label for="extra-payment-target">One-time payment target</label>
-          <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : undefined">
-            <option v-for="(loan, index) in loans" :key="loan.id" :value="loan.id">{{ index + 1 }}. {{ loan.name }} · {{ loan.annualRatePercent }}%</option>
-          </select>
-          <p v-if="errors.target" id="extra-target-error" class="field-error">{{ errors.target }}</p>
-        </div>
-        <div class="scenario-field">
-          <label for="extra-payment-amount">One-time extra payment</label>
-          <div class="amount-input">
-            <span aria-hidden="true">$</span>
-            <input id="extra-payment-amount" v-model="amount" type="text" inputmode="decimal" required :aria-invalid="!!errors.amount" :aria-describedby="errors.amount ? 'extra-amount-error extra-date-help' : 'extra-date-help'" />
-          </div>
-          <p v-if="errors.amount" id="extra-amount-error" class="field-error">{{ errors.amount }}</p>
-        </div>
-      </div>
-      <p id="extra-date-help" class="form-note">Modeled for today, {{ formatDate(paymentDate) }}. Applied to unpaid interest first, then principal. Scheduled minimums continue unless the loan is paid off.</p>
-
+    <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
       <div class="monthly-controls">
         <div class="monthly-heading">
           <div><p class="eyebrow">THE MONTHLY DIFFERENCE</p><label for="extra-monthly-amount">Extra per month, across all loans</label></div>
@@ -117,8 +120,10 @@ async function clear() {
         <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
         <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
         <div class="slider-labels" aria-hidden="true"><span>$0 extra</span><span>{{ money(sliderMaximum * 100) }} extra</span></div>
-        <p id="monthly-help" class="form-note">{{ startDate ? `Starts ${formatDate(startDate)}, then monthly on that date’s day, adjusted for shorter months.` : '' }} This is one extra amount for the plan, not per loan. {{ strategyNames[strategy] }}; all minimums keep their own due dates. A positive monthly increase also rolls freed minimums forward on their original due dates.</p>
         <p class="monthly-budget" data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
+      </div>
+      <details class="advanced-payment-options" :open="!embedded">
+        <summary v-if="embedded">One-time payments and strategy</summary>
         <div class="strategy-field">
           <label for="repayment-strategy">Monthly payoff strategy</label>
           <select id="repayment-strategy" v-model="strategy" required :aria-invalid="!!errors.strategy" :aria-describedby="errors.strategy ? 'strategy-error strategy-help' : 'strategy-help'">
@@ -126,23 +131,77 @@ async function clear() {
             <option value="smallest-balance">Smallest balance first (snowball)</option>
           </select>
           <p v-if="errors.strategy" id="strategy-error" class="field-error">{{ errors.strategy }}</p>
-          <p id="strategy-help" class="form-note">Choose how extra monthly money and freed minimums are allocated. Both strategies pay every minimum first. Smallest balance includes unpaid interest. Strategy does not change your one-time target or enable rollover when extra monthly is $0.</p>
         </div>
-      </div>
+        <details class="payment-rules" :open="!embedded">
+          <summary v-if="embedded">How extra payments are allocated</summary>
+          <p id="monthly-help" class="form-note">{{ startDate ? `Starts ${formatDate(startDate)}, then monthly on that date’s day, adjusted for shorter months.` : '' }} This is one extra amount for the plan, not per loan. {{ strategyNames[strategy] }}; all minimums keep their own due dates. A positive monthly increase also rolls freed minimums forward on their original due dates.</p>
+          <p id="strategy-help" class="form-note">Choose how extra monthly money and freed minimums are allocated. Both strategies pay every minimum first. Smallest balance includes unpaid interest. Strategy does not change your one-time target or enable rollover when extra monthly is $0.</p>
+        </details>
 
-      <div class="compare-actions"><button class="primary-button" type="submit">{{ result ? 'Update comparison' : 'Compare payment' }} <span aria-hidden="true">→</span></button><p class="form-note">Compare minimums, one-time only, monthly only, and both. Use 0 for either amount to leave it out.</p></div>
+        <details class="one-time-options" :open="!embedded">
+          <summary v-if="embedded">Add a one-time payment</summary>
+          <div class="scenario-fields">
+            <div class="scenario-field">
+              <label for="extra-payment-target">One-time payment target</label>
+              <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : undefined">
+                <option v-for="(loan, index) in loans" :key="loan.id" :value="loan.id">{{ index + 1 }}. {{ loan.name }} · {{ loan.annualRatePercent }}%</option>
+              </select>
+              <p v-if="errors.target" id="extra-target-error" class="field-error">{{ errors.target }}</p>
+            </div>
+            <div class="scenario-field">
+              <label for="extra-payment-amount">One-time extra payment</label>
+              <div class="amount-input"><span aria-hidden="true">$</span><input id="extra-payment-amount" v-model="amount" type="text" inputmode="decimal" required :aria-invalid="!!errors.amount" :aria-describedby="errors.amount ? 'extra-amount-error extra-date-help' : 'extra-date-help'" /></div>
+              <p v-if="errors.amount" id="extra-amount-error" class="field-error">{{ errors.amount }}</p>
+            </div>
+          </div>
+          <p id="extra-date-help" class="form-note">Modeled for today, {{ formatDate(paymentDate) }}. Applied to unpaid interest first, then principal. Scheduled minimums continue unless the loan is paid off.</p>
+        </details>
+        <div class="compare-actions"><button class="primary-button" type="submit">Refresh comparison <span aria-hidden="true">→</span></button><p v-if="!embedded" class="form-note">Compare minimums, one-time only, monthly only, and both. Use 0 for either amount to leave it out.</p></div>
+      </details>
       <p v-if="unavailable && !errors.general" class="date-warning">{{ unavailable }}</p>
       <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields before comparing.' }}</p>
-      <p v-else-if="hasChanges" class="date-warning" role="status">Inputs changed. Update the comparison to use these figures; the results below still show your last comparison.</p>
+      <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
     </form>
 
-    <ScenarioComparison v-if="result" :result="result" :selected="selected" @select="selected = $event" @strategy="chooseStrategy" @clear="clear" />
-    <p class="simulator-footnote">These are hypothetical payments, not transactions. Your baseline and entered balances stay unchanged. Loan edits clear this scenario. We don’t model paid-ahead status; check your servicer’s overpayment instructions.</p>
+    <template v-if="result">
+      <div v-if="embedded" class="live-result">
+        <p v-if="selectedPlan?.portfolio.projection.status === 'paid-off'">Preview total <strong>{{ money(selectedPlan.portfolio.projection.totalPaymentsCents) }}</strong><br />Interest <strong>{{ money(selectedPlan.portfolio.projection.remainingInterestCents) }}</strong></p>
+        <p v-else>No complete payoff estimate for this preview.</p>
+        <button class="text-button" type="button" @click="clear">Reset extra payments</button>
+      </div>
+      <details v-if="embedded" class="comparison-details">
+        <summary>Compare all plans and schedules</summary>
+        <ScenarioComparison :result="result" :selected="selected" :show-chart="false" @select="selected = $event" @strategy="chooseStrategy" @clear="clear" />
+      </details>
+      <ScenarioComparison v-else :result="result" :selected="selected" @select="selected = $event" @strategy="chooseStrategy" @clear="clear" />
+    </template>
+    <p v-if="!embedded" class="simulator-footnote">These are hypothetical payments, not transactions. Your baseline and entered balances stay unchanged. Loan edits clear this scenario. We don’t model paid-ahead status; check your servicer’s overpayment instructions.</p>
   </section>
 </template>
 
 <style scoped>
 .simulator { padding: var(--space-7); margin-top: var(--space-7); }
+.simulator.embedded { margin: 0; padding: var(--space-4); border: 1px solid var(--blue-border); border-radius: var(--radius-md); background: var(--blue-light); }
+.embedded h2 { font-size: var(--font-lg); }
+.embedded .section-intro { font-size: var(--font-xs); margin-top: var(--space-2); }
+.embedded .hypothetical-badge { padding: 0; border: 0; font-size: 0.55rem; }
+.embedded .simulator-heading { gap: var(--space-2); }
+.embedded .scenario-form { margin-top: var(--space-4); }
+.embedded .monthly-controls { padding: 0; border: 0; margin: 0; }
+.embedded .monthly-input { width: 7rem; }
+.embedded .monthly-heading label { font-size: var(--font-xs); }
+.embedded .monthly-heading .eyebrow { display: none; }
+.embedded .monthly-budget { font-size: var(--font-xs); }
+.embedded .strategy-field { padding-top: var(--space-3); margin-top: var(--space-3); }
+.embedded .scenario-fields { grid-template-columns: 1fr; margin-top: var(--space-3); }
+.embedded .compare-actions { margin-top: var(--space-3); }
+.embedded .compare-actions button { width: 100%; padding-block: var(--space-2); }
+.payment-rules, .one-time-options, .comparison-details, .advanced-payment-options { margin-top: var(--space-3); }
+summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
+.live-result { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--blue-border); font-size: var(--font-sm); line-height: 1.8; }
+.live-result p { margin: 0; }
+.embedded :deep(.comparison-results) { margin-top: var(--space-3); padding-top: var(--space-3); }
+.embedded :deep(.plan-grid), .embedded :deep(.savings-grid), .embedded :deep(.allocation-grid) { grid-template-columns: 1fr; }
 .simulator-heading, .monthly-heading, .compare-actions { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: var(--space-4); }
 h2 { font-size: clamp(1.4rem, 3vw, 1.85rem); letter-spacing: -0.04em; }
 .section-intro, .form-note, .simulator-footnote { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.8; }

@@ -166,11 +166,12 @@ describe('single-loan baseline', () => {
     expect(wrapper.get('[aria-live="polite"]').text()).toContain('4 payments remaining')
   })
 
-  it('leads with repayment cost and breakdown, with a switchable chart and collapsed details', async () => {
+  it('leads with starting balance, interest and total cost, with a switchable chart and collapsed details', async () => {
     await enterLoan({ '#annual-rate': '5.5' })
     const total = wrapper.get('[data-testid="total-payments"]').element
     const startingBalance = wrapper.get('[data-testid="starting-balance"]').element
-    expect(total.compareDocumentPosition(startingBalance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(startingBalance.compareDocumentPosition(total) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(wrapper.find('.summary-grid [data-testid="monthly-minimum"]').exists()).toBe(false)
     expect(wrapper.get('.summary-grid [data-testid="principal-total"]').text()).toBe('$1,000.00')
     expect(wrapper.find('.summary-grid [data-testid="remaining-interest"]').exists()).toBe(true)
     expect(wrapper.get('.cost-note').text()).toContain('already accrued +')
@@ -282,6 +283,113 @@ async function addSecondLoan(overrides: Record<string, string> = {}) {
   })
 }
 
+describe('interactive payment workspace', () => {
+  it('sorts loan chips, management rows, and payment targets naturally without changing IDs', async () => {
+    await enterLoan({ '#loan-name': 'loan 10' })
+    await addSecondLoan({ '#loan-name': 'Loan 2' })
+    const savedIds = JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans.map((loan: { id: string }) => loan.id)
+    expect(wrapper.findAll('.chip-name').map((chip) => chip.text())).toEqual(['Loan 2', 'loan 10'])
+    expect(wrapper.findAll('.loan-title').map((button) => button.text())).toEqual(['Loan 2', 'loan 10'])
+    expect(wrapper.findAll('#extra-payment-target option').map((option) => option.text())).toEqual(['1. Loan 2 · 0%', '2. loan 10 · 0%'])
+    remountApp()
+    expect(wrapper.findAll('.chip-name').map((chip) => chip.text())).toEqual(['Loan 2', 'loan 10'])
+    expect(wrapper.findAll('[data-chip-id]').map((chip) => chip.attributes('data-chip-id')).sort()).toEqual([...savedIds].sort())
+  })
+
+  it('updates a saved minimum and the main projection live without losing input focus', async () => {
+    await enterLoan()
+    const minimum = wrapper.get<HTMLInputElement>('[aria-label="Monthly minimum for Direct Loan 01"]')
+    minimum.element.focus()
+    const oldPath = wrapper.get('.total-line').attributes('d')
+    await minimum.setValue('500')
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('Apr 1, 2025')
+    expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$500.00')
+    expect(wrapper.get('.total-line').attributes('d')).not.toBe(oldPath)
+    expect(document.activeElement).toBe(minimum.element)
+    expect(minimum.element.value).toBe('500')
+    const saved = JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans
+    expect(saved).toHaveLength(1)
+    expect(saved[0].monthlyPaymentCents).toBe(50000)
+    expect(saved[0].principalCents).toBe(100000)
+    remountApp()
+    expect(wrapper.get<HTMLInputElement>('[aria-label="Monthly minimum for Direct Loan 01"]').element.value).toBe('500.00')
+  })
+
+  it.each(['', '0', '-1', '1.234', '1,000', '10000000.01'])('keeps the last valid minimum and estimate for invalid input: %s', async (value) => {
+    await enterLoan()
+    const saved = localStorage.getItem(LOAN_STORAGE_KEY)
+    const input = wrapper.get('[aria-label="Monthly minimum for Direct Loan 01"]')
+    await input.setValue(value)
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('.loan-chip [role="status"]').text()).toContain('last valid minimum')
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+  })
+
+  it('keeps the simulator and a single shared chart together, with management collapsed below', async () => {
+    await enterLoan()
+    expect(wrapper.find('.journey-panel #extra-payment').exists()).toBe(true)
+    expect(wrapper.get('.loan-management').attributes('open')).toBeUndefined()
+    const journey = wrapper.get('.journey-panel').element
+    expect(journey.compareDocumentPosition(wrapper.get('.loan-management').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const saved = localStorage.getItem(LOAN_STORAGE_KEY)
+    await wrapper.get('#extra-monthly-slider').setValue('100')
+    expect(wrapper.get('.preview-payoff').text()).toContain('Apr 1, 2025')
+    expect(wrapper.findAll('figure')).toHaveLength(1)
+    expect(wrapper.find('.journey-panel .comparison-line').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+    await wrapper.get('.chart-switch button:last-child').trigger('click')
+    expect(wrapper.find('.balance-chart .comparison-line').exists()).toBe(true)
+    await wrapper.get('.live-result button').trigger('click')
+    expect(wrapper.find('.comparison-line').exists()).toBe(false)
+    expect(wrapper.find('.preview-payoff').exists()).toBe(false)
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+  })
+
+  it('focuses an individual loan from a chip and previews its allocated scenario', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').trigger('click')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$500.00')
+    expect(wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.payments-chart desc').text()).toContain('$500.00 toward principal')
+    expect(wrapper.find('.preview-payoff').exists()).toBe(true)
+    await wrapper.get('.overview-tabs button').trigger('click')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,525.00')
+    expect(wrapper.get('.payments-chart desc').text()).toContain('$1,500.00 toward principal')
+  })
+
+  it('clears stale extra-payment previews when a minimum changes and updates only that loan', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('[aria-label="Monthly minimum for Direct Loan 02"]').setValue('400')
+    expect(wrapper.find('.preview-payoff').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+    const saved = JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans
+    expect(saved.find((loan: { name: string }) => loan.name === 'Direct Loan 01').monthlyPaymentCents).toBe(30000)
+    expect(saved.find((loan: { name: string }) => loan.name === 'Direct Loan 02').monthlyPaymentCents).toBe(40000)
+  })
+
+  it('keeps insufficient minimums editable and distinguishes a payable preview from the incomplete baseline', async () => {
+    await enterLoan({ '#annual-rate': '12' })
+    await wrapper.get('[aria-label="Monthly minimum for Direct Loan 01"]').setValue('1')
+    expect(wrapper.text()).toContain('This payment isn’t getting you to zero.')
+    expect(wrapper.find('[data-testid="total-payments"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="remaining-interest"]').exists()).toBe(false)
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    expect(wrapper.get('.preview-payoff').text()).toContain('Hypothetical debt-free date')
+    expect(wrapper.get('.preview-payoff').text()).toContain('Complete savings against the baseline aren’t available')
+    await wrapper.get('[aria-label="Monthly minimum for Direct Loan 01"]').setValue('300')
+    expect(wrapper.find('.unpaid-panel').exists()).toBe(false)
+    expect(wrapper.find('.preview-payoff').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="total-payments"]').exists()).toBe(true)
+  })
+})
+
 describe('multiple-loan dashboard', () => {
   it('adds another loan without replacing the first and displays combined totals', async () => {
     await enterLoan()
@@ -345,7 +453,7 @@ describe('multiple-loan dashboard', () => {
     await wrapper.get('#principal').setValue('2000')
     await wrapper.get('#loan-name').setValue('Renamed loan')
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id'))).toEqual(ids)
+    expect(wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id')).sort()).toEqual([...ids].sort())
     expect(wrapper.find('[aria-label="View Renamed loan"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
     await wrapper.get('.overview-tabs button').trigger('click')

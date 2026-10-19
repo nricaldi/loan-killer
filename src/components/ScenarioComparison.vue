@@ -10,7 +10,7 @@ import PayoffMilestones from './PayoffMilestones.vue'
 import PaymentSchedule from './PaymentSchedule.vue'
 import StrategyComparison from './StrategyComparison.vue'
 
-const props = defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId }>()
+const props = withDefaults(defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId; showChart?: boolean }>(), { showChart: true })
 const emit = defineEmits<{ select: [scenario: ExtraScenarioId]; strategy: [strategy: RepaymentStrategy]; clear: [] }>()
 const selectedPlan = computed(() => {
   const plan = props.result.scenarios.find(({ id }) => id === props.selected)
@@ -116,7 +116,7 @@ function payoffDate(projection: Projection): string {
     <p v-if="!selectedPlan.savings" class="budget-note">At least one of the baseline and selected plans doesn’t pay off within the projection limit. We don’t invent a complete interest saving or time reduction. Available dates and totals belong only to a plan that fully pays off.</p>
     <p v-if="additionalInterest" class="section-note">Interest rounds at each payment. Splitting a period with a very small extra payment can change the estimate by a few cents.</p>
 
-    <template v-if="chartProjection">
+    <template v-if="showChart && chartProjection">
       <BalanceChart
         :balance-date="baseline.balanceDate"
         :initial-balance-cents="baseline.principalCents + baseline.accruedInterestCents"

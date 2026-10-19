@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, shallowRef } from 'vue'
 import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanModal from './components/LoanModal.vue'
 import LoanOverview from './components/LoanOverview.vue'
+import LoanPaymentChip from './components/LoanPaymentChip.vue'
 import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
 import { useLoanStorage } from './composables/useLoanStorage'
 import type { Loan } from './domain/loan'
-import { projectPortfolio, type LoanRecord } from './domain/portfolio'
+import { projectPortfolio, summarizePortfolio, type LoanRecord, type PortfolioProjection } from './domain/portfolio'
 import { formatDate, money } from './format'
 
 const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
@@ -19,12 +20,20 @@ const addButton = ref<HTMLButtonElement | null>(null)
 let editorTrigger: HTMLElement | null = null
 const lastAction = ref('')
 const portfolioRevision = ref(0)
-const portfolio = computed(() => projectPortfolio(loans.value))
+const sortedLoans = computed(() => [...loans.value].sort((left, right) => left.name.localeCompare(right.name, 'en', { numeric: true, sensitivity: 'base' })))
+const portfolio = computed(() => projectPortfolio(sortedLoans.value))
+const preview = shallowRef<{ portfolio: PortfolioProjection; label: string } | null>(null)
+const visiblePreview = computed(() => {
+  if (!preview.value) return null
+  if (!visibleLoanId.value) return preview.value
+  const portfolio = summarizePortfolio(preview.value.portfolio.loans.filter(({ loan }) => loan.id === visibleLoanId.value))
+  return portfolio ? { portfolio, label: preview.value.label } : null
+})
 const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
 const sharedBalanceDate = computed(() => loans.value.find((loan) => loan.id !== editingId.value)?.balanceDate)
-const detailLoan = computed(() => loans.value.find((loan) => loan.id === visibleLoanId.value) ?? loans.value[0])
 const visiblePortfolio = computed(() => {
-  if (visibleLoanId.value && detailLoan.value) return projectPortfolio([detailLoan.value])
+  const loan = loans.value.find((loan) => loan.id === visibleLoanId.value)
+  if (loan) return projectPortfolio([loan])
   return portfolio.value
 })
 const announcement = computed(() => {
@@ -57,6 +66,7 @@ async function saveLoan(loan: Loan, fromExample: boolean) {
   const record: LoanRecord = { ...loan, id: editingId.value ?? crypto.randomUUID(), fromExample }
   setLoans(isNew ? [...loans.value, record] : loans.value.map((item) => item.id === record.id ? record : item))
   portfolioRevision.value++
+  preview.value = null
   lastAction.value = `${isNew ? 'Added' : 'Updated'} ${record.name}.`
   if (isNew) visibleLoanId.value = null
   await closeEditor()
@@ -79,10 +89,25 @@ function viewLoan(id: string) {
   visibleLoanId.value = id
 }
 
+function updateMinimum(id: string, cents: number) {
+  if (!Number.isSafeInteger(cents) || cents <= 0 || cents > 1_000_000_000) return
+  const loan = loans.value.find((loan) => loan.id === id)
+  if (!loan || loan.monthlyPaymentCents === cents) return
+  setLoans(loans.value.map((loan) => loan.id === id ? { ...loan, monthlyPaymentCents: cents } : loan))
+  portfolioRevision.value++
+  preview.value = null
+  lastAction.value = `Updated the monthly minimum for ${loan.name}.`
+}
+
+function updatePreview(portfolio: PortfolioProjection | null, label: string) {
+  preview.value = portfolio ? { portfolio, label } : null
+}
+
 function removeLoan(id: string) {
   const removed = loans.value.find((loan) => loan.id === id)
   setLoans(loans.value.filter((loan) => loan.id !== id))
   portfolioRevision.value++
+  preview.value = null
   if (editingId.value === id) editingId.value = null
   if (visibleLoanId.value === id) visibleLoanId.value = null
   lastAction.value = `Removed ${removed?.name ?? 'loan'} from the plan.`
@@ -119,12 +144,25 @@ function removeLoan(id: string) {
       <h1 class="sr-only">Loan payoff dashboard</h1>
       <div class="workspace">
         <div v-if="visiblePortfolio" class="results-area">
-          <nav class="overview-tabs" aria-label="Loan overview">
-            <button type="button" :aria-pressed="visibleLoanId === null" @click="visibleLoanId = null">All loans ({{ loans.length }})</button>
-            <button v-if="detailLoan" type="button" :aria-label="`Loan details: ${detailLoan.name}`" :aria-pressed="visibleLoanId === detailLoan.id" @click="visibleLoanId = detailLoan.id">Loan details</button>
-            <a class="scenario-link" href="#extra-payment">What if I pay extra? <span aria-hidden="true">↓</span></a>
-          </nav>
-          <LoanOverview :portfolio="visiblePortfolio" />
+          <LoanOverview :portfolio="visiblePortfolio" :comparison="visiblePreview">
+            <template #loans>
+              <div class="loan-controls">
+                <div class="loan-controls-heading">
+                  <nav class="overview-tabs" aria-label="Loan overview">
+                    <button type="button" :aria-pressed="visibleLoanId === null" @click="visibleLoanId = null">All loans ({{ loans.length }})</button>
+                  </nav>
+                  <a class="scenario-link" href="#extra-payment">Try extra payments ↓</a>
+                </div>
+                <div class="loan-chips" role="group" aria-label="Loans and monthly minimums">
+                  <LoanPaymentChip v-for="loan in sortedLoans" :key="loan.id" :loan="loan" :selected="visibleLoanId === loan.id" @select="viewLoan(loan.id)" @payment="updateMinimum(loan.id, $event)" />
+                </div>
+                <p id="loan-payment-help" class="loan-controls-note">Select a loan to focus the chart. Minimum edits save automatically and update your estimate. Extra payments below are hypothetical.</p>
+              </div>
+            </template>
+            <template #simulator>
+              <PaymentSimulator :key="portfolioRevision" :loans="sortedLoans" embedded @preview="updatePreview" />
+            </template>
+          </LoanOverview>
         </div>
         <section v-else class="panel empty-state" aria-labelledby="empty-heading">
           <p class="eyebrow">YOUR PATH TO ZERO</p>
@@ -133,18 +171,18 @@ function removeLoan(id: string) {
           <button class="primary-button" type="button" @click="addLoan">Add your first loan</button>
           <button class="text-button" type="button" @click="addLoan">Just exploring? Try an example in the loan form</button>
         </section>
-        <LoanList
-          v-if="portfolio"
-          :loans="portfolio.loans"
-          :editing-id="editingId"
-          @add="addLoan"
-          @edit="editLoan"
-          @view="viewLoan"
-          @remove="removeLoan"
-        />
+        <details v-if="portfolio" class="loan-management">
+          <summary>Manage loan details ({{ loans.length }})</summary>
+          <LoanList
+            :loans="portfolio.loans"
+            :editing-id="editingId"
+            @add="addLoan"
+            @edit="editLoan"
+            @view="viewLoan"
+            @remove="removeLoan"
+          />
+        </details>
       </div>
-
-      <PaymentSimulator v-if="portfolio" :key="portfolioRevision" :loans="loans" />
 
       <LoanStorageNotice
         class="storage-status"
@@ -210,10 +248,15 @@ function removeLoan(id: string) {
 main { display: flex; flex-direction: column; gap: var(--space-5); padding-block: var(--space-5); }
 .workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .storage-status.needs-attention { order: -1; }
-.overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.loan-controls { margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+.loan-controls-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .overview-tabs button { border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); padding: var(--space-2) var(--space-4); font-size: var(--font-sm); min-height: 2.75rem; }
 .overview-tabs button[aria-pressed='true'] { background: var(--blue-light); border-color: var(--blue-border); color: var(--text-link); font-weight: 600; }
 .scenario-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.75rem; margin-left: auto; padding: var(--space-2) var(--space-3); color: var(--text-link); font-size: var(--font-xs); text-underline-offset: 0.2em; }
+.loan-chips { display: flex; gap: var(--space-3); overflow-x: auto; padding: var(--space-2) var(--space-1); margin-inline: calc(-1 * var(--space-1)); }
+.loan-controls-note { margin: var(--space-2) 0 0; font-size: var(--font-xs); color: var(--text-muted); line-height: 1.6; }
+.loan-management > summary { cursor: pointer; color: var(--text-link); font-size: var(--font-sm); font-weight: 600; padding-block: var(--space-3); }
 .empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
 .empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
 .empty-state > p:not(.eyebrow) { max-width: 30rem; color: var(--text-muted); font-size: var(--font-sm); line-height: 1.8; margin: var(--space-3) 0 var(--space-5); }

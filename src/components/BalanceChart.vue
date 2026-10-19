@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
 import type { PaidOffProjection } from '../domain/loan'
 import { daysBetween } from '../domain/dates'
 import { chartMoney, formatDate, money } from '../format'
+import PaymentInspector from './PaymentInspector.vue'
 
 const props = defineProps<{
   balanceDate: string
@@ -10,6 +11,7 @@ const props = defineProps<{
   projection: PaidOffProjection
   label?: string
   comparison?: { projection: PaidOffProjection; label: string }
+  interactive?: boolean
 }>()
 const id = useId()
 const gradientId = `${id}-balance-fill`
@@ -17,6 +19,8 @@ const titleId = `${id}-chart-title`
 const descriptionId = `${id}-chart-description`
 const width = 720
 const height = 220
+const inspector = ref<InstanceType<typeof PaymentInspector> | null>(null)
+const inspectedDate = ref<string | null>(null)
 
 function chartPoints(projection: PaidOffProjection) {
   return [
@@ -56,6 +60,12 @@ const ticks = computed(() => [1, 0.75, 0.5, 0.25, 0].map((fraction) => ({
   label: chartMoney(maxBalance.value * fraction),
 })))
 const midpoint = computed(() => points.value[Math.floor((points.value.length - 1) / 2)])
+const inspectionX = computed(() => inspectedDate.value ? daysBetween(props.balanceDate, inspectedDate.value) / totalDays.value * width : null)
+function inspectPointer(event: PointerEvent) {
+  if (!(event.currentTarget instanceof HTMLElement)) return
+  const bounds = event.currentTarget.getBoundingClientRect()
+  if (bounds.width > 0) inspector.value?.inspectRatio((event.clientX - bounds.left) / bounds.width)
+}
 </script>
 
 <template>
@@ -64,7 +74,7 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
       <div class="y-labels" aria-hidden="true">
         <span v-for="tick in ticks" :key="tick.fraction">{{ tick.label }}</span>
       </div>
-      <div class="plot">
+      <div class="plot" @pointermove="inspectPointer" @pointerdown="inspectPointer">
         <div class="grid-lines" aria-hidden="true"><span v-for="tick in ticks" :key="tick.fraction" /></div>
         <svg
           :viewBox="`0 0 ${width} ${height}`"
@@ -83,6 +93,7 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
           <path :d="area" :fill="`url(#${gradientId})`" />
           <path :d="line" fill="none" class="projection-line" vector-effect="non-scaling-stroke" />
           <path v-if="comparison" :d="comparisonLine" fill="none" class="comparison-line" vector-effect="non-scaling-stroke" />
+          <line v-if="interactive && inspectionX !== null" class="inspection-line" :x1="inspectionX" :x2="inspectionX" y1="0" :y2="height" vector-effect="non-scaling-stroke" />
         </svg>
         <span v-if="coordinates[0]" class="endpoint" aria-hidden="true" :style="{ left: '0%', top: `${coordinates[0].y / height * 100}%` }" />
         <span v-if="coordinates.at(-1)" class="endpoint" aria-hidden="true" :style="{ left: `${(coordinates.at(-1)?.x ?? 0) / width * 100}%`, top: '100%' }" />
@@ -98,6 +109,7 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
       <span><i class="legend-line" aria-hidden="true" />{{ label ?? 'Estimated balance · minimum payments only' }}</span>
       <span v-if="comparison"><i class="legend-line comparison-legend" aria-hidden="true" />{{ comparison.label }}</span>
     </figcaption>
+    <PaymentInspector v-if="interactive" ref="inspector" :payments="(comparison?.projection ?? projection).schedule" :balance-date="balanceDate" :end-date="endDate" :initial-balance-cents="initialBalanceCents" :label="comparison?.label ?? label ?? 'Minimum payments'" @inspect="inspectedDate = $event" />
   </figure>
 </template>
 
@@ -111,6 +123,7 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
 svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
 .projection-line { stroke: var(--chart-line); stroke-width: 2.5; stroke-dasharray: 6 4; stroke-linejoin: round; stroke-linecap: round; }
 .comparison-line { stroke: var(--chart-extra); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.inspection-line { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
 .endpoint { position: absolute; width: 0.6rem; height: 0.6rem; border-radius: 50%; border: 2px solid var(--chart-line); background: var(--surface); transform: translate(-50%, -50%); }
 .comparison-endpoint { border-color: var(--chart-extra); background: var(--chart-extra); }
 .date-labels { display: flex; justify-content: space-between; gap: var(--space-2); margin: var(--space-4) var(--space-2) 0 4rem; font-size: var(--font-xs); color: var(--text-muted); }

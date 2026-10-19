@@ -111,15 +111,12 @@ describe('one-time payment simulator', () => {
     expect(wrapper.get('.result-heading').text()).toContain('$500.00 toward Graduate loan')
   })
 
-  it('keeps previous results explicitly labeled until new inputs are applied', async () => {
+  it('updates one-time results live when the amount changes', async () => {
     mountSimulator()
     await compare('300')
     await wrapper.get('#extra-payment-amount').setValue('2000')
-    expect(wrapper.text()).toContain('results below still show your last comparison')
-    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Apr 1, 2025')
-    await wrapper.get('.scenario-form').trigger('submit')
-    expect(wrapper.text()).not.toContain('Inputs changed.')
     expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Jan 1, 2025')
+    expect(wrapper.text()).not.toContain('last valid comparison')
   })
 
   it('keeps the previous comparison when changed inputs are invalid', async () => {
@@ -193,13 +190,36 @@ describe('one-time payment simulator', () => {
 })
 
 describe('monthly and combined payment scenarios', () => {
+  it('emits a live chart preview and clears it on reset and unmount', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    const emitted = wrapper.emitted('preview')?.at(-1)
+    expect(emitted?.[0]).toMatchObject({ projection: { payoffDate: '2025-04-01' } })
+    expect(emitted?.[1]).toBe('With extra monthly payments · Highest rate first')
+    await wrapper.get('.result-heading button').trigger('click')
+    expect(wrapper.emitted('preview')?.at(-1)?.[0]).toBeNull()
+    wrapper.unmount()
+    expect(wrapper.emitted('preview')?.at(-1)).toEqual([null, ''])
+  })
+
+  it('labels invalid live input while preserving the last valid comparison without stealing focus', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    const field = wrapper.get<HTMLInputElement>('#extra-monthly-amount')
+    field.element.focus()
+    await field.setValue('1.234')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Apr 1, 2025')
+    expect(wrapper.text()).toContain('last valid comparison')
+    expect(document.activeElement).toBe(field.element)
+  })
+
   it('shows the initial monthly budget without changing the actual loan minimum', async () => {
     mountSimulator([loan, otherLoan])
     await wrapper.get('#extra-monthly-amount').setValue('150.25')
     expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$550.00 minimums + $150.25 extra = $700.25')
     expect(wrapper.text()).toContain('Starts Feb 1, 2025')
     expect(wrapper.text()).toContain('one extra amount for the plan, not per loan')
-    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(true)
   })
 
   it('supports a slider and exact amount entry without requiring a one-time payment', async () => {
@@ -258,15 +278,11 @@ describe('monthly and combined payment scenarios', () => {
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
   })
 
-  it('labels unapplied monthly edits and preserves the previous results until update', async () => {
+  it('updates monthly results and budget live without submitting', async () => {
     mountSimulator()
     await wrapper.get('#extra-monthly-amount').setValue('100')
     await compare('300')
     await wrapper.get('#extra-monthly-amount').setValue('500')
-    expect(wrapper.text()).toContain('results below still show your last comparison')
-    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Mar 1, 2025')
-    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$400.00 per month')
-    await wrapper.get('.scenario-form').trigger('submit')
     expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Feb 1, 2025')
     expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$800.00 per month')
   })
@@ -355,27 +371,24 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.text()).not.toContain('Inputs changed.')
   })
 
-  it('does not silently apply draft money values when inspecting another cached strategy', async () => {
+  it('uses the current live budget when inspecting another strategy', async () => {
     mountSimulator(strategyLoans)
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
     await wrapper.get('#extra-monthly-amount').setValue('1000')
     await wrapper.get('[data-strategy-id="smallest-balance"] button').trigger('click')
-    expect(wrapper.text()).toContain('results below still show your last comparison')
-    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$200.00 per month')
-    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,242.12')
+    expect(wrapper.text()).not.toContain('last valid comparison')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$1,150.00 per month')
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,211.49')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('1000')
   })
 
-  it('labels unapplied strategy edits and retains the old results until update', async () => {
+  it('updates milestones and results live when the strategy changes', async () => {
     mountSimulator(strategyLoans)
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
     await wrapper.get('#repayment-strategy').setValue('smallest-balance')
-    expect(wrapper.text()).toContain('Inputs changed.')
-    expect(wrapper.get('[data-strategy-id="highest-rate"] button').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-06-15')
-    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.get('[data-strategy-id="smallest-balance"] button').attributes('aria-pressed')).toBe('true')
     expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-04-01')
   })
 
