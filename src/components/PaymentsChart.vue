@@ -5,7 +5,7 @@ import type { PaidOffProjection } from '../domain/loan'
 import { chartMoney, formatDate, money } from '../format'
 import PaymentInspector from './PaymentInspector.vue'
 
-const props = defineProps<{ balanceDate: string; projection: PaidOffProjection; initialBalanceCents?: number; comparison?: { projection: PaidOffProjection; label: string }; interactive?: boolean }>()
+const props = defineProps<{ balanceDate: string; projection: PaidOffProjection; initialBalanceCents?: number; label?: string; comparison?: { projection: PaidOffProjection; label: string }; interactive?: boolean }>()
 const id = useId()
 const width = 720
 const height = 220
@@ -68,8 +68,8 @@ function inspectPointer(event: PointerEvent) {
       </div>
     </div>
     <div class="date-labels" aria-hidden="true"><span>{{ formatDate(balanceDate, true) }}</span><span v-if="endDate !== balanceDate">{{ formatDate(endDate, true) }}</span></div>
-    <figcaption><span><i class="principal-dot" aria-hidden="true" />Principal paid</span><span><i class="interest-dot" aria-hidden="true" />Interest paid</span><span>Minimum payments</span><span v-if="comparison"><i class="comparison-legend" aria-hidden="true" />{{ comparison.label }}</span></figcaption>
-    <PaymentInspector v-if="interactive" ref="inspector" :payments="(comparison?.projection ?? projection).schedule" :balance-date="balanceDate" :end-date="endDate" :initial-balance-cents="initialBalanceCents ?? 0" :label="comparison?.label ?? 'Minimum payments'" @inspect="inspectedDate = $event" />
+    <figcaption><span><i class="principal-dot" aria-hidden="true" />Principal paid</span><span><i class="interest-dot" aria-hidden="true" />Interest paid</span><span>{{ label ?? 'Minimum payments' }}</span><span v-if="comparison"><i class="comparison-legend" aria-hidden="true" />{{ comparison.label }}</span></figcaption>
+    <PaymentInspector v-if="interactive" ref="inspector" :payments="(comparison?.projection ?? projection).schedule" :balance-date="balanceDate" :end-date="endDate" :initial-balance-cents="initialBalanceCents ?? 0" :label="comparison?.label ?? label ?? 'Minimum payments'" @inspect="inspectedDate = $event" />
   </figure>
 </template>
 

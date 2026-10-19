@@ -35,11 +35,40 @@ describe('unified payment plan summary', () => {
     wrapper.unmount()
   })
 
-  it('withholds savings when the baseline does not pay off instead of inventing a benefit', () => {
+  it('explains an incomplete plan instead of filling the summary with unavailable metrics', () => {
     const { wrapper } = render([{ ...loan, annualRatePercent: 12, monthlyPaymentCents: 100 }], { oneTimeCents: 90000 })
-    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).toBe('Not available')
-    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toBe('Not available')
-    expect(wrapper.text()).toContain('Complete savings need payoff estimates for both plans')
+    expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="plan-time-saved"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="plan-payoff-date"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('No payoff date yet with this plan')
+    expect(wrapper.text()).not.toContain('Not available')
+    wrapper.unmount()
+  })
+
+  it('shows real plan totals when zero minimums prevent a savings comparison', () => {
+    const { result, wrapper } = render([{ ...loan, monthlyPaymentCents: 0 }], { oneTimeCents: 0, extraMonthlyCents: 20000 }, 'monthly')
+    const plan = result.scenarios.find(({ id }) => id === 'monthly')!.portfolio.projection
+    if (plan.status !== 'paid-off') throw new Error('Expected payoff')
+    expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="plan-time-saved"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="plan-interest-total"]').text()).toBe(money(plan.remainingInterestCents))
+    expect(wrapper.get('[data-testid="plan-total-payments"]').text()).toBe(money(plan.totalPaymentsCents))
+    expect(wrapper.get('[data-testid="plan-payoff-date"]').text()).not.toBe('Not available')
+    expect(wrapper.text()).toContain('Minimum payments alone don’t produce a payoff date')
+    expect(wrapper.text()).toContain('totals above are for this plan, not savings')
+    expect(wrapper.text()).not.toContain('Not available')
+    wrapper.unmount()
+  })
+
+  it('switches between a payable monthly plan and an incomplete one-time plan without stale totals', async () => {
+    const { wrapper } = render([{ ...loan, monthlyPaymentCents: 0 }], { extraMonthlyCents: 20000 }, 'combined')
+    expect(wrapper.find('[data-testid="plan-total-payments"]').exists()).toBe(true)
+    await wrapper.setProps({ selected: 'one-time' })
+    expect(wrapper.find('[data-testid="plan-total-payments"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('No payoff date yet with this plan')
+    await wrapper.setProps({ selected: 'monthly' })
+    expect(wrapper.find('[data-testid="plan-total-payments"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('No payoff date yet')
     wrapper.unmount()
   })
 

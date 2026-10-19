@@ -16,12 +16,15 @@ const blockedLoans = computed(() => props.portfolio.loans.filter(({ projection }
 const comparisonProjection = computed(() => props.comparison?.portfolio.projection.status === 'paid-off'
   ? props.comparison.portfolio.projection : null)
 const chartComparison = computed(() => comparisonProjection.value && props.comparison
-  ? { projection: comparisonProjection.value, label: props.comparison.label } : undefined)
+  && paidOffProjection.value ? { projection: comparisonProjection.value, label: props.comparison.label } : undefined)
+const chartProjection = computed(() => paidOffProjection.value ?? comparisonProjection.value)
+const previewOnly = computed(() => !paidOffProjection.value && comparisonProjection.value !== null)
+const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : undefined)
 </script>
 
 <template>
   <section class="journey-visual" aria-label="Payment projection">
-    <div v-if="paidOffProjection" class="trajectory-panel">
+    <div v-if="chartProjection" class="trajectory-panel">
       <div class="trajectory-heading">
         <h2 id="trajectory-heading">{{ chartView === 'payments' ? 'What you’ll pay over time' : 'Your path to zero' }}</h2>
         <div class="chart-switch" role="group" aria-label="Projection chart view">
@@ -30,13 +33,15 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
         </div>
       </div>
       <div class="payoff-summary">
-        <p>Debt-free <strong data-testid="payoff-date">{{ formatDate(paidOffProjection.payoffDate) }}</strong><span> · {{ paidOffProjection.paymentCount }} {{ loanCount > 1 ? `payments across ${loanCount} loans` : `monthly ${paidOffProjection.paymentCount === 1 ? 'payment' : 'payments'} to zero` }}</span></p>
-        <p v-if="comparisonProjection" class="preview-payoff" role="status">With extra payments: <strong>{{ formatDate(comparisonProjection.payoffDate) }}</strong> · {{ money(Math.abs(paidOffProjection.remainingInterestCents - comparisonProjection.remainingInterestCents)) }} {{ comparisonProjection.remainingInterestCents <= paidOffProjection.remainingInterestCents ? 'interest saved' : 'additional interest' }} <span class="preview-tag">PREVIEW</span></p>
+        <p v-if="previewOnly" class="preview-payoff" role="status">With this plan, you’d be debt-free <strong data-testid="preview-payoff-date">{{ formatDate(chartProjection.payoffDate) }}</strong> <span class="preview-tag">PREVIEW</span></p>
+        <p v-else>Debt-free <strong data-testid="payoff-date">{{ formatDate(chartProjection.payoffDate) }}</strong><span> · {{ chartProjection.paymentCount }} {{ loanCount > 1 ? `payments across ${loanCount} loans` : `monthly ${chartProjection.paymentCount === 1 ? 'payment' : 'payments'} to zero` }}</span></p>
+        <p v-if="paidOffProjection && comparisonProjection" class="preview-payoff" role="status">With extra payments: <strong>{{ formatDate(comparisonProjection.payoffDate) }}</strong> · {{ money(Math.abs(paidOffProjection.remainingInterestCents - comparisonProjection.remainingInterestCents)) }} {{ comparisonProjection.remainingInterestCents <= paidOffProjection.remainingInterestCents ? 'interest saved' : 'additional interest' }} <span class="preview-tag">PREVIEW</span></p>
       </div>
-      <PaymentsChart v-if="chartView === 'payments'" :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="paidOffProjection" :comparison="chartComparison" interactive />
-      <BalanceChart v-else :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="paidOffProjection" :comparison="chartComparison" interactive />
+      <PaymentsChart v-if="chartView === 'payments'" :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="chartProjection" :label="chartLabel" :comparison="chartComparison" interactive />
+      <BalanceChart v-else :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="chartProjection" :label="chartLabel" :comparison="chartComparison" interactive />
       <p v-if="comparison && !comparisonProjection" class="projection-note">The selected extra-payment plan does not pay off within the projection limit. No complete comparison curve is shown.</p>
-      <PaymentSchedule :payments="paidOffProjection.schedule" :combined="loanCount > 1" />
+      <p v-if="previewOnly" class="projection-note">Showing your extra-payment plan. Minimum payments alone don’t produce a payoff date within the estimate, so no minimum-only comparison curve is shown.</p>
+      <PaymentSchedule :payments="chartProjection.schedule" :combined="loanCount > 1" />
     </div>
     <section v-else class="unpaid-panel" aria-labelledby="unpaid-heading">
       <span class="unpaid-icon" aria-hidden="true">↗</span>
@@ -54,8 +59,6 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
         <PaymentSchedule :payments="projection.schedule.slice(0, 12)" />
         <p class="unpaid-footnote">The breakdown above shows only the first 12 projected payments.</p>
       </template>
-      <BalanceChart v-if="comparisonProjection" :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="comparisonProjection" :label="comparison?.label" />
-      <p v-if="comparisonProjection" class="preview-payoff">Hypothetical debt-free date: <strong>{{ formatDate(comparisonProjection.payoffDate) }}</strong>. Complete savings against the baseline aren’t available.</p>
     </section>
   </section>
 </template>

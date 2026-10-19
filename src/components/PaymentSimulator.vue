@@ -136,7 +136,7 @@ async function clear() {
         <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
         <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
         <div class="slider-labels" aria-hidden="true"><span>$0 extra</span><span>{{ money(sliderMaximum * 100) }} extra</span></div>
-        <p class="form-note">One extra amount for your whole plan, not for each loan.</p>
+        <p class="form-note">Added on top of your selected loans’ minimums. One extra amount for the whole plan, not for each loan.</p>
       </div>
       <div class="one-time-controls">
         <label for="extra-payment-amount">One-time extra payment</label>

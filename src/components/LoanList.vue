@@ -48,7 +48,8 @@ async function cancelRemoval() {
     <ul>
       <li v-for="{ loan, projection } in loans" :key="loan.id" :data-loan-id="loan.id">
         <LoanPaymentChip :loan="loan" :selected="visibleLoanId === null || visibleLoanId === loan.id" @select="emit('view', loan.id)" @payment="emit('payment', loan.id, $event)">
-          <p v-if="projection.status !== 'paid-off'" class="loan-warning">{{ projection.status === 'insufficient-payment' ? 'Payment needs attention' : 'Beyond projection limit' }}</p>
+          <p v-if="loan.monthlyPaymentCents === 0" class="loan-note">No required monthly payment</p>
+          <p v-else-if="projection.status !== 'paid-off'" class="loan-warning">{{ projection.status === 'insufficient-payment' ? 'Payment needs attention' : 'Beyond projection limit' }}</p>
           <div v-if="pendingRemoval !== loan.id" class="loan-actions">
             <button class="text-button" type="button" :aria-label="`Edit ${loan.name}`" :aria-pressed="editingId === loan.id" @click="emit('edit', loan.id, $event)">Edit</button>
             <button class="text-button" type="button" :data-remove-id="loan.id" :aria-label="`Remove ${loan.name}`" @click="requestRemoval(loan.id)">Remove</button>
@@ -105,7 +106,7 @@ ul {
 li {
   min-width: 0;
 }
-.loan-warning, .remove-confirmation p {
+.loan-note, .loan-warning, .remove-confirmation p {
   font-size: var(--font-xs);
   color: var(--text-muted);
   line-height: 1.7;
