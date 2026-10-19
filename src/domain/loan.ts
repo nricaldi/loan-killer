@@ -14,7 +14,7 @@ export interface Loan {
 }
 
 export interface Payment {
-  kind: 'scheduled' | 'extra' | 'combined'
+  kind: 'scheduled' | 'extra' | 'monthly-extra' | 'combined'
   date: string
   paymentCents: number
   newInterestCents: number
@@ -49,7 +49,7 @@ export interface OneTimePayment {
 
 const MAX_PAYMENTS = 1_200
 
-function validateLoan(loan: Loan): void {
+export function validateLoan(loan: Loan): void {
   for (const amount of [loan.principalCents, loan.accruedInterestCents, loan.monthlyPaymentCents]) {
     if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1_000_000_000) {
       throw new Error('Money must be in whole cents between $0 and $10,000,000.')
@@ -72,6 +72,42 @@ function validateLoan(loan: Loan): void {
   }
 }
 
+export interface LoanBalance {
+  date: string
+  principalCents: number
+  accruedInterestCents: number
+}
+
+export function balanceAtDate(loan: Loan, balance: LoanBalance, date: string): number {
+  return balance.principalCents + balance.accruedInterestCents
+    + Math.round(balance.principalCents * loan.annualRatePercent / 100 * daysBetween(balance.date, date) / 365)
+}
+
+export function calculatePayment(
+  loan: Loan,
+  balance: LoanBalance,
+  date: string,
+  amountCents: number,
+  kind: Payment['kind'],
+): Payment {
+  const newInterestCents = Math.round(balance.principalCents * loan.annualRatePercent / 100 * daysBetween(balance.date, date) / 365)
+  const accruedInterestCents = balance.accruedInterestCents + newInterestCents
+  const paymentCents = Math.min(amountCents, balance.principalCents + accruedInterestCents)
+  const interestPaidCents = Math.min(paymentCents, accruedInterestCents)
+  const principalPaidCents = paymentCents - interestPaidCents
+  return {
+    kind,
+    date,
+    paymentCents,
+    newInterestCents,
+    interestPaidCents,
+    principalPaidCents,
+    principalCents: balance.principalCents - principalPaidCents,
+    accruedInterestCents: accruedInterestCents - interestPaidCents,
+    balanceCents: balance.principalCents + accruedInterestCents - paymentCents,
+  }
+}
+
 export function projectLoan(loan: Loan, extraPayment?: OneTimePayment): Projection {
   validateLoan(loan)
   if (extraPayment) {
@@ -83,39 +119,17 @@ export function projectLoan(loan: Loan, extraPayment?: OneTimePayment): Projecti
     }
   }
   const schedule: Payment[] = []
-  let principalCents = loan.principalCents
-  let accruedInterestCents = loan.accruedInterestCents
-  let previousDate = loan.balanceDate
+  let balance: LoanBalance = { date: loan.balanceDate, principalCents: loan.principalCents, accruedInterestCents: loan.accruedInterestCents }
   let futureInterestCents = 0
   let totalPaymentsCents = 0
 
   function applyPayment(date: string, amountCents: number, kind: Payment['kind']): boolean {
-    const days = daysBetween(previousDate, date)
-    const newInterestCents = Math.round(principalCents * (loan.annualRatePercent / 100) * days / 365)
-    accruedInterestCents += newInterestCents
-    futureInterestCents += newInterestCents
-
-    const paymentCents = Math.min(amountCents, principalCents + accruedInterestCents)
-    const interestPaidCents = Math.min(paymentCents, accruedInterestCents)
-    const principalPaidCents = paymentCents - interestPaidCents
-    accruedInterestCents -= interestPaidCents
-    principalCents -= principalPaidCents
-    totalPaymentsCents += paymentCents
-
-    schedule.push({
-      kind,
-      date,
-      paymentCents,
-      newInterestCents,
-      interestPaidCents,
-      principalPaidCents,
-      principalCents,
-      accruedInterestCents,
-      balanceCents: principalCents + accruedInterestCents,
-    })
-
-    previousDate = date
-    return principalCents + accruedInterestCents === 0
+    const payment = calculatePayment(loan, balance, date, amountCents, kind)
+    schedule.push(payment)
+    balance = payment
+    futureInterestCents += payment.newInterestCents
+    totalPaymentsCents += payment.paymentCents
+    return payment.balanceCents === 0
   }
 
   function paidOff(date: string): PaidOffProjection {

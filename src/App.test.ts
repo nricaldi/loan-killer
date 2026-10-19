@@ -325,7 +325,7 @@ describe('one-time scenarios in the loan dashboard', () => {
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(true)
     await wrapper.get('form').trigger('submit')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
-    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
   })
 
   it('resets the target safely after a loan is removed and removes the simulator when empty', async () => {
@@ -345,5 +345,32 @@ describe('one-time scenarios in the loan dashboard', () => {
     await wrapper.get('[aria-label="Remove Direct Loan 01"]').trigger('click')
     await wrapper.get('.remove-button').trigger('click')
     expect(wrapper.find('#extra-payment').exists()).toBe(false)
+  })
+})
+
+describe('recurring scenarios in the dashboard', () => {
+  it('keeps the baseline and saved minimum unchanged while comparing all four plans', async () => {
+    await enterLoan()
+    await wrapper.get('#extra-payment-amount').setValue('300')
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
+    expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$300.00')
+    expect(wrapper.get<HTMLInputElement>('#monthly-payment').element.value).toBe('300.00')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Mar 1, 2025')
+    expect(wrapper.findAll('[data-scenario-id]')).toHaveLength(4)
+    await wrapper.get('.overview-tabs button').trigger('click')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Mar 1, 2025')
+  })
+
+  it('resets recurring budgets and scenario targets after a saved loan changes', async () => {
+    await enterLoan()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('.scenario-form').trigger('submit')
+    await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+    expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$300.00 starting monthly budget')
   })
 })

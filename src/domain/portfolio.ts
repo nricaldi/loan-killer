@@ -67,9 +67,12 @@ function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
       )
     }
     const balanceCents = principalCents + accruedInterestCents
+    let kind: Payment['kind'] = 'combined'
+    if (payments.every(({ payment }) => payment.kind === 'scheduled')) kind = 'scheduled'
+    else if (payments.every(({ payment }) => payment.kind === 'extra')) kind = 'extra'
+    else if (payments.every(({ payment }) => payment.kind === 'monthly-extra')) kind = 'monthly-extra'
     schedule.push({
-      kind: payments.every(({ payment }) => payment.kind === 'scheduled') ? 'scheduled'
-        : payments.every(({ payment }) => payment.kind === 'extra') ? 'extra' : 'combined',
+      kind,
       date,
       paymentCents,
       newInterestCents: balanceCents - previousBalance + paymentCents,
@@ -107,15 +110,20 @@ function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
   }
 }
 
-export function projectPortfolio(records: readonly LoanRecord[], extraPayment?: TargetedOneTimePayment): PortfolioProjection | null {
+export function validatePortfolio(records: readonly LoanRecord[]): void {
   const first = records[0]
-  if (!first) return null
+  if (!first) return
   if (records.some((loan) => loan.balanceDate !== first.balanceDate)) {
     throw new Error('Use the same balance date for every loan in a combined estimate.')
   }
   if (new Set(records.map((loan) => loan.id)).size !== records.length) {
     throw new Error('Every loan needs a unique ID.')
   }
+}
+
+export function projectPortfolio(records: readonly LoanRecord[], extraPayment?: TargetedOneTimePayment): PortfolioProjection | null {
+  if (!records.length) return null
+  validatePortfolio(records)
   if (extraPayment && !records.some((loan) => loan.id === extraPayment.loanId)) {
     throw new Error('Choose an existing loan for the extra payment.')
   }
@@ -124,6 +132,13 @@ export function projectPortfolio(records: readonly LoanRecord[], extraPayment?: 
     loan,
     projection: projectLoan(loan, loan.id === extraPayment?.loanId ? extraPayment : undefined),
   }))
+  return summarizePortfolio(loans)
+}
+
+export function summarizePortfolio(loans: ProjectedLoan[]): PortfolioProjection | null {
+  const records = loans.map(({ loan }) => loan)
+  const first = records[0]
+  if (!first) return null
   const principalCents = records.reduce((sum, loan) => sum + loan.principalCents, 0)
   const accruedInterestCents = records.reduce((sum, loan) => sum + loan.accruedInterestCents, 0)
   const monthlyPaymentCents = records.reduce((sum, loan) => sum + loan.monthlyPaymentCents, 0)

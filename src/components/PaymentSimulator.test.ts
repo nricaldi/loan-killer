@@ -1,7 +1,7 @@
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoanRecord } from '../domain/portfolio'
-import OneTimePaymentSimulator from './OneTimePaymentSimulator.vue'
+import PaymentSimulator from './PaymentSimulator.vue'
 
 const loan: LoanRecord = {
   id: 'loan-a',
@@ -29,7 +29,7 @@ const otherLoan: LoanRecord = {
 let wrapper: VueWrapper
 
 function mountSimulator(loans: LoanRecord[] = [loan]) {
-  wrapper = mount(OneTimePaymentSimulator, { props: { loans }, attachTo: document.body })
+  wrapper = mount(PaymentSimulator, { props: { loans }, attachTo: document.body })
 }
 
 async function compare(amount: string) {
@@ -135,7 +135,7 @@ describe('one-time payment simulator', () => {
     await compare('300')
     await wrapper.get('.result-heading button').trigger('click')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
-    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
     expect(document.activeElement).toBe(wrapper.get('#extra-payment-amount').element)
   })
 
@@ -189,5 +189,119 @@ describe('one-time payment simulator', () => {
     await compare('1025')
     expect(wrapper.get('[data-testid="extra-time-saved"]').text()).toBe('Same payoff date')
     expect(wrapper.get('figure').html()).not.toMatch(/NaN|Infinity/)
+  })
+})
+
+describe('monthly and combined payment scenarios', () => {
+  it('shows the initial monthly budget without changing the actual loan minimum', async () => {
+    mountSimulator([loan, otherLoan])
+    await wrapper.get('#extra-monthly-amount').setValue('150.25')
+    expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$550.00 minimums + $150.25 extra = $700.25')
+    expect(wrapper.text()).toContain('Starts Feb 1, 2025')
+    expect(wrapper.text()).toContain('one extra amount for the plan, not per loan')
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+  })
+
+  it('supports a slider and exact amount entry without requiring a one-time payment', async () => {
+    mountSimulator()
+    const slider = wrapper.get<HTMLInputElement>('#extra-monthly-slider')
+    await slider.setValue('100')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('100')
+    expect(slider.attributes('aria-valuetext')).toBe('$100.00 extra per month')
+    await wrapper.get('#extra-monthly-amount').setValue('1750.25')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-slider').element.value).toBe('1750.25')
+    expect(Number(slider.attributes('max'))).toBeGreaterThanOrEqual(1750.25)
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.get('[data-scenario-id="monthly"] button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Feb 1, 2025')
+    expect(wrapper.find('.allocation').exists()).toBe(false)
+  })
+
+  it('shows all four plans and defaults to the combined plan when both inputs are positive', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await compare('300')
+    expect(wrapper.findAll('[data-scenario-id]')).toHaveLength(4)
+    expect(wrapper.get('[data-scenario-id="combined"] button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Mar 1, 2025')
+    expect(wrapper.get('[data-testid="extra-time-saved"]').text()).toBe('2 months sooner')
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,025.00')
+    expect(wrapper.get('[data-scenario-id="minimum"]').text()).toContain('May 1, 2025')
+    expect(wrapper.get('[data-scenario-id="one-time"]').text()).toContain('Apr 1, 2025')
+    expect(wrapper.get('[data-scenario-id="monthly"]').text()).toContain('Apr 1, 2025')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$400.00 per month')
+    expect(wrapper.text()).toContain('Minimum-only and one-time-only plans do not roll payments over')
+  })
+
+  it('switches the inspected plan without recalculating or discarding either input', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await compare('300')
+    await wrapper.get('[data-scenario-id="monthly"] button').trigger('click')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Apr 1, 2025')
+    expect(wrapper.get('figure svg').text()).toContain('With extra monthly payments')
+    expect(wrapper.get('.schedule').text()).toContain('Monthly extra / rollover')
+    expect(wrapper.find('.allocation').exists()).toBe(false)
+    await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
+    expect(wrapper.get('figure svg').text()).toContain('With one-time payment')
+    expect(wrapper.get('[data-testid="extra-to-principal"]').text()).toBe('$275.00')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('300')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('100')
+  })
+
+  it.each(['-1', '', '1.234', '1e3', '1,000', '10000000.01'])('rejects invalid extra monthly amounts: %s', async (amount) => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue(amount)
+    await compare('0')
+    expect(wrapper.find('#extra-monthly-error').exists()).toBe(true)
+    expect(document.activeElement).toBe(wrapper.get('#extra-monthly-amount').element)
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+  })
+
+  it('labels unapplied monthly edits and preserves the previous results until update', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await compare('300')
+    await wrapper.get('#extra-monthly-amount').setValue('500')
+    expect(wrapper.text()).toContain('results below still show your last comparison')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Mar 1, 2025')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$400.00 per month')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Feb 1, 2025')
+    expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('$800.00 per month')
+  })
+
+  it('keeps all four zero-input plans equal and disables rollover', async () => {
+    mountSimulator([loan, otherLoan])
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.text()).toContain('Rollover is off')
+    for (const plan of wrapper.findAll('[data-scenario-id]')) {
+      expect(plan.text()).toContain('May 1, 2025')
+      expect(plan.text()).toContain('$1,525.00')
+      expect(plan.text()).toContain('Same payoff date')
+    }
+  })
+
+  it('lets a monthly plan have a complete payoff without inventing savings against an unpaid baseline', async () => {
+    mountSimulator([{ ...loan, annualRatePercent: 12, monthlyPaymentCents: 100 }])
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.get('[data-testid="extra-interest-saved"]').text()).toBe('Not available')
+    expect(wrapper.get('[data-testid="extra-time-saved"]').text()).toBe('Not available')
+    expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).not.toBe('Beyond projection limit')
+    expect(wrapper.get('figure svg title').text()).toBe('With extra monthly payments')
+    await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
+    expect(wrapper.find('figure').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('Not available')
+  })
+
+  it('clears both extra-payment controls and the four-plan comparison', async () => {
+    mountSimulator()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    await compare('300')
+    await wrapper.get('.result-heading button').trigger('click')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
   })
 })

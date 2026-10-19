@@ -72,7 +72,7 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
           role="img"
           :aria-labelledby="`${titleId} ${descriptionId}`"
         >
-          <title :id="titleId">{{ comparison ? 'Projected balances: minimum payments versus one-time extra payment' : label ?? 'Projected loan balance with minimum payments' }}</title>
+          <title :id="titleId">{{ comparison ? `Projected balances: ${label ?? 'Minimum payments only'} versus ${comparison.label}` : label ?? 'Projected loan balance with minimum payments' }}</title>
           <desc :id="descriptionId">{{ money(initialBalanceCents) }} on {{ formatDate(balanceDate) }}. {{ label ?? 'Minimum payments only' }} reaches zero on {{ formatDate(projection.payoffDate) }}. {{ comparison ? `${comparison.label} reaches zero on ${formatDate(comparison.projection.payoffDate)}.` : '' }} This is a projection, not actual payment history. A payment-by-payment table follows.</desc>
           <defs>
             <linearGradient :id="gradientId" x1="0" x2="0" y1="0" y2="1">

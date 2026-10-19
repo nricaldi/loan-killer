@@ -15,8 +15,8 @@ defineProps<{ payments: Payment[]; combined?: boolean }>()
           <tr><th scope="col">Date</th><th scope="col">Payment</th><th scope="col">To interest</th><th scope="col">To principal</th><th scope="col">Balance</th></tr>
         </thead>
         <tbody>
-          <tr v-for="payment in payments" :key="payment.date">
-            <th scope="row">{{ formatDate(payment.date) }} <span v-if="payment.kind !== 'scheduled'" class="extra-tag">{{ payment.kind === 'extra' ? 'Extra payment' : 'Includes extra' }}</span></th>
+          <tr v-for="(payment, index) in payments" :key="`${payment.date}-${index}`">
+            <th scope="row">{{ formatDate(payment.date) }} <span v-if="payment.kind !== 'scheduled'" class="extra-tag">{{ payment.kind === 'extra' ? 'Extra payment' : payment.kind === 'monthly-extra' ? 'Monthly extra / rollover' : 'Includes extra' }}</span></th>
             <td>{{ money(payment.paymentCents) }}</td>
             <td>{{ money(payment.interestPaidCents) }}</td>
             <td>{{ money(payment.principalPaidCents) }}</td>

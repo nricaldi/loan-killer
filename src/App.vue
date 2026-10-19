@@ -3,7 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanOverview from './components/LoanOverview.vue'
-import OneTimePaymentSimulator from './components/OneTimePaymentSimulator.vue'
+import PaymentSimulator from './components/PaymentSimulator.vue'
 import type { Loan } from './domain/loan'
 import { projectPortfolio, type LoanRecord } from './domain/portfolio'
 import { formatDate, money } from './format'
@@ -118,8 +118,8 @@ function removeLoan(id: string) {
           <p class="page-description">Understand what you owe, what interest adds, and when you’ll be done.</p>
         </div>
         <div class="chapter-label">
-          <span>03</span>
-          <div>Your next move<small>See what one extra payment can do.</small></div>
+          <span>04</span>
+          <div>Your next move<small>One payment. A monthly habit. Or both.</small></div>
         </div>
       </section>
 
@@ -191,7 +191,7 @@ function removeLoan(id: string) {
         </section>
       </div>
 
-      <OneTimePaymentSimulator v-if="portfolio" :key="portfolioRevision" :loans="loans" />
+      <PaymentSimulator v-if="portfolio" :key="portfolioRevision" :loans="loans" />
 
       <section class="assumptions" aria-labelledby="assumptions-heading">
         <div class="assumptions-icon" aria-hidden="true">i</div>
@@ -207,6 +207,8 @@ function removeLoan(id: string) {
             freed payments aren’t rolled over to other loans in this baseline.
             A hypothetical extra payment goes to unpaid interest, then principal, and does not
             replace a scheduled minimum or change the next due date. Paid-ahead status isn’t modeled.
+            Monthly-increase scenarios target the highest rate and roll freed minimums forward
+            on their original due dates, keeping the original monthly budget plus the extra amount.
           </p>
           <details>
             <summary>What’s the difference between subsidized and unsubsidized?</summary>
@@ -229,7 +231,7 @@ function removeLoan(id: string) {
     <footer class="site-footer">
       <span>loan<span class="brand-light">killer</span>.</span>
       <p>Small steps. A smaller balance. You’ve got this.</p>
-      <span class="footer-version">THE WHAT-IF · V0.3</span>
+      <span class="footer-version">THE SCENARIOS · V0.4</span>
     </footer>
   </div>
 </template>
