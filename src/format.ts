@@ -1,4 +1,4 @@
-import { parseDate } from './domain/dates'
+import { addMonths, daysBetween, parseDate } from './domain/dates'
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 const compactCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -23,4 +23,20 @@ export function formatDate(value: string, monthOnly = false): string {
     year: 'numeric',
     timeZone: 'UTC',
   }).format(date)
+}
+
+export function dateDistance(first: string, second: string): string {
+  const [start, end] = first <= second ? [first, second] : [second, first]
+  const startDate = parseDate(start)
+  const endDate = parseDate(end)
+  if (!startDate || !endDate) throw new Error('Use valid calendar dates.')
+  let months = (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12
+    + endDate.getUTCMonth() - startDate.getUTCMonth()
+  if (addMonths(start, months) > end) months--
+  const days = daysBetween(addMonths(start, months), end)
+  const parts: string[] = []
+  for (const [amount, unit] of [[Math.floor(months / 12), 'year'], [months % 12, 'month'], [days, 'day']] as const) {
+    if (amount) parts.push(`${amount} ${unit}${amount === 1 ? '' : 's'}`)
+  }
+  return parts.join(', ') || '0 days'
 }

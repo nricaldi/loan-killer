@@ -1,5 +1,9 @@
 import { daysBetween } from './dates'
-import { projectLoan, type Loan, type Payment, type Projection, type PaidOffProjection } from './loan'
+import { projectLoan, type Loan, type Payment, type Projection, type PaidOffProjection, type OneTimePayment } from './loan'
+
+export interface TargetedOneTimePayment extends OneTimePayment {
+  loanId: string
+}
 
 export interface LoanRecord extends Loan {
   id: string
@@ -64,6 +68,8 @@ function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
     }
     const balanceCents = principalCents + accruedInterestCents
     schedule.push({
+      kind: payments.every(({ payment }) => payment.kind === 'scheduled') ? 'scheduled'
+        : payments.every(({ payment }) => payment.kind === 'extra') ? 'extra' : 'combined',
       date,
       paymentCents,
       newInterestCents: balanceCents - previousBalance + paymentCents,
@@ -101,7 +107,7 @@ function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
   }
 }
 
-export function projectPortfolio(records: readonly LoanRecord[]): PortfolioProjection | null {
+export function projectPortfolio(records: readonly LoanRecord[], extraPayment?: TargetedOneTimePayment): PortfolioProjection | null {
   const first = records[0]
   if (!first) return null
   if (records.some((loan) => loan.balanceDate !== first.balanceDate)) {
@@ -110,8 +116,14 @@ export function projectPortfolio(records: readonly LoanRecord[]): PortfolioProje
   if (new Set(records.map((loan) => loan.id)).size !== records.length) {
     throw new Error('Every loan needs a unique ID.')
   }
+  if (extraPayment && !records.some((loan) => loan.id === extraPayment.loanId)) {
+    throw new Error('Choose an existing loan for the extra payment.')
+  }
 
-  const loans = records.map((loan) => ({ loan, projection: projectLoan(loan) }))
+  const loans = records.map((loan) => ({
+    loan,
+    projection: projectLoan(loan, loan.id === extraPayment?.loanId ? extraPayment : undefined),
+  }))
   const principalCents = records.reduce((sum, loan) => sum + loan.principalCents, 0)
   const accruedInterestCents = records.reduce((sum, loan) => sum + loan.accruedInterestCents, 0)
   const monthlyPaymentCents = records.reduce((sum, loan) => sum + loan.monthlyPaymentCents, 0)

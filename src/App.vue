@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanOverview from './components/LoanOverview.vue'
+import OneTimePaymentSimulator from './components/OneTimePaymentSimulator.vue'
 import type { Loan } from './domain/loan'
 import { projectPortfolio, type LoanRecord } from './domain/portfolio'
 import { formatDate, money } from './format'
@@ -12,6 +13,7 @@ const editingId = ref<string | null>(null)
 const visibleLoanId = ref<string | null>(null)
 const editor = ref<HTMLElement | null>(null)
 const lastAction = ref('')
+const portfolioRevision = ref(0)
 const portfolio = computed(() => projectPortfolio(loans.value))
 const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
 const sharedBalanceDate = computed(() => loans.value.find((loan) => loan.id !== editingId.value)?.balanceDate)
@@ -47,6 +49,7 @@ async function saveLoan(loan: Loan, fromExample: boolean) {
   const record: LoanRecord = { ...loan, id: editingId.value ?? crypto.randomUUID(), fromExample }
   loans.value = isNew ? [...loans.value, record] : loans.value.map((item) => item.id === record.id ? record : item)
   editingId.value = record.id
+  portfolioRevision.value++
   lastAction.value = `${isNew ? 'Added' : 'Updated'} ${record.name}.`
   if (isNew) {
     await nextTick()
@@ -82,6 +85,7 @@ function cancelEditing() {
 function removeLoan(id: string) {
   const removed = loans.value.find((loan) => loan.id === id)
   loans.value = loans.value.filter((loan) => loan.id !== id)
+  portfolioRevision.value++
   if (editingId.value === id) editingId.value = null
   if (visibleLoanId.value === id) visibleLoanId.value = null
   lastAction.value = `Removed ${removed?.name ?? 'loan'} from the plan.`
@@ -114,8 +118,8 @@ function removeLoan(id: string) {
           <p class="page-description">Understand what you owe, what interest adds, and when you’ll be done.</p>
         </div>
         <div class="chapter-label">
-          <span>02</span>
-          <div>Your baseline<small>Every loan. One clear picture.</small></div>
+          <span>03</span>
+          <div>Your next move<small>See what one extra payment can do.</small></div>
         </div>
       </section>
 
@@ -152,6 +156,7 @@ function removeLoan(id: string) {
           <nav class="overview-tabs" aria-label="Loan overview">
             <button type="button" :aria-pressed="visibleLoanId === null" @click="visibleLoanId = null">All loans ({{ loans.length }})</button>
             <button v-if="detailLoan" type="button" :aria-label="`Loan details: ${detailLoan.name}`" :aria-pressed="visibleLoanId === detailLoan.id" @click="visibleLoanId = detailLoan.id">Loan details</button>
+            <a class="scenario-link" href="#extra-payment">What if I pay extra? <span aria-hidden="true">↓</span></a>
           </nav>
           <LoanOverview :portfolio="visiblePortfolio" />
         </div>
@@ -186,6 +191,8 @@ function removeLoan(id: string) {
         </section>
       </div>
 
+      <OneTimePaymentSimulator v-if="portfolio" :key="portfolioRevision" :loans="loans" />
+
       <section class="assumptions" aria-labelledby="assumptions-heading">
         <div class="assumptions-icon" aria-hidden="true">i</div>
         <div>
@@ -198,6 +205,8 @@ function removeLoan(id: string) {
             income-driven plans, or forgiveness are modeled. Servicer calculations may differ.
             All starting balances must use the same date. Each loan keeps its own payment schedule;
             freed payments aren’t rolled over to other loans in this baseline.
+            A hypothetical extra payment goes to unpaid interest, then principal, and does not
+            replace a scheduled minimum or change the next due date. Paid-ahead status isn’t modeled.
           </p>
           <details>
             <summary>What’s the difference between subsidized and unsubsidized?</summary>
@@ -220,7 +229,7 @@ function removeLoan(id: string) {
     <footer class="site-footer">
       <span>loan<span class="brand-light">killer</span>.</span>
       <p>Small steps. A smaller balance. You’ve got this.</p>
-      <span class="footer-version">THE BASELINE · V0.2</span>
+      <span class="footer-version">THE WHAT-IF · V0.3</span>
     </footer>
   </div>
 </template>
@@ -254,6 +263,7 @@ h1 > span::after { position: absolute; content: ''; height: 0.32em; bottom: 0.05
 .overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
 .overview-tabs button { border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); padding: var(--space-2) var(--space-4); font-size: var(--font-sm); min-height: 2.75rem; }
 .overview-tabs button[aria-pressed='true'] { background: var(--blue-light); border-color: var(--blue-border); color: var(--text-link); font-weight: 600; }
+.scenario-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.75rem; margin-left: auto; padding: var(--space-2) var(--space-3); color: var(--text-link); font-size: var(--font-xs); text-underline-offset: 0.2em; }
 .empty-state { padding: var(--space-7); min-height: 44rem; display: flex; flex-direction: column; align-items: center; text-align: center; overflow: hidden; }
 .empty-topline { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .empty-tag { font-size: 0.6rem; color: var(--text-muted); border: 1px solid var(--border); padding: 0.35rem var(--space-2); border-radius: var(--radius-sm); letter-spacing: 0.08em; }

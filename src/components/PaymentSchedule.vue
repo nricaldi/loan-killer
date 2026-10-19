@@ -16,7 +16,7 @@ defineProps<{ payments: Payment[]; combined?: boolean }>()
         </thead>
         <tbody>
           <tr v-for="payment in payments" :key="payment.date">
-            <th scope="row">{{ formatDate(payment.date) }}</th>
+            <th scope="row">{{ formatDate(payment.date) }} <span v-if="payment.kind !== 'scheduled'" class="extra-tag">{{ payment.kind === 'extra' ? 'Extra payment' : 'Includes extra' }}</span></th>
             <td>{{ money(payment.paymentCents) }}</td>
             <td>{{ money(payment.interestPaidCents) }}</td>
             <td>{{ money(payment.principalPaidCents) }}</td>
@@ -40,4 +40,5 @@ th:first-child { text-align: left; }
 thead th { background: var(--surface-muted); position: sticky; top: 0; }
 tbody th { font-weight: 400; }
 tbody tr:last-child { background: var(--blue-light); }
+.extra-tag { display: inline-block; margin-left: var(--space-2); padding: var(--space-1) var(--space-2); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); background: var(--blue-light); color: var(--text-link); font-size: 0.65rem; }
 </style>

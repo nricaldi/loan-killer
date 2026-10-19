@@ -1,6 +1,6 @@
 # Loan Killer
 
-A local, web-first student-loan planner built with Vue 3, TypeScript, and Vite. Track **multiple fixed-rate federal loans already in repayment**, with individual and combined minimum-payment payoff estimates.
+A local, web-first student-loan planner built with Vue 3, TypeScript, and Vite. Track **multiple fixed-rate federal loans already in repayment**, see a minimum-payment baseline, and compare a hypothetical extra payment today.
 
 ## Run locally
 
@@ -16,6 +16,7 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 3. Use **All loans** for combined totals, or a loan’s name for its individual chart and schedule. **Edit** selects that loan and focuses the form.
 4. Select **Update loan** to apply edits. Save before switching loans; unapplied edits are discarded when switching or canceling.
 5. **Remove** asks for confirmation and only removes the selected loan from this planner, not your servicer account.
+6. Select **What if I pay extra?**, choose a target loan and one-time amount, then **Compare payment**. Your saved loan figures and baseline remain unchanged.
 
 All balances must come from the **same date**. After adding the first loan, the date is shared and read-only on additional loans. You can change the date while editing the only remaining loan. This avoids combining snapshots from different dates or guessing which payments you already made.
 
@@ -28,10 +29,25 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Stable loan identities, editing, confirmed removal, and a loan inventory with individual payoff dates.
 - Combined balances, monthly minimums, principal-weighted rate, remaining interest, and an overall debt-free date.
 - Combined schedules that respect each loan’s due dates, group payments on the same day, and include interest accruing between due dates on other loans.
+- A one-time payment simulator with interest/principal allocation, unused-overpayment handling, payoff and interest comparisons, overlaid balance curves, and a scenario schedule.
+- Both the selected loan’s payoff change and the whole plan’s payoff change, so an earlier individual payoff isn’t mistaken for an earlier overall debt-free date.
 - Explicit handling of insufficient payments and the 1,200-payment projection limit.
 - Responsive layouts, keyboard focus, and reduced-motion support.
 
 **No account, backend, analytics, or persistence.** Loan details remain in memory in the current tab; refreshing or closing it clears them. The app does not connect to or send payments to your servicer.
+
+## Extra payment today
+
+- The payment date is your browser’s local date, refreshed when you submit the comparison. It is not backdated to the loan’s balance snapshot.
+- A snapshot from an earlier date is supported when every loan’s next payment is still today or later. Interest accrues through today before the extra payment is applied. Future snapshots and past next-payment dates block the scenario; the app does not guess which earlier payments happened.
+- The selected loan receives the payment only. Interest already owed, including interest accrued through today, is paid before principal.
+- Scheduled minimums and due dates continue unchanged unless the loan is fully paid off. The extra payment happens before scheduled payments on the same day. We do not model paid-ahead status or skipped minimums; check your servicer’s overpayment instructions.
+- An oversized payment is capped at the selected loan’s payoff balance. The unused portion is displayed, not paid, not redirected, and not included in total payments. Entering zero produces an unchanged comparison without an extra rounding event.
+- Both plans’ total payments include all payments from the shared balance snapshot, including the **applied** one-time payment in the scenario. Interest savings are the difference in complete interest totals, not the lump sum itself. Paying a zero-interest loan sooner may save time without saving interest.
+- Time changes use actual calendar dates, with calendar years/months/days rather than assuming 30-day months. If another loan takes longer, the overall date may stay unchanged even when the selected loan finishes earlier.
+- If either plan has no complete payoff estimate, full interest and time savings are unavailable. A complete scenario can still be displayed even if the baseline does not pay off within its limit; unknown savings are never presented as infinite or zero.
+- Per-payment rounding can create a small additional-interest difference for a tiny extra payment. Negative savings are preserved and explicitly labeled as additional interest.
+- Edit the amount or target and select **Update comparison** to refresh results. **Clear scenario** removes it. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Switching between loan views does not clear it.
 
 ## Calculation assumptions
 
@@ -46,6 +62,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Subsidized and unsubsidized loans are modeled identically during normal repayment. Subsidy eligibility outside repayment is not modeled.
 - No fees, variable rates, capitalization events, deferment, grace periods, income-driven repayment, or forgiveness. This is an estimate, not financial advice or a replacement for a servicer statement. Servicer day-count and rounding rules can differ.
 - The projection stops after 1,200 monthly payments. If unpaid, it does not claim a payoff date or complete interest total. An insufficient-payment warning means payments do not cover newly accrued interest over the final 12 simulated payments; other unpaid cases receive a projection-limit warning.
+- A one-time payment is additional to the 1,200 scheduled-payment limit. Payment counts include it, and same-day grouped rows are marked when they include an extra payment.
 - If any loan fails to pay off within its limit, combined balances and minimums are still shown, but overall payoff, complete interest totals, and the combined chart are withheld. Complete projections for other loans remain available individually.
 
 ## Validate
@@ -56,13 +73,13 @@ npm run test:watch
 npm run preview    # serve the production build after npm run build
 ```
 
-Tests cover the single-loan and portfolio engines, dates, form validation, loan creation/editing/removal, and combined/individual views. The calculation engines in `src/domain/loan.ts` and `src/domain/portfolio.ts` are independent of Vue. The chart uses SVG without a charting dependency.
+Tests cover the single-loan and portfolio engines, one-time payment comparisons, dates, allocation, caps, rounding, form validation, loan management, and baseline/scenario isolation. The calculation engines in `src/domain/` are independent of Vue. The chart uses SVG without a charting dependency.
 
 ## Feature chunks
 
 1. ✅ Single-loan minimum-payment baseline.
 2. ✅ Multiple loans and combined dashboard.
-3. ⬜ A hypothetical one-time payment today, targeting a chosen loan.
+3. ✅ A hypothetical one-time payment today, targeting a chosen loan.
 4. ⬜ Extra monthly payments, including comparison with a combined one-time payment.
 5. ⬜ Highest-rate-first versus smallest-balance-first strategies and payoff milestones.
 

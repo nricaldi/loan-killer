@@ -14,6 +14,7 @@ export interface Loan {
 }
 
 export interface Payment {
+  kind: 'scheduled' | 'extra' | 'combined'
   date: string
   paymentCents: number
   newInterestCents: number
@@ -41,6 +42,11 @@ export interface UnpaidProjection {
 
 export type Projection = PaidOffProjection | UnpaidProjection
 
+export interface OneTimePayment {
+  date: string
+  amountCents: number
+}
+
 const MAX_PAYMENTS = 1_200
 
 function validateLoan(loan: Loan): void {
@@ -66,8 +72,16 @@ function validateLoan(loan: Loan): void {
   }
 }
 
-export function projectLoan(loan: Loan): Projection {
+export function projectLoan(loan: Loan, extraPayment?: OneTimePayment): Projection {
   validateLoan(loan)
+  if (extraPayment) {
+    if (!Number.isSafeInteger(extraPayment.amountCents) || extraPayment.amountCents < 0 || extraPayment.amountCents > 1_000_000_000) {
+      throw new Error('The extra payment must be in whole cents between $0 and $10,000,000.')
+    }
+    if (!parseDate(extraPayment.date) || extraPayment.date < loan.balanceDate || extraPayment.date > loan.nextPaymentDate) {
+      throw new Error('The extra payment date must be between the balance date and next payment date.')
+    }
+  }
   const schedule: Payment[] = []
   let principalCents = loan.principalCents
   let accruedInterestCents = loan.accruedInterestCents
@@ -75,15 +89,13 @@ export function projectLoan(loan: Loan): Projection {
   let futureInterestCents = 0
   let totalPaymentsCents = 0
 
-  for (let index = 0; index < MAX_PAYMENTS; index++) {
-    // Anchor every due date to the original day, so Jan 31 → Feb 28 → Mar 31.
-    const date = addMonths(loan.nextPaymentDate, index)
+  function applyPayment(date: string, amountCents: number, kind: Payment['kind']): boolean {
     const days = daysBetween(previousDate, date)
     const newInterestCents = Math.round(principalCents * (loan.annualRatePercent / 100) * days / 365)
     accruedInterestCents += newInterestCents
     futureInterestCents += newInterestCents
 
-    const paymentCents = Math.min(loan.monthlyPaymentCents, principalCents + accruedInterestCents)
+    const paymentCents = Math.min(amountCents, principalCents + accruedInterestCents)
     const interestPaidCents = Math.min(paymentCents, accruedInterestCents)
     const principalPaidCents = paymentCents - interestPaidCents
     accruedInterestCents -= interestPaidCents
@@ -91,6 +103,7 @@ export function projectLoan(loan: Loan): Projection {
     totalPaymentsCents += paymentCents
 
     schedule.push({
+      kind,
       date,
       paymentCents,
       newInterestCents,
@@ -101,18 +114,30 @@ export function projectLoan(loan: Loan): Projection {
       balanceCents: principalCents + accruedInterestCents,
     })
 
-    if (principalCents + accruedInterestCents === 0) {
-      return {
-        status: 'paid-off',
-        schedule,
-        payoffDate: date,
-        paymentCount: schedule.length,
-        futureInterestCents,
-        remainingInterestCents: loan.accruedInterestCents + futureInterestCents,
-        totalPaymentsCents,
-      }
-    }
     previousDate = date
+    return principalCents + accruedInterestCents === 0
+  }
+
+  function paidOff(date: string): PaidOffProjection {
+    return {
+      status: 'paid-off',
+      schedule,
+      payoffDate: date,
+      paymentCount: schedule.length,
+      futureInterestCents,
+      remainingInterestCents: loan.accruedInterestCents + futureInterestCents,
+      totalPaymentsCents,
+    }
+  }
+
+  if (extraPayment && extraPayment.amountCents > 0) {
+    if (applyPayment(extraPayment.date, extraPayment.amountCents, 'extra')) return paidOff(extraPayment.date)
+  }
+
+  for (let index = 0; index < MAX_PAYMENTS; index++) {
+    // Anchor every due date to the original day, so Jan 31 → Feb 28 → Mar 31.
+    const date = addMonths(loan.nextPaymentDate, index)
+    if (applyPayment(date, loan.monthlyPaymentCents, 'scheduled')) return paidOff(date)
   }
 
   const lastYear = schedule.slice(-12)
