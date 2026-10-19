@@ -1,9 +1,20 @@
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
 import { encodeLoans, LOAN_STORAGE_KEY } from './storage/loanStorage'
 
 let wrapper: VueWrapper
+
+// jsdom has no dialog top layer; real-browser checks cover native focus containment.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true }
+  HTMLDialogElement.prototype.close = function () { this.open = false }
+})
+
+afterAll(() => {
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
+})
 
 beforeEach(() => {
   localStorage.removeItem(LOAN_STORAGE_KEY)
@@ -20,6 +31,7 @@ afterEach(() => {
 })
 
 async function enterLoan(overrides: Record<string, string> = {}) {
+  if (!wrapper.find('#loan-name').exists()) await wrapper.get('.header-add').trigger('click')
   const fields = {
     '#loan-name': 'Direct Loan 01',
     '#principal': '1000',
@@ -36,16 +48,105 @@ async function enterLoan(overrides: Record<string, string> = {}) {
   await wrapper.get('form').trigger('submit')
 }
 
+async function editLoan(name = 'Direct Loan 01') {
+  const button = wrapper.get<HTMLButtonElement>(`[aria-label="Edit ${name}"]`)
+  button.element.focus()
+  await button.trigger('click')
+}
+
+describe('loan modal', () => {
+  it('clears a submitted loan, validation errors, and example state for the next entry', async () => {
+    const button = wrapper.get<HTMLButtonElement>('.header-add')
+    button.element.focus()
+    await enterLoan()
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(document.activeElement).toBe(button.element)
+    expect(document.body.style.overflow).toBe('')
+    await button.trigger('click')
+    expect(wrapper.get('dialog').attributes('open')).toBeDefined()
+    expect(document.activeElement).toBe(wrapper.get('#loan-name').element)
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#annual-rate').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#monthly-payment').element.value).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#accrued-interest').element.value).toBe('0')
+    expect(wrapper.get<HTMLInputElement>('#balance-date').element.readOnly).toBe(true)
+    expect(wrapper.find('.example-notice').exists()).toBe(false)
+    expect(wrapper.find('[aria-invalid="true"]').exists()).toBe(false)
+  })
+
+  it('handles Escape cancellation, discards drafts and restores focus and scrolling', async () => {
+    document.body.style.overflow = 'auto'
+    const button = wrapper.get<HTMLButtonElement>('.header-add')
+    button.element.focus()
+    await button.trigger('click')
+    expect(document.body.style.overflow).toBe('hidden')
+    await wrapper.get('#loan-name').setValue('Unsaved')
+    await wrapper.get('form').trigger('submit')
+    await wrapper.get('dialog').trigger('cancel')
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(document.activeElement).toBe(button.element)
+    expect(document.body.style.overflow).toBe('auto')
+    await button.trigger('click')
+    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('')
+    expect(wrapper.find('[aria-invalid="true"]').exists()).toBe(false)
+    await wrapper.get('.close-button').trigger('click')
+    document.body.style.overflow = ''
+  })
+
+  it('closes on the backdrop, but not when interacting with the form', async () => {
+    await wrapper.get('.header-add').trigger('click')
+    await wrapper.get('#loan-name').trigger('click')
+    expect(wrapper.find('dialog').exists()).toBe(true)
+    await wrapper.get('dialog').trigger('click')
+    expect(wrapper.find('dialog').exists()).toBe(false)
+  })
+
+  it('wraps Tab and Shift+Tab inside the dialog', async () => {
+    await wrapper.get('.header-add').trigger('click')
+    const first = wrapper.get<HTMLButtonElement>('.close-button')
+    const last = wrapper.get<HTMLButtonElement>('.form-actions .text-button')
+    last.element.focus()
+    await last.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(first.element)
+    await first.trigger('keydown', { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last.element)
+  })
+
+  it('discards canceled edits and restores focus to the edit button after saving', async () => {
+    await enterLoan()
+    await editLoan()
+    await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('.form-actions .text-button').trigger('click')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    expect(document.activeElement).toBe(wrapper.get('[aria-label="Edit Direct Loan 01"]').element)
+    await editLoan()
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
+    await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(document.activeElement).toBe(wrapper.get('[aria-label="Edit Direct Loan 01"]').element)
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
+    expect(wrapper.findAll('[data-loan-id]')).toHaveLength(1)
+  })
+})
+
 describe('single-loan baseline', () => {
-  it('starts with an empty state and explains local saving and its limits', () => {
+  it('starts with a compact empty state and keeps routine details collapsed', async () => {
     expect(wrapper.text()).toContain('Let’s find yours.')
     expect(wrapper.text()).toContain('Kept in this browser.')
     expect(wrapper.text()).toContain('Drafts and what-if scenarios aren’t saved.')
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(false)
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(wrapper.get('.storage-details').attributes('open')).toBeUndefined()
+    expect(wrapper.get('.assumptions').attributes('open')).toBeUndefined()
+    expect(wrapper.find('.page-intro').exists()).toBe(false)
+    await wrapper.get('.header-add').trigger('click')
     expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-01-01')
   })
 
   it('validates required fields and focuses the first invalid input', async () => {
+    await wrapper.get('.header-add').trigger('click')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.get('[role="alert"]').text()).toContain('Check the highlighted fields')
     expect(wrapper.get('#loan-name').attributes('aria-invalid')).toBe('true')
@@ -65,8 +166,28 @@ describe('single-loan baseline', () => {
     expect(wrapper.get('[aria-live="polite"]').text()).toContain('4 payments remaining')
   })
 
+  it('leads with repayment cost and breakdown, with a switchable chart and collapsed details', async () => {
+    await enterLoan({ '#annual-rate': '5.5' })
+    const total = wrapper.get('[data-testid="total-payments"]').element
+    const startingBalance = wrapper.get('[data-testid="starting-balance"]').element
+    expect(total.compareDocumentPosition(startingBalance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(wrapper.get('.summary-grid [data-testid="principal-total"]').text()).toBe('$1,000.00')
+    expect(wrapper.find('.summary-grid [data-testid="remaining-interest"]').exists()).toBe(true)
+    expect(wrapper.get('.cost-note').text()).toContain('already accrued +')
+    expect(wrapper.get('.payments-chart svg').text()).toContain('Projected payments over time')
+    expect(wrapper.get('.schedule').attributes('open')).toBeUndefined()
+    expect(wrapper.get('.balance-details').attributes('open')).toBeUndefined()
+    await wrapper.get('.chart-switch button:last-child').trigger('click')
+    expect(wrapper.find('.payments-chart').exists()).toBe(false)
+    expect(wrapper.get('.balance-chart svg').text()).toContain('Projected loan balance')
+    expect(wrapper.get('.chart-switch button:last-child').attributes('aria-pressed')).toBe('true')
+    await wrapper.get('.chart-switch button:first-child').trigger('click')
+    expect(wrapper.find('.payments-chart').exists()).toBe(true)
+  })
+
   it('keeps the previous estimate until edits are explicitly applied', async () => {
     await enterLoan()
+    await editLoan()
     await wrapper.get('#monthly-payment').setValue('1000')
     expect(wrapper.text()).toContain('You have changes.')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
@@ -77,6 +198,7 @@ describe('single-loan baseline', () => {
 
   it('prevents invalid edits from replacing a valid estimate', async () => {
     await enterLoan()
+    await editLoan()
     await wrapper.get('#next-payment-date').setValue('2024-12-31')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.get('#next-date-error').text()).toContain('on or after the balance date')
@@ -84,10 +206,14 @@ describe('single-loan baseline', () => {
   })
 
   it('lets someone explore with an explicitly labeled example', async () => {
+    await wrapper.get('.header-add').trigger('click')
     await wrapper.get('.example-button').trigger('click')
-    expect(wrapper.text()).toContain('Example figures loaded.')
-    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('18000.00')
+    expect(wrapper.text()).toContain('From example')
+    expect(wrapper.find('dialog').exists()).toBe(false)
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(true)
+    await editLoan('My federal student loan')
+    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('18000.00')
+    expect(wrapper.text()).toContain('Example figures loaded.')
   })
 
   it('persists confirmed removal and restores loans added afterwards', async () => {
@@ -96,18 +222,21 @@ describe('single-loan baseline', () => {
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(true)
     await wrapper.get('.remove-button').trigger('click')
     expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(false)
-    expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('')
-    expect(document.activeElement).toBe(wrapper.get('#loan-name').element)
+    expect(wrapper.find('#principal').exists()).toBe(false)
+    expect(document.activeElement).toBe(wrapper.get('.header-add').element)
     expect(JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans).toEqual([])
     await enterLoan()
     wrapper.unmount()
     wrapper = mount(App, { attachTo: document.body })
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    await editLoan()
     expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
   })
 
   it('warns about insufficient payments without inventing a payoff or interest total', async () => {
     await enterLoan()
+    await editLoan()
     await wrapper.get('#annual-rate').setValue('12')
     await wrapper.get('#monthly-payment').setValue('1')
     await wrapper.get('form').trigger('submit')
@@ -120,6 +249,7 @@ describe('single-loan baseline', () => {
 
   it('handles a same-day full payoff chart', async () => {
     await enterLoan()
+    await editLoan()
     await wrapper.get('#monthly-payment').setValue('1025')
     await wrapper.get('#next-payment-date').setValue('2025-01-01')
     await wrapper.get('form').trigger('submit')
@@ -130,6 +260,7 @@ describe('single-loan baseline', () => {
 
   it('explains the projection limit without mislabeling a slow loan as below interest', async () => {
     await enterLoan()
+    await editLoan()
     await wrapper.get('#monthly-payment').setValue('0.01')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('The payoff is beyond this projection.')
@@ -227,7 +358,7 @@ describe('multiple-loan dashboard', () => {
     await wrapper.get('.add-button').trigger('click')
     await wrapper.get('#loan-name').setValue('Unsaved loan')
     await wrapper.get('.form-actions .text-button').trigger('click')
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
+    expect(wrapper.find('dialog').exists()).toBe(false)
     expect(wrapper.findAll('.loan-list li')).toHaveLength(1)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
   })
@@ -245,20 +376,19 @@ describe('multiple-loan dashboard', () => {
     expect(wrapper.findAll('.loan-list li')).toHaveLength(1)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$500.00')
     expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$250.00')
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 02')
+    expect(wrapper.find('dialog').exists()).toBe(false)
     expect(document.activeElement).toBe(wrapper.get('.add-button').element)
   })
 
-  it('returns to the combined view after removing the loan being viewed and edited', async () => {
+  it('returns to the combined view after removing the loan being viewed', async () => {
     await enterLoan()
     await addSecondLoan()
-    await wrapper.get('[aria-label="Edit Direct Loan 02"]').trigger('click')
+    await wrapper.get('[aria-label="View Direct Loan 02"]').trigger('click')
     await wrapper.get('[aria-label="Remove Direct Loan 02"]').trigger('click')
     await wrapper.get('.remove-button').trigger('click')
     expect(wrapper.get('.overview-tabs button').attributes('aria-pressed')).toBe('true')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('')
-    expect(wrapper.get<HTMLInputElement>('#balance-date').element.readOnly).toBe(true)
+    expect(wrapper.find('dialog').exists()).toBe(false)
     await wrapper.get('[aria-label="Edit Direct Loan 01"]').trigger('click')
     expect(wrapper.get<HTMLInputElement>('#balance-date').element.readOnly).toBe(false)
   })
@@ -318,6 +448,7 @@ describe('one-time scenarios in the loan dashboard', () => {
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
     expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Apr 1, 2025')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    await editLoan()
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
     expect(wrapper.get<HTMLInputElement>('#monthly-payment').element.value).toBe('300.00')
     expect(wrapper.get('.scenario-link').attributes('href')).toBe('#extra-payment')
@@ -327,6 +458,7 @@ describe('one-time scenarios in the loan dashboard', () => {
     await enterLoan()
     await wrapper.get('#extra-payment-amount').setValue('300')
     await wrapper.get('.scenario-form').trigger('submit')
+    await editLoan()
     await wrapper.get('#principal').setValue('2000')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(true)
     await wrapper.get('form').trigger('submit')
@@ -362,7 +494,7 @@ describe('recurring scenarios in the dashboard', () => {
     await wrapper.get('.scenario-form').trigger('submit')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
     expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$300.00')
-    expect(wrapper.get<HTMLInputElement>('#monthly-payment').element.value).toBe('300.00')
+    expect(JSON.parse(localStorage.getItem(LOAN_STORAGE_KEY) ?? '{}').loans[0].monthlyPaymentCents).toBe(30000)
     expect(wrapper.get('[data-testid="extra-payoff-date"]').text()).toBe('Mar 1, 2025')
     expect(wrapper.findAll('[data-scenario-id]')).toHaveLength(4)
     await wrapper.get('.overview-tabs button').trigger('click')
@@ -373,6 +505,7 @@ describe('recurring scenarios in the dashboard', () => {
     await enterLoan()
     await wrapper.get('#extra-monthly-amount').setValue('100')
     await wrapper.get('.scenario-form').trigger('submit')
+    await editLoan()
     await wrapper.get('#principal').setValue('2000')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
@@ -392,6 +525,7 @@ describe('strategy integration', () => {
     await wrapper.get('[data-strategy-id="smallest-balance"] button').trigger('click')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe(baseline)
     expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe(minimum)
+    await editLoan('Direct Loan 02')
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('200.00')
     expect(wrapper.get<HTMLInputElement>('#monthly-payment').element.value).toBe('50.00')
     expect(wrapper.get('[data-testid="payoff-milestones"]').text()).toContain('Smallest balance first')
@@ -416,7 +550,7 @@ describe('local loan persistence', () => {
     expect(wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id'))).toEqual(ids)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,525.00')
     expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$550.00')
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
+    expect(wrapper.find('dialog').exists()).toBe(false)
     await wrapper.get('[aria-label="Edit Direct Loan 02"]').trigger('click')
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('500.00')
     expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-02-15')
@@ -425,6 +559,7 @@ describe('local loan persistence', () => {
   it('persists updates and confirmed removals, without resurrecting removed loans', async () => {
     await enterLoan()
     await addSecondLoan()
+    await editLoan('Direct Loan 02')
     await wrapper.get('#principal').setValue('700')
     await wrapper.get('#loan-name').setValue('Renamed loan')
     await wrapper.get('form').trigger('submit')
@@ -432,7 +567,7 @@ describe('local loan persistence', () => {
     await wrapper.get('.remove-button').trigger('click')
     remountApp()
     expect(wrapper.findAll('[data-loan-id]')).toHaveLength(1)
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Renamed loan')
+    expect(wrapper.find('[aria-label="View Renamed loan"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$700.00')
     await wrapper.get('[aria-label="Remove Renamed loan"]').trigger('click')
     await wrapper.get('.remove-button').trigger('click')
@@ -443,19 +578,23 @@ describe('local loan persistence', () => {
   it('does not save invalid or unapplied edits, canceled drafts, or hypothetical scenarios', async () => {
     await enterLoan()
     const saved = localStorage.getItem(LOAN_STORAGE_KEY)
+    await editLoan()
     await wrapper.get('#principal').setValue('-1')
     await wrapper.get('form').trigger('submit')
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
     await wrapper.get('#principal').setValue('2000')
+    await wrapper.get('.close-button').trigger('click')
     await wrapper.get('#extra-payment-amount').setValue('300')
     await wrapper.get('#extra-monthly-amount').setValue('100')
     await wrapper.get('.scenario-form').trigger('submit')
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
     remountApp()
+    await editLoan()
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
+    await wrapper.get('.close-button').trigger('click')
     await wrapper.get('.add-button').trigger('click')
     await wrapper.get('#loan-name').setValue('Unsaved draft')
     await wrapper.get('.form-actions .text-button').trigger('click')
@@ -466,6 +605,7 @@ describe('local loan persistence', () => {
     await enterLoan()
     vi.setSystemTime(new Date(2025, 2, 1, 12))
     remountApp()
+    await editLoan()
     expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-01-01')
     expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-02-01')
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
@@ -475,9 +615,11 @@ describe('local loan persistence', () => {
   it('restores explicitly labeled example loans and never writes unrelated site storage', async () => {
     const unrelated = 'loan-killer-test-unrelated'
     localStorage.setItem(unrelated, 'keep me')
+    await wrapper.get('.header-add').trigger('click')
     await wrapper.get('.example-button').trigger('click')
     remountApp()
     expect(wrapper.text()).toContain('From example')
+    await editLoan('My federal student loan')
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('18000.00')
     expect(localStorage.getItem(unrelated)).toBe('keep me')
     localStorage.removeItem(unrelated)
@@ -501,7 +643,7 @@ describe('local loan persistence', () => {
     expect(wrapper.find('.storage-notice [role="alert"]').exists()).toBe(false)
     expect(document.activeElement).toBe(wrapper.get('.storage-notice').element)
     remountApp()
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Direct Loan 01')
+    expect(wrapper.find('[aria-label="View Direct Loan 01"]').exists()).toBe(true)
   })
 
   it('protects unsupported formats and explicitly warns before replacing them with an empty plan', async () => {
@@ -532,6 +674,7 @@ describe('local loan persistence', () => {
     await enterLoan()
     const saved = localStorage.getItem(LOAN_STORAGE_KEY)
     const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Full', 'QuotaExceededError') })
+    await editLoan()
     await wrapper.get('#principal').setValue('2000')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
@@ -552,12 +695,13 @@ describe('local loan persistence', () => {
       monthlyPaymentCents: 10_000, balanceDate: '2025-01-01', nextPaymentDate: '2025-02-15',
     }])
     localStorage.setItem(LOAN_STORAGE_KEY, otherCopy)
+    await editLoan()
     await wrapper.get('#principal').setValue('2000')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.get('.storage-notice [role="alert"]').text()).toContain('changed in another tab')
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(otherCopy)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
     remountApp()
-    expect(wrapper.get<HTMLInputElement>('#loan-name').element.value).toBe('Other tab’s loan')
+    expect(wrapper.find('[aria-label="View Other tab’s loan"]').exists()).toBe(true)
   })
 })

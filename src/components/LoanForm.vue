@@ -8,7 +8,6 @@ const props = defineProps<{
   initialLoan?: Loan | null
   sharedBalanceDate?: string
   fromExample?: boolean
-  hasLoans: boolean
 }>()
 const emit = defineEmits<{ submit: [loan: Loan, fromExample: boolean]; cancel: [] }>()
 
@@ -74,10 +73,9 @@ function useExample() {
   <section class="panel loan-panel" aria-labelledby="loan-details-heading">
     <div class="panel-heading">
       <div>
-        <p class="eyebrow">{{ initialLoan ? 'EDIT A LOAN' : 'THE STARTING POINT' }}</p>
-        <h2 id="loan-details-heading">Your loan details</h2>
+        <p class="eyebrow">LOAN DETAILS</p>
+        <h2 id="loan-details-heading">{{ initialLoan ? 'Edit loan' : 'Add a loan' }}</h2>
       </div>
-      <span class="step-label">01</span>
     </div>
     <p class="intro">A few numbers from your servicer. A much clearer picture.</p>
     <button v-if="!initialLoan" class="example-button" type="button" @click="useExample">Just exploring? Try an example <span aria-hidden="true">↗</span></button>
@@ -233,17 +231,17 @@ function useExample() {
       <p v-else-if="hasChanges" class="form-message" role="status">You have changes. Update to refresh your estimate.</p>
       <div class="form-actions">
         <button class="primary-button" type="submit">{{ initialLoan ? 'Update loan' : 'Add loan' }} <span aria-hidden="true">→</span></button>
-        <button v-if="hasLoans" class="text-button" type="button" @click="emit('cancel')">{{ initialLoan ? 'Add another loan' : 'Cancel' }}</button>
+        <button class="text-button" type="button" @click="emit('cancel')">Cancel</button>
       </div>
-      <p class="form-footnote">Fixed-rate loans already in repayment. Save edits before switching loans.</p>
+      <p class="form-footnote">Fixed-rate loans already in repayment. Changes apply only when saved.</p>
     </form>
   </section>
 </template>
 
 <style scoped>
-.loan-panel { padding: var(--space-6); }
+.loan-panel { padding: var(--space-6); border: 0; box-shadow: none; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.step-label { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: var(--font-sm); color: var(--text-muted); }
+.panel-heading { padding-right: var(--space-9); }
 .intro { margin: var(--space-3) 0 var(--space-4); color: var(--text-muted); font-size: var(--font-sm); line-height: 1.65; }
 .example-button { color: var(--text-link); background: var(--blue-light); width: 100%; padding: var(--space-3); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); font-size: var(--font-sm); font-weight: 600; text-align: left; display: flex; justify-content: space-between; gap: var(--space-2); }
 .example-button:hover { background: var(--blue-primary); }

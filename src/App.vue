@@ -2,6 +2,7 @@
 import { computed, nextTick, ref } from 'vue'
 import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
+import LoanModal from './components/LoanModal.vue'
 import LoanOverview from './components/LoanOverview.vue'
 import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
@@ -11,15 +12,17 @@ import { projectPortfolio, type LoanRecord } from './domain/portfolio'
 import { formatDate, money } from './format'
 
 const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
-const editingId = ref<string | null>(loans.value[0]?.id ?? null)
+const editingId = ref<string | null>(null)
 const visibleLoanId = ref<string | null>(null)
-const editor = ref<HTMLElement | null>(null)
+const editorOpen = ref(false)
+const addButton = ref<HTMLButtonElement | null>(null)
+let editorTrigger: HTMLElement | null = null
 const lastAction = ref('')
 const portfolioRevision = ref(0)
 const portfolio = computed(() => projectPortfolio(loans.value))
 const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
 const sharedBalanceDate = computed(() => loans.value.find((loan) => loan.id !== editingId.value)?.balanceDate)
-const detailLoan = computed(() => loans.value.find((loan) => loan.id === visibleLoanId.value) ?? editingLoan.value)
+const detailLoan = computed(() => loans.value.find((loan) => loan.id === visibleLoanId.value) ?? loans.value[0])
 const visiblePortfolio = computed(() => {
   if (visibleLoanId.value && detailLoan.value) return projectPortfolio([detailLoan.value])
   return portfolio.value
@@ -34,54 +37,46 @@ const announcement = computed(() => {
   return [
     lastAction.value,
     `${count}.`,
-    `${money(portfolio.value.principalCents + portfolio.value.accruedInterestCents)} starting balance.`,
+    `${money(projection.totalPaymentsCents)} estimated total to repay.`,
+    `${money(portfolio.value.principalCents)} principal and ${money(projection.remainingInterestCents)} interest.`,
     `${projection.paymentCount} ${projection.paymentCount === 1 ? 'payment' : 'payments'} remaining.`,
     `Estimated debt-free date ${formatDate(projection.payoffDate)}.`,
-    `${money(projection.remainingInterestCents)} remaining interest.`,
   ].join(' ')
 })
 
-async function focusEditor() {
+async function closeEditor() {
+  editorOpen.value = false
+  editingId.value = null
   await nextTick()
-  editor.value?.querySelector<HTMLInputElement>('#loan-name')?.focus()
+  if (editorTrigger?.isConnected) editorTrigger.focus()
+  else addButton.value?.focus()
 }
 
 async function saveLoan(loan: Loan, fromExample: boolean) {
   const isNew = !editingLoan.value
   const record: LoanRecord = { ...loan, id: editingId.value ?? crypto.randomUUID(), fromExample }
   setLoans(isNew ? [...loans.value, record] : loans.value.map((item) => item.id === record.id ? record : item))
-  editingId.value = record.id
   portfolioRevision.value++
   lastAction.value = `${isNew ? 'Added' : 'Updated'} ${record.name}.`
-  if (isNew) {
-    await nextTick()
-    editor.value?.querySelector<HTMLButtonElement>('.primary-button')?.focus()
-  }
+  if (isNew) visibleLoanId.value = null
+  await closeEditor()
 }
 
-function addLoan() {
+function addLoan(event: MouseEvent) {
+  editorTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
   editingId.value = null
-  visibleLoanId.value = null
-  void focusEditor()
+  editorOpen.value = true
 }
 
-function editLoan(id: string) {
+function editLoan(id: string, event: MouseEvent) {
+  editorTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
   editingId.value = id
   visibleLoanId.value = id
-  void focusEditor()
+  editorOpen.value = true
 }
 
 function viewLoan(id: string) {
-  editingId.value = id
   visibleLoanId.value = id
-}
-
-function cancelEditing() {
-  if (editingId.value) addLoan()
-  else {
-    editingId.value = loans.value.at(-1)?.id ?? null
-    void focusEditor()
-  }
 }
 
 function removeLoan(id: string) {
@@ -91,7 +86,7 @@ function removeLoan(id: string) {
   if (editingId.value === id) editingId.value = null
   if (visibleLoanId.value === id) visibleLoanId.value = null
   lastAction.value = `Removed ${removed?.name ?? 'loan'} from the plan.`
-  if (!loans.value.length) void focusEditor()
+  if (!loans.value.length) void nextTick(() => addButton.value?.focus())
 }
 </script>
 
@@ -107,53 +102,22 @@ function removeLoan(id: string) {
         </span>
         <span>loan<span class="brand-light">killer</span><span class="brand-period">.</span></span>
       </a>
-      <div class="header-meta">
-        <span class="privacy-dot" aria-hidden="true" /> Personal, not connected to your servicer
-      </div>
+      <button ref="addButton" class="primary-button header-add" type="button" @click="addLoan">+ Add loan</button>
     </header>
 
-    <main id="main">
-      <section class="page-intro" aria-labelledby="page-heading">
-        <div>
-          <p class="eyebrow">LESS GUESSWORK. MORE CLARITY.</p>
-          <h1 id="page-heading">A little clarity.<br class="mobile-break" /> A path to <span>zero.</span></h1>
-          <p class="page-description">Understand what you owe, what interest adds, and when you’ll be done.</p>
-        </div>
-        <div class="chapter-label">
-          <span>05</span>
-          <div>Your way forward<small>Choose an approach. See each milestone.</small></div>
-        </div>
-      </section>
-
-      <LoanStorageNotice
-        :issue="storageIssue"
-        :requires-replacement="requiresReplacement"
-        :loan-count="loans.length"
-        @retry="retrySaving"
-        @replace="replaceSavedCopy"
+    <LoanModal v-if="editorOpen" :editing="!!editingLoan" @close="closeEditor">
+      <LoanForm
+        :initial-loan="editingLoan"
+        :shared-balance-date="sharedBalanceDate"
+        :from-example="editingLoan?.fromExample"
+        @submit="saveLoan"
+        @cancel="closeEditor"
       />
+    </LoanModal>
 
+    <main id="main">
+      <h1 class="sr-only">Loan payoff dashboard</h1>
       <div class="workspace">
-        <div ref="editor" class="loan-workspace">
-          <LoanForm
-            :key="editingId ?? 'new'"
-            :initial-loan="editingLoan"
-            :shared-balance-date="sharedBalanceDate"
-            :from-example="editingLoan?.fromExample"
-            :has-loans="loans.length > 0"
-            @submit="saveLoan"
-            @cancel="cancelEditing"
-          />
-          <LoanList
-            v-if="portfolio"
-            :loans="portfolio.loans"
-            :editing-id="editingId"
-            @add="addLoan"
-            @edit="editLoan"
-            @view="viewLoan"
-            @remove="removeLoan"
-          />
-        </div>
         <div v-if="visiblePortfolio" class="results-area">
           <nav class="overview-tabs" aria-label="Loan overview">
             <button type="button" :aria-pressed="visibleLoanId === null" @click="visibleLoanId = null">All loans ({{ loans.length }})</button>
@@ -163,42 +127,39 @@ function removeLoan(id: string) {
           <LoanOverview :portfolio="visiblePortfolio" />
         </div>
         <section v-else class="panel empty-state" aria-labelledby="empty-heading">
-          <div class="empty-topline">
-            <span class="eyebrow">YOUR NEXT CHAPTER</span>
-            <span class="empty-tag">START HERE</span>
-          </div>
-          <div class="empty-art" aria-hidden="true">
-            <svg viewBox="0 0 420 200" fill="none">
-              <path d="M30 40h360M30 90h360M30 140h360M30 190h360" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 6" />
-              <path d="M35 45c40 0 65 20 95 35s50 18 85 43 66 35 95 48 56 18 76 18V190H35V45Z" fill="url(#empty-fill)" />
-              <path d="M35 45c40 0 65 20 95 35s50 18 85 43 66 35 95 48 56 18 76 18" stroke="currentColor" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round" />
-              <circle cx="386" cy="189" r="7" fill="var(--surface)" stroke="currentColor" stroke-width="2" />
-              <defs>
-                <linearGradient id="empty-fill" x1="210" y1="45" x2="210" y2="190" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#c5e4fc" stop-opacity="0.65" />
-                  <stop offset="1" stop-color="#c5e4fc" stop-opacity="0.05" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <span class="zero-label">$0</span>
-          </div>
-          <h2 id="empty-heading">There’s a finish line.<br />Let’s find yours.</h2>
-          <p>Add your current loan details to see the journey ahead. No accounts, no connecting banks. Just your numbers, made understandable.</p>
-          <div class="empty-features">
-            <span><i aria-hidden="true">01</i> Your payoff date</span>
-            <span><i aria-hidden="true">02</i> The interest ahead</span>
-            <span><i aria-hidden="true">03</i> A visible way forward</span>
-          </div>
-          <div class="empty-bottom"><span aria-hidden="true">←</span> Start with your loan details, or try the example.</div>
+          <p class="eyebrow">YOUR PATH TO ZERO</p>
+          <h2 id="empty-heading">There’s a finish line. Let’s find yours.</h2>
+          <p>See your total repayment cost, how much goes to interest, and when you could be debt-free.</p>
+          <button class="primary-button" type="button" @click="addLoan">Add your first loan</button>
+          <button class="text-button" type="button" @click="addLoan">Just exploring? Try an example in the loan form</button>
         </section>
+        <LoanList
+          v-if="portfolio"
+          :loans="portfolio.loans"
+          :editing-id="editingId"
+          @add="addLoan"
+          @edit="editLoan"
+          @view="viewLoan"
+          @remove="removeLoan"
+        />
       </div>
 
       <PaymentSimulator v-if="portfolio" :key="portfolioRevision" :loans="loans" />
 
-      <section class="assumptions" aria-labelledby="assumptions-heading">
-        <div class="assumptions-icon" aria-hidden="true">i</div>
+      <LoanStorageNotice
+        class="storage-status"
+        :class="{ 'needs-attention': storageIssue }"
+        :issue="storageIssue"
+        :requires-replacement="requiresReplacement"
+        :loan-count="loans.length"
+        @retry="retrySaving"
+        @replace="replaceSavedCopy"
+      />
+
+      <details class="assumptions">
+        <summary>Estimate assumptions and loan details</summary>
         <div>
-          <h2 id="assumptions-heading">A useful estimate, not a servicer statement.</h2>
+          <h2>A useful estimate, not a servicer statement.</h2>
           <p>
             We model fixed-rate U.S. federal loans already in repayment, with daily simple interest
             (annual rate ÷ 365), rounded to cents at each payment. Payments go to unpaid interest,
@@ -226,7 +187,7 @@ function removeLoan(id: string) {
             </a>
           </details>
         </div>
-      </section>
+      </details>
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
     </main>
 
@@ -240,45 +201,25 @@ function removeLoan(id: string) {
 
 <style scoped>
 .app-shell { max-width: 78rem; margin: 0 auto; padding: 0 var(--space-8); }
-.site-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-6) 0; border-bottom: 1px solid var(--border); }
+.site-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: var(--space-3); color: var(--text); text-decoration: none; font-size: 1.5rem; letter-spacing: -0.055em; font-weight: 700; }
 .brand-icon { width: 2.5rem; height: 2.5rem; display: grid; place-items: center; background: var(--blue-primary); border: 1px solid var(--blue-border); border-radius: var(--radius-md); }
 .brand-icon svg { width: 1.75rem; height: 1.75rem; }
 .brand-light { font-weight: 400; }
 .brand-period { color: var(--chart-line); }
-.header-meta { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-xs); color: var(--text-muted); }
-.privacy-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--text-link); }
-.page-intro { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); padding: var(--space-9) 0 var(--space-7); }
-h1 { font-size: clamp(2rem, 4.5vw, 3.1rem); font-weight: 550; line-height: 1.2; letter-spacing: -0.05em; margin: var(--space-3) 0 var(--space-4); }
-h1 > span { position: relative; white-space: nowrap; z-index: 0; }
-h1 > span::after { position: absolute; content: ''; height: 0.32em; bottom: 0.05em; left: -0.02em; right: -0.08em; background: var(--blue-primary); z-index: -1; transform: rotate(-2deg); }
-.page-description { color: var(--text-muted); font-size: var(--font-sm); line-height: 1.75; margin: 0; }
-.mobile-break { display: none; }
-.chapter-label { display: flex; gap: var(--space-4); align-items: center; flex-shrink: 0; padding-left: var(--space-6); border-left: 1px solid var(--border-strong); }
-.chapter-label > span { font-size: 2.25rem; color: var(--text-placeholder); font-weight: 300; letter-spacing: -0.05em; }
-.chapter-label > div { font-size: var(--font-sm); font-weight: 600; }
-.chapter-label small { display: block; margin-top: var(--space-2); color: var(--text-muted); font-weight: 400; font-size: var(--font-xs); }
-.workspace { display: grid; grid-template-columns: minmax(20rem, 0.85fr) minmax(0, 1.6fr); align-items: start; gap: var(--space-6); }
-.loan-workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+main { display: flex; flex-direction: column; gap: var(--space-5); padding-block: var(--space-5); }
+.workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.storage-status.needs-attention { order: -1; }
 .overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
 .overview-tabs button { border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); padding: var(--space-2) var(--space-4); font-size: var(--font-sm); min-height: 2.75rem; }
 .overview-tabs button[aria-pressed='true'] { background: var(--blue-light); border-color: var(--blue-border); color: var(--text-link); font-weight: 600; }
 .scenario-link { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 2.75rem; margin-left: auto; padding: var(--space-2) var(--space-3); color: var(--text-link); font-size: var(--font-xs); text-underline-offset: 0.2em; }
-.empty-state { padding: var(--space-7); min-height: 44rem; display: flex; flex-direction: column; align-items: center; text-align: center; overflow: hidden; }
-.empty-topline { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.empty-tag { font-size: 0.6rem; color: var(--text-muted); border: 1px solid var(--border); padding: 0.35rem var(--space-2); border-radius: var(--radius-sm); letter-spacing: 0.08em; }
-.empty-art { position: relative; color: var(--chart-line); width: 100%; max-width: 26rem; margin: var(--space-8) 0 var(--space-6); padding-right: var(--space-4); }
-.empty-art svg { display: block; width: 100%; height: auto; }
-.zero-label { position: absolute; right: 0; bottom: -0.25rem; background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-full); padding: 0.4rem 0.6rem; color: var(--text-link); font-size: var(--font-xs); font-weight: 600; }
-.empty-state h2 { font-size: clamp(1.75rem, 3vw, 2.3rem); font-weight: 500; line-height: 1.3; letter-spacing: -0.045em; }
-.empty-state > p { max-width: 24rem; color: var(--text-muted); font-size: var(--font-sm); line-height: 1.9; margin: var(--space-4) 0 var(--space-6); }
-.empty-features { display: flex; flex-direction: column; gap: var(--space-4); text-align: left; font-size: var(--font-sm); }
-.empty-features > span { display: flex; align-items: center; gap: var(--space-3); }
-.empty-features i { font-style: normal; font-size: var(--font-xs); color: var(--text-link); background: var(--blue-light); border: 1px solid var(--blue-border); width: 1.8rem; height: 1.8rem; display: grid; place-items: center; border-radius: 50%; }
-.empty-bottom { margin-top: auto; padding-top: var(--space-7); color: var(--text-muted); font-size: var(--font-xs); line-height: 1.7; }
-.empty-bottom > span { margin-right: var(--space-2); }
-.assumptions { display: flex; gap: var(--space-3); max-width: 60rem; margin: var(--space-8) 0; }
-.assumptions-icon { display: grid; place-items: center; flex-shrink: 0; width: 1.1rem; height: 1.1rem; margin-top: 0.1rem; border-radius: 50%; border: 1px solid var(--text-muted); color: var(--text-muted); font-size: var(--font-xs); }
+.empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+.empty-state > p:not(.eyebrow) { max-width: 30rem; color: var(--text-muted); font-size: var(--font-sm); line-height: 1.8; margin: var(--space-3) 0 var(--space-5); }
+.empty-state .text-button { margin-top: var(--space-3); }
+.assumptions { color: var(--text-muted); font-size: var(--font-xs); }
+.assumptions > div { padding-block: var(--space-3); max-width: 60rem; }
 .assumptions h2 { font-size: var(--font-xs); font-weight: 600; }
 .assumptions p { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.8; margin: var(--space-2) 0 0; }
 .assumptions details { margin-top: var(--space-3); font-size: var(--font-xs); line-height: 1.8; }
@@ -288,7 +229,6 @@ h1 > span::after { position: absolute; content: ''; height: 0.32em; bottom: 0.05
 .site-footer > span:first-child { font-weight: 600; font-size: var(--font-md); letter-spacing: -0.04em; }
 .site-footer p { font-size: var(--font-xs); margin: 0; }
 .footer-version { font-size: 0.6rem; letter-spacing: 0.1em; }
-@media (max-width: 65rem) { .app-shell { padding-inline: var(--space-6); } .workspace { grid-template-columns: minmax(19rem, 0.9fr) minmax(0, 1.3fr); gap: var(--space-4); } .chapter-label { display: none; } }
-@media (max-width: 52rem) { .workspace { grid-template-columns: 1fr; } .empty-state { min-height: auto; padding-block: var(--space-6); } .empty-art { margin-block: var(--space-5); max-width: 20rem; } .empty-bottom { padding-top: var(--space-6); } .empty-features { flex-direction: row; flex-wrap: wrap; justify-content: center; font-size: var(--font-xs); } }
-@media (max-width: 35rem) { .app-shell { padding-inline: var(--space-4); } .site-header { padding-block: var(--space-4); } .header-meta { display: none; } .page-intro { padding-block: var(--space-7) var(--space-6); } .mobile-break { display: block; } .empty-state { padding-inline: var(--space-4); } .footer-version { display: none; } .site-footer { justify-content: center; } }
+@media (max-width: 65rem) { .app-shell { padding-inline: var(--space-6); } }
+@media (max-width: 35rem) { .app-shell { padding-inline: var(--space-4); } .brand { font-size: 1.25rem; gap: var(--space-2); } .brand-icon { width: 2rem; height: 2rem; } .empty-state { padding: var(--space-7) var(--space-4); } .footer-version { display: none; } .site-footer { justify-content: center; } .scenario-link { margin-left: 0; } }
 </style>

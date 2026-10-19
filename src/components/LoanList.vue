@@ -5,8 +5,8 @@ import { formatDate, money } from '../format'
 
 defineProps<{ loans: ProjectedLoan[]; editingId: string | null }>()
 const emit = defineEmits<{
-  add: []
-  edit: [id: string]
+  add: [event: MouseEvent]
+  edit: [id: string, event: MouseEvent]
   view: [id: string]
   remove: [id: string]
 }>()
@@ -42,7 +42,7 @@ async function cancelRemoval() {
         <p class="eyebrow">ALL IN ONE PLACE</p>
         <h2 id="loans-heading">Your loans <span>{{ loans.length }}</span></h2>
       </div>
-      <button class="add-button" type="button" @click="emit('add')">+ Add loan</button>
+      <button class="add-button" type="button" @click="emit('add', $event)">+ Add loan</button>
     </div>
 
     <ul>
@@ -58,7 +58,7 @@ async function cancelRemoval() {
           <span v-else class="loan-warning">{{ projection.status === 'insufficient-payment' ? 'Payment needs attention' : 'Beyond projection limit' }}</span>
         </div>
         <div v-if="pendingRemoval !== loan.id" class="loan-actions">
-          <button class="text-button" type="button" :aria-label="`Edit ${loan.name}`" :aria-pressed="editingId === loan.id" @click="emit('edit', loan.id)">Edit</button>
+          <button class="text-button" type="button" :aria-label="`Edit ${loan.name}`" :aria-pressed="editingId === loan.id" @click="emit('edit', loan.id, $event)">Edit</button>
           <button class="text-button" type="button" :data-remove-id="loan.id" :aria-label="`Remove ${loan.name}`" @click="requestRemoval(loan.id)">Remove</button>
           <span v-if="loan.fromExample" class="example-label">From example</span>
         </div>

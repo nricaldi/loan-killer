@@ -35,13 +35,12 @@ async function save(replace: boolean) {
 
 <template>
   <aside ref="notice" class="storage-notice" :class="{ 'storage-warning': issue }" aria-label="Data storage notice" tabindex="-1">
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <svg v-if="issue" viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M10 2 3.5 5v4.5c0 4.2 6.5 7.5 6.5 7.5s6.5-3.3 6.5-7.5V5L10 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
       <path d="m7 9.5 2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     <div class="storage-content">
-      <p v-if="!issue" role="status"><strong>Kept in this browser.</strong> Added, updated, and confirmed removed loans save automatically and return on this same site. Clearing browser data can delete them.</p>
-      <template v-else>
+      <template v-if="issue">
         <p class="storage-error" role="alert"><strong>Local save needs attention.</strong> {{ message }}</p>
         <div v-if="confirming" class="replacement-confirmation" role="group" aria-label="Confirm replacing saved loans">
           <p><strong>{{ loanCount === 0 ? 'Replace saved loans with an empty plan?' : `Replace the saved copy with this tab’s ${loanCount} ${loanCount === 1 ? 'loan' : 'loans'}?` }}</strong> This overwrites only Loan Killer’s saved loan list and can’t be undone.</p>
@@ -52,21 +51,26 @@ async function save(replace: boolean) {
           <button v-else type="button" @click="save(false)">Retry saving</button>
         </div>
       </template>
-      <details class="storage-details"><summary>Storage and privacy details</summary><p>No upload or sync. Only this browser profile and site address share these loans; anyone using this profile can access them. The app doesn’t encrypt this local copy. Clearing site data or closing a private-browsing session can delete them. Drafts and what-if scenarios aren’t saved. Balances keep their entered dates and aren’t updated automatically; check your figures and next payment dates when returning.</p></details>
+      <details class="storage-details">
+        <summary>Storage and privacy details</summary>
+        <p v-if="!issue"><strong>Kept in this browser.</strong> Added, updated, and confirmed removed loans save automatically and return on this same site. Clearing browser data can delete them.</p>
+        <p>No upload or sync. Only this browser profile and site address share these loans; anyone using this profile can access them. The app doesn’t encrypt this local copy. Clearing site data or closing a private-browsing session can delete them. Drafts and what-if scenarios aren’t saved. Balances keep their entered dates and aren’t updated automatically; check your figures and next payment dates when returning.</p>
+      </details>
     </div>
   </aside>
 </template>
 
 <style scoped>
-.storage-notice { display: flex; align-items: start; gap: var(--space-3); margin-bottom: var(--space-6); padding: var(--space-4); background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); }
+.storage-notice { display: flex; align-items: start; gap: var(--space-3); }
 .storage-notice > svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; color: var(--text-link); margin-top: 0.1rem; }
 .storage-content { min-width: 0; }
 p { margin: 0; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.8; }
 strong { font-weight: 600; }
-.storage-details { margin-top: var(--space-2); color: var(--text-muted); }
+.storage-details { color: var(--text-muted); }
 .storage-details summary { color: var(--text-link); font-size: var(--font-xs); line-height: 1.8; cursor: pointer; }
 .storage-details p { margin-top: var(--space-2); }
-.storage-warning { border-color: var(--danger); }
+.storage-warning { padding: var(--space-4); background: var(--blue-light); border: 1px solid var(--danger); border-radius: var(--radius-sm); }
+.storage-warning .storage-details { margin-top: var(--space-2); }
 .storage-error { color: var(--danger); }
 .storage-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
 button { background: var(--surface); color: var(--text-link); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); min-height: 2.75rem; font-size: var(--font-xs); line-height: 1.6; }
