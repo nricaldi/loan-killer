@@ -6,7 +6,6 @@ import type { ExtraScenarioId, PaymentScenarios } from '../domain/paymentScenari
 import { dateDistance, formatDate, money } from '../format'
 import { strategyNames, type RepaymentStrategy } from '../domain/recurringPayments'
 import BalanceChart from './BalanceChart.vue'
-import PayoffMilestones from './PayoffMilestones.vue'
 import PaymentSchedule from './PaymentSchedule.vue'
 import StrategyComparison from './StrategyComparison.vue'
 
@@ -127,7 +126,6 @@ function payoffDate(projection: Projection): string {
       <p class="section-note">{{ baselinePaid && selectedPaid ? 'Dashed: your baseline. Solid: the selected plan. Both are estimates, not actual history.' : 'Only the plan with a complete payoff estimate is charted.' }}</p>
     </template>
     <PaymentSchedule v-if="selectedPaid" :key="`${selected}-${result.request.strategy}`" :payments="selectedPaid.schedule" :combined="selectedPlan.portfolio.loans.length > 1" />
-    <PayoffMilestones :portfolio="selectedPlan.portfolio" :baseline="baseline" :plan-label="`${selectedPlan.label}${selected !== 'one-time' && result.request.extraMonthlyCents > 0 ? ` · ${activeStrategyName}` : ''}`" />
     <p class="sr-only" role="status" aria-atomic="true">{{ announcement }}</p>
   </div>
 </template>

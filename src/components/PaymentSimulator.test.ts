@@ -363,7 +363,19 @@ const strategyLoans: LoanRecord[] = [
   { ...otherLoan, principalCents: 20_000, accruedInterestCents: 0, annualRatePercent: 3, monthlyPaymentCents: 5_000 },
 ]
 
-describe('strategy selection and milestones', () => {
+describe('strategy selection and comparisons', () => {
+  it('keeps plan comparisons, charts, and payment breakdowns without a milestones section', async () => {
+    mountSimulator(strategyLoans)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await compare('0')
+    expect(wrapper.find('[data-testid="payoff-milestones"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Your projected payoff milestones')
+    expect(wrapper.find('[data-testid="strategy-comparison"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-scenario-id]')).toHaveLength(4)
+    expect(wrapper.find('figure').exists()).toBe(true)
+    expect(wrapper.find('.schedule').exists()).toBe(true)
+  })
+
   it('recalculates for a narrower loan scope, replaces an excluded target, and preserves the extra amounts', async () => {
     mountSimulator(strategyLoans, true)
     await wrapper.get('#extra-monthly-amount').setValue('50')
@@ -526,11 +538,10 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.get('[data-strategy-id="smallest-balance"]').text()).toContain('Apr 1, 2025')
     expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Highest rate first costs $1.95 less interest')
     expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('same debt-free date')
-    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-06-15')
     expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,240.17')
   })
 
-  it('applies a strategy selected in the form and updates the chart and payoff timeline', async () => {
+  it('applies a strategy selected in the form and updates the chart and payment results', async () => {
     mountSimulator(strategyLoans)
     await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     await wrapper.get('#extra-monthly-amount').setValue('50')
@@ -538,7 +549,6 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.get('[data-strategy-id="smallest-balance"] button').attributes('aria-pressed')).toBe('true')
     expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,242.12')
     expect(wrapper.get('figure svg').text()).toContain('Smallest balance first')
-    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-04-01')
     expect(wrapper.get('[data-testid="monthly-budget-note"]').text()).toContain('smallest current balance')
   })
 
@@ -570,13 +580,13 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('1000')
   })
 
-  it('updates milestones and results live when the strategy changes', async () => {
+  it('updates results live when the strategy changes', async () => {
     mountSimulator(strategyLoans)
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
     await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     expect(wrapper.get('[data-strategy-id="smallest-balance"] button').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.findAll('[data-milestone-date]')[0]?.attributes('data-milestone-date')).toBe('2025-04-01')
+    expect(wrapper.get('[data-testid="extra-total-payments"]').text()).toBe('$1,242.12')
   })
 
   it('explains why zero monthly extra and one-time-only plans do not change by strategy', async () => {
@@ -603,7 +613,7 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.text()).toContain('With one loan, allocation order can’t change the result')
   })
 
-  it('keeps unresolved loans separate from known milestones and withholds a cost winner', async () => {
+  it('withholds a cost winner when a loan does not pay off within the estimate', async () => {
     mountSimulator([
       { ...loan, principalCents: 1_000_000_000, accruedInterestCents: 0, annualRatePercent: 100, monthlyPaymentCents: 1 },
       { ...otherLoan, principalCents: 100, monthlyPaymentCents: 100 },
@@ -611,10 +621,8 @@ describe('strategy selection and milestones', () => {
     await wrapper.get('#extra-monthly-amount').setValue('0.01')
     await compare('0')
     expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Complete payoff estimates are needed')
-    expect(wrapper.get('[data-testid="unresolved-milestones"]').text()).toContain('Undergraduate loan')
-    expect(wrapper.findAll('[data-milestone-date]')).toHaveLength(1)
-    expect(wrapper.get('[data-testid="payoff-milestones"]').text()).toContain('1 loan remaining')
-    expect(wrapper.find('.finish-milestone').exists()).toBe(false)
+    expect(wrapper.get('[data-strategy-id="highest-rate"]').text()).toContain('Beyond projection limit')
+    expect(wrapper.get('[data-strategy-id="smallest-balance"]').text()).toContain('Beyond projection limit')
   })
 
   it('derives the cost winner instead of assuming highest rate is always cheapest', async () => {
@@ -635,13 +643,13 @@ describe('strategy selection and milestones', () => {
     expect(wrapper.get('[data-testid="strategy-difference"]').text()).toContain('Highest rate first finishes 17 days sooner')
   })
 
-  it('resets strategy, results, and milestones when clearing the scenario', async () => {
+  it('resets strategy and results when clearing the scenario', async () => {
     mountSimulator(strategyLoans)
     await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await compare('0')
     await wrapper.get('.result-heading button').trigger('click')
     expect(wrapper.get<HTMLInputElement>('input[type="radio"][value="highest-rate"]').element.checked).toBe(true)
-    expect(wrapper.find('[data-testid="payoff-milestones"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
   })
 })
