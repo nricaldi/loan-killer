@@ -163,7 +163,7 @@ describe('single-loan baseline', () => {
     expect(wrapper.findAll('tbody tr')).toHaveLength(4)
     expect(wrapper.findAll('tbody tr').at(-1)?.text()).toContain('$125.00')
     expect(wrapper.findAll('tbody tr').at(-1)?.text()).toContain('$0.00')
-    expect(wrapper.get('[aria-live="polite"]').text()).toContain('4 payments remaining')
+    expect(wrapper.get('[role="status"][aria-live="polite"]').text()).toContain('4 payments remaining')
   })
 
   it('leads with starting balance, interest and total cost, with a switchable chart and collapsed details', async () => {
@@ -284,6 +284,47 @@ async function addSecondLoan(overrides: Record<string, string> = {}) {
 }
 
 describe('interactive payment workspace', () => {
+  it('keeps edit separate from loan selection when opening, canceling, and saving', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    const curve = wrapper.get('.comparison-line').attributes('d')
+    await editLoan('Direct Loan 02')
+    expect(wrapper.findAll('.loan-chip.selected')).toHaveLength(2)
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,525.00')
+    expect(wrapper.get('.comparison-line').attributes('d')).toBe(curve)
+    await wrapper.get('.close-button').trigger('click')
+    expect(wrapper.findAll('.loan-chip.selected')).toHaveLength(2)
+    await wrapper.get('[aria-label="Show Direct Loan 01 in chart"]').trigger('click')
+    await editLoan('Direct Loan 02')
+    expect(wrapper.get('[aria-label="Show Direct Loan 01 in chart"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').attributes('aria-pressed')).toBe('false')
+    await wrapper.get('#principal').setValue('750')
+    await wrapper.get('dialog form').trigger('submit')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    expect(wrapper.findAll('.loan-chip.selected')).toHaveLength(1)
+    expect(document.activeElement).toBe(wrapper.get('[aria-label="Edit Direct Loan 02"]').element)
+  })
+
+  it('lays out controls, a full-width chart, and a separate comparison section in that order', async () => {
+    await enterLoan()
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    const controls = wrapper.get('#extra-payment').element
+    const chart = wrapper.get('.journey-visual').element
+    const comparison = wrapper.get('.plan-comparison').element
+    expect(controls.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(chart.compareDocumentPosition(comparison) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(comparison.closest('#extra-payment')).toBeNull()
+    expect(wrapper.find('.monthly-controls .strategy-picker').exists()).toBe(true)
+    expect(wrapper.findAll('figure')).toHaveLength(1)
+    await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
+    expect(wrapper.get('.payments-chart figcaption').text()).toContain('With one-time payment')
+    await wrapper.get('.chart-switch button:last-child').trigger('click')
+    await wrapper.get('[aria-label="Monthly minimum for Direct Loan 01"]').setValue('400')
+    expect(wrapper.find('.balance-chart').exists()).toBe(true)
+    expect(wrapper.find('.plan-comparison').exists()).toBe(false)
+  })
+
   it('puts saved remaining balances and edit actions directly on the visible loan cards', async () => {
     await enterLoan()
     await addSecondLoan()
@@ -501,9 +542,8 @@ describe('multiple-loan dashboard', () => {
     await wrapper.get('form').trigger('submit')
     expect(wrapper.findAll('[data-loan-id]').map((item) => item.attributes('data-loan-id')).sort()).toEqual([...ids].sort())
     expect(wrapper.find('[aria-label="Show Renamed loan in chart"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,025.00')
-    await wrapper.get('.loan-chip.selected .chip-name').trigger('click')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$2,525.00')
+    expect(wrapper.findAll('.loan-chip.selected')).toHaveLength(2)
     expect(wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').element.closest('li')?.textContent).toContain('$500.00')
   })
 
@@ -574,7 +614,6 @@ describe('multiple-loan dashboard', () => {
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('500.00')
     await wrapper.get('#principal').setValue('700')
     await wrapper.get('form').trigger('submit')
-    await wrapper.get('.loan-chip.selected .chip-name').trigger('click')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,725.00')
   })
 

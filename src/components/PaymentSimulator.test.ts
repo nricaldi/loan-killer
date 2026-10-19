@@ -329,6 +329,56 @@ const strategyLoans: LoanRecord[] = [
 ]
 
 describe('strategy selection and milestones', () => {
+  it('shows the first actual monthly allocation beside the budget and updates it with the strategy', async () => {
+    mountSimulator(strategyLoans, true)
+    expect(wrapper.find('.monthly-controls .strategy-picker').exists()).toBe(true)
+    expect(wrapper.get('.strategy-target').text()).toContain('Add an extra monthly budget')
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    expect(wrapper.get('.strategy-target').text()).toContain('Feb 1, 2025')
+    expect(wrapper.get('.strategy-target li').text()).toBe('Undergraduate loan$50.00')
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
+    expect(wrapper.get('.strategy-target li').text()).toBe('Graduate loan$50.00')
+    await wrapper.get('#extra-monthly-amount').setValue('0')
+    expect(wrapper.find('.strategy-target li').exists()).toBe(false)
+  })
+
+  it('updates the monthly target after a one-time payment retires the highest-rate loan', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await wrapper.get('#extra-payment-amount').setValue('1000')
+    expect(wrapper.get('.strategy-target li').text()).toBe('Graduate loan$150.00')
+    expect(wrapper.get('.strategy-target').text()).toContain('freed minimums')
+  })
+
+  it('skips loans paid off by their minimum before choosing a smallest-balance target', async () => {
+    mountSimulator([strategyLoans[0]!, { ...otherLoan, principalCents: 5000, monthlyPaymentCents: 5000, nextPaymentDate: loan.nextPaymentDate }], true)
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    expect(wrapper.get('.strategy-target li strong').text()).toBe('Undergraduate loan')
+  })
+
+  it('shows all first-date recipients when the monthly budget pays across multiple loans', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.get('#extra-monthly-amount').setValue('1500')
+    expect(wrapper.findAll('.strategy-target li strong').map((target) => target.text())).toEqual(['Undergraduate loan', 'Graduate loan'])
+  })
+
+  it('does not claim a monthly target when the one-time payment already retires every loan', async () => {
+    mountSimulator([loan], true)
+    await wrapper.get('#extra-payment-amount').setValue('2000')
+    await wrapper.get('#extra-monthly-amount').setValue('100')
+    expect(wrapper.find('.strategy-target li').exists()).toBe(false)
+    expect(wrapper.get('.strategy-target').text()).toContain('No active balance remains')
+  })
+
+  it('keeps comparison plans outside the payment controls and still synchronizes their strategy choices', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    expect(wrapper.get('.plan-comparison').element.closest('#extra-payment')).toBeNull()
+    await wrapper.get('[data-strategy-id="smallest-balance"] button').trigger('click')
+    expect(wrapper.get('.strategy-target li strong').text()).toBe('Graduate loan')
+  })
+
   it('shows one-time savings immediately and keeps them separate from monthly extras', async () => {
     mountSimulator(strategyLoans, true)
     expect(wrapper.find('.one-time-impact').exists()).toBe(false)

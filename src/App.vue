@@ -4,6 +4,7 @@ import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanModal from './components/LoanModal.vue'
 import LoanOverview from './components/LoanOverview.vue'
+import LoanTrajectory from './components/LoanTrajectory.vue'
 import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
 import { useLoanStorage } from './composables/useLoanStorage'
@@ -14,6 +15,7 @@ import { formatDate, money } from './format'
 const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
 const editingId = ref<string | null>(null)
 const visibleLoanId = ref<string | null>(null)
+const chartView = ref<'payments' | 'balance'>('payments')
 const editorOpen = ref(false)
 const addButton = ref<HTMLButtonElement | null>(null)
 let editorTrigger: HTMLElement | null = null
@@ -80,7 +82,6 @@ function addLoan(event: MouseEvent) {
 function editLoan(id: string, event: MouseEvent) {
   editorTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
   editingId.value = id
-  visibleLoanId.value = id
   editorOpen.value = true
 }
 
@@ -164,8 +165,10 @@ function removeLoan(id: string) {
                 <p id="loan-payment-help" class="loan-controls-note">Select a loan to focus the chart; select it again to show all loans. Minimum edits save automatically. Extra payments below are hypothetical.</p>
               </div>
             </template>
-            <template #simulator>
-              <PaymentSimulator :key="portfolioRevision" :loans="sortedLoans" embedded @preview="updatePreview" />
+            <template #journey>
+              <PaymentSimulator :key="portfolioRevision" :loans="sortedLoans" embedded @preview="updatePreview">
+                <LoanTrajectory v-model:view="chartView" :portfolio="visiblePortfolio" :comparison="visiblePreview" />
+              </PaymentSimulator>
             </template>
           </LoanOverview>
         </div>
