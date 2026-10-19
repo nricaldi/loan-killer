@@ -53,7 +53,7 @@ const targetPayoffChange = computed(() => {
         <strong data-testid="plan-interest-saved">{{ savings ? money(Math.abs(savings.interestCents)) : 'Not available' }}</strong>
       </div>
       <div>
-        <p>Debt-free across all loans</p>
+        <p>{{ result.oneTime.baseline.loans.length === 1 ? 'Selected loan paid off' : 'All selected loans paid off' }}</p>
         <strong data-testid="plan-time-saved">{{ payoffChange }}</strong>
       </div>
       <div>

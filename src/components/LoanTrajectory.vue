@@ -7,7 +7,7 @@ import PaymentsChart from './PaymentsChart.vue'
 import PaymentSchedule from './PaymentSchedule.vue'
 
 const props = defineProps<{ portfolio: PortfolioProjection; comparison?: { portfolio: PortfolioProjection; label: string } | null }>()
-const chartView = defineModel<'payments' | 'balance'>('view', { default: 'payments' })
+const chartView = defineModel<'payments' | 'balance'>('view', { default: 'balance' })
 const projection = computed(() => props.portfolio.projection)
 const paidOffProjection = computed(() => projection.value.status === 'paid-off' ? projection.value : null)
 const loanCount = computed(() => props.portfolio.loans.length)

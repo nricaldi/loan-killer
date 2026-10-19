@@ -50,8 +50,14 @@ const chartLabel = computed(() => {
   return `${label} · ${strategyNames[result.value?.request.strategy ?? strategy.value]}`
 })
 
-watch([targetId, amount, monthlyAmount, strategy], () => {
-  if (!resetting) void compare(false)
+watch(() => props.loans, (loans) => {
+  result.value = null
+  if (!loans.some((loan) => loan.id === targetId.value)) targetId.value = loans[0]?.id ?? ''
+})
+watch([() => props.loans, targetId, amount, monthlyAmount, strategy], ([loans], [previousLoans]) => {
+  if (resetting) return
+  if (loans !== previousLoans && parseMoney(amount.value) === 0 && enteredMonthlyCents.value === 0) return
+  void compare(false)
 })
 watch([result, selected], () => emit('preview', selectedPlan.value?.portfolio ?? null, chartLabel.value))
 onBeforeUnmount(() => emit('preview', null, ''))
@@ -113,6 +119,7 @@ async function clear() {
         <p v-if="!embedded" class="eyebrow">TODAY’S EXTRA. TOMORROW’S HABIT.</p>
         <h2 id="extra-payment-heading">What could paying more change?</h2>
         <p class="section-intro">Adjust the amount to update the chart live. Your saved minimums stay unchanged.</p>
+        <p class="preview-scope form-note">Payment previews apply to {{ loans.length === 1 ? loans[0]?.name : `the ${loans.length} selected loans` }}.</p>
       </div>
     </div>
 

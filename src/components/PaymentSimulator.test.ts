@@ -364,6 +364,49 @@ const strategyLoans: LoanRecord[] = [
 ]
 
 describe('strategy selection and milestones', () => {
+  it('recalculates for a narrower loan scope, replaces an excluded target, and preserves the extra amounts', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await wrapper.get('#extra-payment-amount').setValue('25')
+    await wrapper.setProps({ loans: [strategyLoans[1]!] })
+    expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(otherLoan.id)
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('25')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('50')
+    expect(wrapper.get('.strategy-target li strong').text()).toBe('Graduate loan')
+    const preview = wrapper.emitted('preview')?.at(-1)?.[0]
+    expect(preview).toMatchObject({ principalCents: 20000, monthlyPaymentCents: 5000 })
+    expect(wrapper.get('.plan-comparison').text()).not.toContain('Undergraduate loan')
+    await wrapper.get('input[type="radio"][value="smallest-balance"]').setValue()
+    expect(wrapper.get('.strategy-target li strong').text()).toBe('Graduate loan')
+    await wrapper.setProps({ loans: strategyLoans })
+    expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(otherLoan.id)
+    expect(wrapper.findAll('#extra-payment-target option')).toHaveLength(2)
+  })
+
+  it('does not create an extra-payment scenario just from selecting loans with zero extra amounts', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.setProps({ loans: [strategyLoans[1]!] })
+    expect(wrapper.find('.payment-summary').exists()).toBe(false)
+    expect(wrapper.find('.plan-comparison').exists()).toBe(false)
+    expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(otherLoan.id)
+    await wrapper.setProps({ loans: strategyLoans })
+    expect(wrapper.find('.payment-summary').exists()).toBe(false)
+  })
+
+  it('clears an old-scope preview rather than displaying excluded loans when current inputs are invalid', async () => {
+    mountSimulator(strategyLoans, true)
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    await wrapper.get('#extra-monthly-amount').setValue('1.234')
+    await wrapper.setProps({ loans: [strategyLoans[1]!] })
+    expect(wrapper.find('.payment-summary').exists()).toBe(false)
+    expect(wrapper.find('.plan-comparison').exists()).toBe(false)
+    expect(wrapper.find('#extra-monthly-error').exists()).toBe(true)
+    expect(wrapper.emitted('preview')?.at(-1)?.[0]).toBeNull()
+    await wrapper.get('#extra-monthly-amount').setValue('50')
+    expect(wrapper.get('.strategy-target li strong').text()).toBe('Graduate loan')
+    expect(wrapper.get('.plan-comparison').text()).not.toContain('Undergraduate loan')
+  })
+
   it('shows the first actual monthly allocation beside the budget and updates it with the strategy', async () => {
     mountSimulator(strategyLoans, true)
     expect(wrapper.find('.strategy-field .strategy-picker').exists()).toBe(true)
@@ -420,7 +463,7 @@ describe('strategy selection and milestones', () => {
     await wrapper.get('#extra-payment-amount').setValue('100')
     const firstImpact = wrapper.get('.payment-summary').text()
     expect(firstImpact).toContain('You’ll save in interest')
-    expect(firstImpact).toContain('Debt-free across all loans')
+    expect(firstImpact).toContain('All selected loans paid off')
     await wrapper.get('#extra-monthly-amount').setValue('50')
     expect(wrapper.get('.payment-summary').text()).not.toBe(firstImpact)
     expect(wrapper.get('.payment-summary h3').text()).toContain('$50.00 extra each month')

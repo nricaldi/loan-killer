@@ -9,34 +9,28 @@ import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
 import { useLoanStorage } from './composables/useLoanStorage'
 import type { Loan } from './domain/loan'
-import { projectPortfolio, summarizePortfolio, type LoanRecord, type PortfolioProjection } from './domain/portfolio'
+import { projectPortfolio, type LoanRecord, type PortfolioProjection } from './domain/portfolio'
 import { formatDate, money } from './format'
 
 const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
 const editingId = ref<string | null>(null)
 const visibleLoanId = ref<string | null>(null)
-const chartView = ref<'payments' | 'balance'>('payments')
+const chartView = ref<'payments' | 'balance'>('balance')
 const editorOpen = ref(false)
 const addButton = ref<HTMLButtonElement | null>(null)
 let editorTrigger: HTMLElement | null = null
 const lastAction = ref('')
 const portfolioRevision = ref(0)
 const sortedLoans = computed(() => [...loans.value].sort((left, right) => left.name.localeCompare(right.name, 'en', { numeric: true, sensitivity: 'base' })))
+const selectedLoans = computed(() => {
+  const loan = sortedLoans.value.find((loan) => loan.id === visibleLoanId.value)
+  return loan ? [loan] : sortedLoans.value
+})
 const portfolio = computed(() => projectPortfolio(sortedLoans.value))
 const preview = shallowRef<{ portfolio: PortfolioProjection; label: string } | null>(null)
-const visiblePreview = computed(() => {
-  if (!preview.value) return null
-  if (!visibleLoanId.value) return preview.value
-  const portfolio = summarizePortfolio(preview.value.portfolio.loans.filter(({ loan }) => loan.id === visibleLoanId.value))
-  return portfolio ? { portfolio, label: preview.value.label } : null
-})
 const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
 const sharedBalanceDate = computed(() => loans.value.find((loan) => loan.id !== editingId.value)?.balanceDate)
-const visiblePortfolio = computed(() => {
-  const loan = loans.value.find((loan) => loan.id === visibleLoanId.value)
-  if (loan) return projectPortfolio([loan])
-  return portfolio.value
-})
+const visiblePortfolio = computed(() => projectPortfolio(selectedLoans.value))
 const announcement = computed(() => {
   if (!portfolio.value) return `${lastAction.value} Enter a loan to see your estimate.`.trim()
   const { projection } = portfolio.value
@@ -86,6 +80,7 @@ function editLoan(id: string, event: MouseEvent) {
 }
 
 function toggleLoan(id: string) {
+  preview.value = null
   visibleLoanId.value = visibleLoanId.value === id ? null : id
 }
 
@@ -144,7 +139,7 @@ function removeLoan(id: string) {
       <h1 class="sr-only">Loan payoff dashboard</h1>
       <div class="workspace">
         <div v-if="visiblePortfolio" class="results-area">
-          <LoanOverview :portfolio="visiblePortfolio" :comparison="visiblePreview">
+          <LoanOverview :portfolio="visiblePortfolio" :comparison="preview">
             <template #loans>
               <div class="loan-controls">
                 <div class="loan-controls-heading">
@@ -162,12 +157,12 @@ function removeLoan(id: string) {
                   @payment="updateMinimum"
                   @remove="removeLoan"
                 />
-                <p id="loan-payment-help" class="loan-controls-note">Select a loan to focus the chart; select it again to show all loans. Minimum edits save automatically. Extra payments below are hypothetical.</p>
+                <p id="loan-payment-help" class="loan-controls-note">Select a loan to preview payments for it; select it again to show all loans. Minimum edits save automatically. Extra payments below are hypothetical.</p>
               </div>
             </template>
             <template #journey>
-              <PaymentSimulator :key="portfolioRevision" :loans="sortedLoans" embedded @preview="updatePreview">
-                <LoanTrajectory v-model:view="chartView" :portfolio="visiblePortfolio" :comparison="visiblePreview" />
+              <PaymentSimulator :key="portfolioRevision" :loans="selectedLoans" embedded @preview="updatePreview">
+                <LoanTrajectory v-model:view="chartView" :portfolio="visiblePortfolio" :comparison="preview" />
               </PaymentSimulator>
             </template>
           </LoanOverview>
