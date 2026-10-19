@@ -2,15 +2,15 @@
 import type { Payment } from '../domain/loan'
 import { formatDate, money } from '../format'
 
-defineProps<{ payments: Payment[] }>()
+defineProps<{ payments: Payment[]; combined?: boolean }>()
 </script>
 
 <template>
   <details class="schedule">
-    <summary>See the payment-by-payment breakdown <span class="payment-count">{{ payments.length }} payments</span></summary>
+    <summary>See the payment-by-payment breakdown <span class="payment-count">{{ payments.length }} {{ combined ? 'payment dates' : 'payments' }}</span></summary>
     <div class="table-scroll" role="region" aria-label="Payment schedule, scroll horizontally if needed" tabindex="0">
       <table>
-        <caption>Projected payments. Remaining balance includes unpaid interest.</caption>
+        <caption>Projected payments. {{ combined ? 'Payments on the same date are grouped. ' : '' }}Remaining balance includes unpaid interest{{ combined ? ' on every loan, including between due dates' : '' }}.</caption>
         <thead>
           <tr><th scope="col">Date</th><th scope="col">Payment</th><th scope="col">To interest</th><th scope="col">To principal</th><th scope="col">Balance</th></tr>
         </thead>

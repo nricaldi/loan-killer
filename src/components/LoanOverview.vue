@@ -1,34 +1,48 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Loan, Projection } from '../domain/loan'
+import type { PortfolioProjection } from '../domain/portfolio'
 import { formatDate, money } from '../format'
 import BalanceChart from './BalanceChart.vue'
 import PaymentSchedule from './PaymentSchedule.vue'
 
-const props = defineProps<{ loan: Loan; projection: Projection }>()
-const balanceCents = computed(() => props.loan.principalCents + props.loan.accruedInterestCents)
-const dailyInterestCents = computed(() => props.loan.principalCents * props.loan.annualRatePercent / 100 / 365)
-const principalShare = computed(() => props.projection.status === 'paid-off'
-  ? props.loan.principalCents / props.projection.totalPaymentsCents * 100
+const props = defineProps<{ portfolio: PortfolioProjection }>()
+const projection = computed(() => props.portfolio.projection)
+const loanCount = computed(() => props.portfolio.loans.length)
+const balanceCents = computed(() => props.portfolio.principalCents + props.portfolio.accruedInterestCents)
+const title = computed(() => loanCount.value === 1
+  ? props.portfolio.loans[0]?.loan.name
+  : `${loanCount.value} federal student loans`)
+const rate = computed(() => {
+  const percent = loanCount.value === 1
+    ? props.portfolio.loans[0]?.loan.annualRatePercent
+    : props.portfolio.weightedRatePercent
+  return percent === null || percent === undefined
+    ? '—'
+    : `${new Intl.NumberFormat('en-US', { maximumFractionDigits: loanCount.value === 1 ? 4 : 3 }).format(percent)}%`
+})
+const principalShare = computed(() => projection.value.status === 'paid-off'
+  ? props.portfolio.principalCents / projection.value.totalPaymentsCents * 100
   : 0)
-const paidOffProjection = computed(() => props.projection.status === 'paid-off' ? props.projection : null)
+const paidOffProjection = computed(() => projection.value.status === 'paid-off' ? projection.value : null)
+const blockedLoans = computed(() => props.portfolio.loans.filter(({ projection }) => projection.status !== 'paid-off'))
 </script>
 
 <template>
   <div class="overview">
     <section class="balance-card" aria-labelledby="balance-heading">
       <div class="balance-header">
-        <p id="balance-heading" class="eyebrow">YOUR STARTING BALANCE</p>
+        <p id="balance-heading" class="eyebrow">{{ loanCount > 1 ? 'YOUR TOTAL STARTING BALANCE' : 'YOUR STARTING BALANCE' }}</p>
         <span class="badge"><span aria-hidden="true" /> Minimum payments</span>
       </div>
-      <p class="balance-value">{{ money(balanceCents) }}</p>
-      <p class="balance-subtitle"><span class="loan-name">{{ loan.name }}</span><span aria-hidden="true"> · </span>As of {{ formatDate(loan.balanceDate) }}</p>
+      <p class="balance-value" data-testid="starting-balance">{{ money(balanceCents) }}</p>
+      <p class="balance-subtitle"><span class="loan-name">{{ title }}</span><span aria-hidden="true"> · </span>As of {{ formatDate(portfolio.balanceDate) }}</p>
       <div class="balance-facts">
-        <div><span>Monthly payment</span><strong>{{ money(loan.monthlyPaymentCents) }}</strong></div>
-        <div><span>Fixed interest rate</span><strong>{{ loan.annualRatePercent }}%</strong></div>
-        <div><span>Interest accruing now</span><strong>~{{ money(dailyInterestCents * 365 / 12) }}<small> / month</small></strong></div>
+        <div><span>{{ loanCount > 1 ? 'Combined monthly minimum' : 'Monthly payment' }}</span><strong data-testid="monthly-minimum">{{ money(portfolio.monthlyPaymentCents) }}</strong></div>
+        <div><span>{{ loanCount > 1 ? 'Principal-weighted rate' : 'Fixed interest rate' }}</span><strong>{{ rate }}</strong></div>
+        <div><span>Interest at starting principal</span><strong>~{{ money(portfolio.annualInterestCents / 12) }}<small> / month</small></strong></div>
       </div>
-      <p class="balance-note">Monthly interest is an average at today’s principal. Actual accrual varies with days between payments.</p>
+      <p class="balance-note">Monthly interest is an average at your starting principal. Actual accrual varies with days between payments.</p>
+      <p v-if="loanCount > 1" class="balance-note">The rate is weighted by principal, not a new loan rate. Your combined minimum decreases as individual loans are paid off; freed payments aren’t rolled over.</p>
     </section>
 
     <template v-if="paidOffProjection">
@@ -36,12 +50,12 @@ const paidOffProjection = computed(() => props.projection.status === 'paid-off' 
         <section class="stat-card">
           <p class="eyebrow">ESTIMATED DEBT-FREE DATE</p>
           <p class="stat-value payoff-date" data-testid="payoff-date">{{ formatDate(paidOffProjection.payoffDate) }}</p>
-          <p class="stat-note">{{ paidOffProjection.paymentCount }} monthly {{ paidOffProjection.paymentCount === 1 ? 'payment' : 'payments' }} to zero</p>
+          <p class="stat-note">{{ paidOffProjection.paymentCount }} {{ loanCount > 1 ? `payments across ${loanCount} loans` : `monthly ${paidOffProjection.paymentCount === 1 ? 'payment' : 'payments'} to zero` }}</p>
         </section>
         <section class="stat-card">
           <p class="eyebrow">REMAINING INTEREST</p>
           <p class="stat-value" data-testid="remaining-interest">{{ money(paidOffProjection.remainingInterestCents) }}</p>
-          <p class="stat-note">Includes {{ money(loan.accruedInterestCents) }} already accrued</p>
+          <p class="stat-note">Includes {{ money(portfolio.accruedInterestCents) }} already accrued</p>
         </section>
       </div>
 
@@ -51,31 +65,37 @@ const paidOffProjection = computed(() => props.projection.status === 'paid-off' 
           <span class="projection-label">PROJECTION</span>
         </div>
         <p class="section-description">One payment at a time. Here’s where consistency takes you.</p>
-        <BalanceChart :loan="loan" :projection="paidOffProjection" />
+        <BalanceChart :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="paidOffProjection" />
         <div class="finish-line">
           <span class="finish-icon" aria-hidden="true">✓</span>
-          <p><strong>A finish line, not a forever balance.</strong><br />Your last estimated payment is {{ money(paidOffProjection.schedule.at(-1)?.paymentCents ?? 0) }}.</p>
+          <p><strong>A finish line, not a forever balance.</strong><br />{{ loanCount > 1 ? 'Your last payment date totals' : 'Your last estimated payment is' }} {{ money(paidOffProjection.schedule.at(-1)?.paymentCents ?? 0) }}.</p>
         </div>
-        <PaymentSchedule :payments="paidOffProjection.schedule" />
+        <PaymentSchedule :payments="paidOffProjection.schedule" :combined="loanCount > 1" />
       </section>
 
       <section class="panel cost-panel" aria-labelledby="cost-heading">
         <div class="cost-heading"><h2 id="cost-heading">What you’ll pay from here</h2><strong data-testid="total-payments">{{ money(paidOffProjection.totalPaymentsCents) }}</strong></div>
-        <div class="cost-bar" role="img" :aria-label="`${money(loan.principalCents)} principal and ${money(paidOffProjection.remainingInterestCents)} remaining interest`"><span :style="{ width: `${principalShare}%` }" /></div>
-        <div class="cost-legend"><span><i class="principal-dot" aria-hidden="true" />Principal <strong>{{ money(loan.principalCents) }}</strong></span><span><i class="interest-dot" aria-hidden="true" />Interest <strong>{{ money(paidOffProjection.remainingInterestCents) }}</strong></span></div>
-        <p class="cost-note">{{ money(paidOffProjection.futureInterestCents) }} in new interest after {{ formatDate(loan.balanceDate) }}. Previously paid interest isn’t included.</p>
+        <div class="cost-bar" role="img" :aria-label="`${money(portfolio.principalCents)} principal and ${money(paidOffProjection.remainingInterestCents)} remaining interest`"><span :style="{ width: `${principalShare}%` }" /></div>
+        <div class="cost-legend"><span><i class="principal-dot" aria-hidden="true" />Principal <strong>{{ money(portfolio.principalCents) }}</strong></span><span><i class="interest-dot" aria-hidden="true" />Interest <strong>{{ money(paidOffProjection.remainingInterestCents) }}</strong></span></div>
+        <p class="cost-note">{{ money(paidOffProjection.futureInterestCents) }} in new interest after {{ formatDate(portfolio.balanceDate) }}. Previously paid interest isn’t included.</p>
       </section>
     </template>
 
     <section v-else class="panel unpaid-panel" aria-labelledby="unpaid-heading">
       <span class="unpaid-icon" aria-hidden="true">↗</span>
       <p class="eyebrow">LET’S CHECK THAT PAYMENT</p>
-      <h2 id="unpaid-heading">{{ projection.status === 'insufficient-payment' ? 'This payment isn’t getting you to zero.' : 'The payoff is beyond this projection.' }}</h2>
-      <p v-if="projection.status === 'insufficient-payment'">Over a full year at the end of the projection, this payment doesn’t cover new interest. Your balance isn’t decreasing. Double-check your minimum with your servicer, or enter a higher monthly payment.</p>
+      <h2 id="unpaid-heading">{{ loanCount > 1 ? 'Some loans need a payment check.' : projection.status === 'insufficient-payment' ? 'This payment isn’t getting you to zero.' : 'The payoff is beyond this projection.' }}</h2>
+      <p v-if="loanCount > 1">At least one loan doesn’t pay off within its 1,200-payment limit. An overall payoff date and complete interest total would be misleading, so we haven’t shown them. Open an individual loan to inspect its schedule.</p>
+      <p v-else-if="projection.status === 'insufficient-payment'">Over a full year at the end of the projection, this payment doesn’t cover new interest. Your balance isn’t decreasing. Double-check your minimum with your servicer, or enter a higher monthly payment.</p>
       <p v-else>The loan still has a balance after 1,200 monthly payments. We cap estimates there rather than show an unreliable finish date. Check your figures or try a higher payment.</p>
       <p class="unpaid-footnote">No payoff date or lifetime interest total is shown because the loan does not pay off within the projection.</p>
-      <PaymentSchedule :payments="projection.schedule.slice(0, 12)" />
-      <p class="unpaid-footnote">The breakdown above shows only the first 12 projected payments.</p>
+      <ul v-if="loanCount > 1" class="blocked-loans">
+        <li v-for="entry in blockedLoans" :key="entry.loan.id"><strong>{{ entry.loan.name }}</strong> — {{ entry.projection.status === 'insufficient-payment' ? 'Payment doesn’t cover ongoing interest.' : 'Beyond the projection limit.' }}</li>
+      </ul>
+      <template v-else>
+        <PaymentSchedule :payments="projection.schedule.slice(0, 12)" />
+        <p class="unpaid-footnote">The breakdown above shows only the first 12 projected payments.</p>
+      </template>
     </section>
   </div>
 </template>
@@ -122,6 +142,8 @@ const paidOffProjection = computed(() => props.projection.status === 'paid-off' 
 .unpaid-panel h2 { margin-top: var(--space-3); }
 .unpaid-icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid var(--blue-border); border-radius: var(--radius-md); background: var(--blue-light); font-size: 1.5rem; margin-bottom: var(--space-5); }
 .unpaid-panel > .unpaid-footnote { font-size: var(--font-xs); }
+.blocked-loans { padding-left: var(--space-5); font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.8; }
+.blocked-loans li + li { margin-top: var(--space-3); }
 @media (max-width: 35rem) { .balance-card { padding: var(--space-5); } .balance-facts { grid-template-columns: 1fr 1fr; } .balance-facts > div:last-child { grid-column: 1 / -1; } .stat-grid { gap: var(--space-3); } .stat-card { padding: var(--space-4); } .trajectory-panel, .cost-panel, .unpaid-panel { padding: var(--space-4); } }
 @media (max-width: 23rem) { .stat-grid { grid-template-columns: 1fr; } }
 </style>

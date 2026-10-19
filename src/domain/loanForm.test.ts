@@ -48,4 +48,11 @@ describe('loan form validation', () => {
   it('accepts a zero interest rate and same-day payment', () => {
     expect(validateLoanForm({ ...values, annualRate: '0', nextPaymentDate: values.balanceDate }).loan).not.toBeNull()
   })
+
+  it('requires new or edited balances to match the other loans’ snapshot date', () => {
+    expect(validateLoanForm(values, values.balanceDate).loan).not.toBeNull()
+    const result = validateLoanForm(values, '2025-01-02')
+    expect(result.loan).toBeNull()
+    expect(result.errors.balanceDate).toContain('match the other loan balances')
+  })
 })

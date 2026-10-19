@@ -4,7 +4,13 @@ import { addMonths, today } from '../domain/dates'
 import type { Loan } from '../domain/loan'
 import { validateLoanForm, type FormErrors, type LoanFormValues } from '../domain/loanForm'
 
-const emit = defineEmits<{ submit: [loan: Loan]; reset: [] }>()
+const props = defineProps<{
+  initialLoan?: Loan | null
+  sharedBalanceDate?: string
+  fromExample?: boolean
+  hasLoans: boolean
+}>()
+const emit = defineEmits<{ submit: [loan: Loan, fromExample: boolean]; cancel: [] }>()
 
 function emptyValues(): LoanFormValues {
   return {
@@ -14,20 +20,30 @@ function emptyValues(): LoanFormValues {
     accruedInterest: '0',
     annualRate: '',
     monthlyPayment: '',
-    balanceDate: today(),
-    nextPaymentDate: addMonths(today(), 1),
+    balanceDate: props.sharedBalanceDate ?? today(),
+    nextPaymentDate: addMonths(props.sharedBalanceDate ?? today(), 1),
   }
 }
 
-const values = reactive<LoanFormValues>(emptyValues())
+const initialValues: LoanFormValues = props.initialLoan ? {
+  name: props.initialLoan.name,
+  type: props.initialLoan.type,
+  principal: (props.initialLoan.principalCents / 100).toFixed(2),
+  accruedInterest: (props.initialLoan.accruedInterestCents / 100).toFixed(2),
+  annualRate: String(props.initialLoan.annualRatePercent),
+  monthlyPayment: (props.initialLoan.monthlyPaymentCents / 100).toFixed(2),
+  balanceDate: props.initialLoan.balanceDate,
+  nextPaymentDate: props.initialLoan.nextPaymentDate,
+} : emptyValues()
+const values = reactive<LoanFormValues>(initialValues)
 const errors = ref<FormErrors>({})
 const form = ref<HTMLFormElement | null>(null)
-const savedValues = ref<string | null>(null)
-const exampleLoaded = ref(false)
+const savedValues = ref<string | null>(props.initialLoan ? JSON.stringify(values) : null)
+const exampleLoaded = ref(props.fromExample ?? false)
 const hasChanges = computed(() => savedValues.value !== null && savedValues.value !== JSON.stringify(values))
 
 async function submit() {
-  const result = validateLoanForm(values)
+  const result = validateLoanForm(values, props.sharedBalanceDate)
   errors.value = result.errors
   if (!result.loan) {
     await nextTick()
@@ -35,7 +51,7 @@ async function submit() {
     return
   }
   savedValues.value = JSON.stringify(values)
-  emit('submit', result.loan)
+  emit('submit', result.loan, exampleLoaded.value)
 }
 
 function useExample() {
@@ -46,20 +62,11 @@ function useExample() {
     accruedInterest: '75',
     annualRate: '5.5',
     monthlyPayment: '200',
-    balanceDate: today(),
-    nextPaymentDate: addMonths(today(), 1),
+    balanceDate: props.sharedBalanceDate ?? today(),
+    nextPaymentDate: addMonths(props.sharedBalanceDate ?? today(), 1),
   } satisfies LoanFormValues)
   exampleLoaded.value = true
   void submit()
-}
-
-function reset() {
-  Object.assign(values, emptyValues())
-  errors.value = {}
-  savedValues.value = null
-  exampleLoaded.value = false
-  emit('reset')
-  form.value?.querySelector<HTMLInputElement>('#loan-name')?.focus()
 }
 </script>
 
@@ -67,13 +74,13 @@ function reset() {
   <section class="panel loan-panel" aria-labelledby="loan-details-heading">
     <div class="panel-heading">
       <div>
-        <p class="eyebrow">THE STARTING POINT</p>
+        <p class="eyebrow">{{ initialLoan ? 'EDIT A LOAN' : 'THE STARTING POINT' }}</p>
         <h2 id="loan-details-heading">Your loan details</h2>
       </div>
       <span class="step-label">01</span>
     </div>
     <p class="intro">A few numbers from your servicer. A much clearer picture.</p>
-    <button class="example-button" type="button" @click="useExample">Just exploring? Try an example <span aria-hidden="true">↗</span></button>
+    <button v-if="!initialLoan" class="example-button" type="button" @click="useExample">Just exploring? Try an example <span aria-hidden="true">↗</span></button>
     <p v-if="exampleLoaded" class="example-notice" role="status">Example figures loaded. Replace them with your own for a personal estimate.</p>
 
     <form ref="form" novalidate @submit.prevent="submit">
@@ -198,9 +205,11 @@ function reset() {
             min="1900-01-01"
             max="2100-12-31"
             required
+            :readonly="!!sharedBalanceDate"
             :aria-invalid="!!errors.balanceDate"
-            :aria-describedby="errors.balanceDate ? 'balance-date-error' : undefined"
+            :aria-describedby="errors.balanceDate ? 'balance-date-error balance-date-help' : 'balance-date-help'"
           />
+          <p id="balance-date-help" class="field-hint">{{ sharedBalanceDate ? 'Matches your other loans. Use balances from this same date.' : 'Use this date for all loan balances.' }}</p>
           <p v-if="errors.balanceDate" id="balance-date-error" class="field-error">{{ errors.balanceDate }}</p>
         </div>
         <div class="field">
@@ -223,10 +232,10 @@ function reset() {
       <p v-if="Object.keys(errors).length" class="form-message field-error" role="alert">Check the highlighted fields to calculate your estimate.</p>
       <p v-else-if="hasChanges" class="form-message" role="status">You have changes. Update to refresh your estimate.</p>
       <div class="form-actions">
-        <button class="primary-button" type="submit">{{ savedValues ? 'Update estimate' : 'See my payoff plan' }} <span aria-hidden="true">→</span></button>
-        <button v-if="savedValues" class="text-button" type="button" @click="reset">Clear</button>
+        <button class="primary-button" type="submit">{{ initialLoan ? 'Update loan' : 'Add loan' }} <span aria-hidden="true">→</span></button>
+        <button v-if="hasLoans" class="text-button" type="button" @click="emit('cancel')">{{ initialLoan ? 'Add another loan' : 'Cancel' }}</button>
       </div>
-      <p class="form-footnote">For fixed-rate loans already in repayment.</p>
+      <p class="form-footnote">Fixed-rate loans already in repayment. Save edits before switching loans.</p>
     </form>
   </section>
 </template>

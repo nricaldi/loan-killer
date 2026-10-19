@@ -1,17 +1,92 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import LoanForm from './components/LoanForm.vue'
+import LoanList from './components/LoanList.vue'
 import LoanOverview from './components/LoanOverview.vue'
-import { projectLoan, type Loan } from './domain/loan'
+import type { Loan } from './domain/loan'
+import { projectPortfolio, type LoanRecord } from './domain/portfolio'
+import { formatDate, money } from './format'
 
-const loan = ref<Loan | null>(null)
-const projection = computed(() => loan.value ? projectLoan(loan.value) : null)
-const announcement = computed(() => {
-  if (!loan.value || !projection.value) return 'Enter a loan to see your estimate.'
-  return projection.value.status === 'paid-off'
-    ? `Estimate updated for ${loan.value.name}. ${projection.value.paymentCount} payments remaining.`
-    : `Estimate updated for ${loan.value.name}. No payoff within 1,200 monthly payments.`
+const loans = ref<LoanRecord[]>([])
+const editingId = ref<string | null>(null)
+const visibleLoanId = ref<string | null>(null)
+const editor = ref<HTMLElement | null>(null)
+const lastAction = ref('')
+const portfolio = computed(() => projectPortfolio(loans.value))
+const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
+const sharedBalanceDate = computed(() => loans.value.find((loan) => loan.id !== editingId.value)?.balanceDate)
+const detailLoan = computed(() => loans.value.find((loan) => loan.id === visibleLoanId.value) ?? editingLoan.value)
+const visiblePortfolio = computed(() => {
+  if (visibleLoanId.value && detailLoan.value) return projectPortfolio([detailLoan.value])
+  return portfolio.value
 })
+const announcement = computed(() => {
+  if (!portfolio.value) return `${lastAction.value} Enter a loan to see your estimate.`.trim()
+  const { projection } = portfolio.value
+  const count = `${loans.value.length} ${loans.value.length === 1 ? 'loan' : 'loans'}`
+  if (projection.status !== 'paid-off') {
+    return `${lastAction.value} ${count}. At least one loan does not pay off within 1,200 monthly payments.`
+  }
+  return [
+    lastAction.value,
+    `${count}.`,
+    `${money(portfolio.value.principalCents + portfolio.value.accruedInterestCents)} starting balance.`,
+    `${projection.paymentCount} ${projection.paymentCount === 1 ? 'payment' : 'payments'} remaining.`,
+    `Estimated debt-free date ${formatDate(projection.payoffDate)}.`,
+    `${money(projection.remainingInterestCents)} remaining interest.`,
+  ].join(' ')
+})
+
+async function focusEditor() {
+  await nextTick()
+  editor.value?.querySelector<HTMLInputElement>('#loan-name')?.focus()
+}
+
+async function saveLoan(loan: Loan, fromExample: boolean) {
+  const isNew = !editingLoan.value
+  const record: LoanRecord = { ...loan, id: editingId.value ?? crypto.randomUUID(), fromExample }
+  loans.value = isNew ? [...loans.value, record] : loans.value.map((item) => item.id === record.id ? record : item)
+  editingId.value = record.id
+  lastAction.value = `${isNew ? 'Added' : 'Updated'} ${record.name}.`
+  if (isNew) {
+    await nextTick()
+    editor.value?.querySelector<HTMLButtonElement>('.primary-button')?.focus()
+  }
+}
+
+function addLoan() {
+  editingId.value = null
+  visibleLoanId.value = null
+  void focusEditor()
+}
+
+function editLoan(id: string) {
+  editingId.value = id
+  visibleLoanId.value = id
+  void focusEditor()
+}
+
+function viewLoan(id: string) {
+  editingId.value = id
+  visibleLoanId.value = id
+}
+
+function cancelEditing() {
+  if (editingId.value) addLoan()
+  else {
+    editingId.value = loans.value.at(-1)?.id ?? null
+    void focusEditor()
+  }
+}
+
+function removeLoan(id: string) {
+  const removed = loans.value.find((loan) => loan.id === id)
+  loans.value = loans.value.filter((loan) => loan.id !== id)
+  if (editingId.value === id) editingId.value = null
+  if (visibleLoanId.value === id) visibleLoanId.value = null
+  lastAction.value = `Removed ${removed?.name ?? 'loan'} from the plan.`
+  if (!loans.value.length) void focusEditor()
+}
 </script>
 
 <template>
@@ -39,8 +114,8 @@ const announcement = computed(() => {
           <p class="page-description">Understand what you owe, what interest adds, and when you’ll be done.</p>
         </div>
         <div class="chapter-label">
-          <span>01</span>
-          <div>Your baseline<small>One loan. The full picture.</small></div>
+          <span>02</span>
+          <div>Your baseline<small>Every loan. One clear picture.</small></div>
         </div>
       </section>
 
@@ -53,8 +128,33 @@ const announcement = computed(() => {
       </aside>
 
       <div class="workspace">
-        <LoanForm @submit="loan = $event" @reset="loan = null" />
-        <LoanOverview v-if="loan && projection" :loan="loan" :projection="projection" />
+        <div ref="editor" class="loan-workspace">
+          <LoanForm
+            :key="editingId ?? 'new'"
+            :initial-loan="editingLoan"
+            :shared-balance-date="sharedBalanceDate"
+            :from-example="editingLoan?.fromExample"
+            :has-loans="loans.length > 0"
+            @submit="saveLoan"
+            @cancel="cancelEditing"
+          />
+          <LoanList
+            v-if="portfolio"
+            :loans="portfolio.loans"
+            :editing-id="editingId"
+            @add="addLoan"
+            @edit="editLoan"
+            @view="viewLoan"
+            @remove="removeLoan"
+          />
+        </div>
+        <div v-if="visiblePortfolio" class="results-area">
+          <nav class="overview-tabs" aria-label="Loan overview">
+            <button type="button" :aria-pressed="visibleLoanId === null" @click="visibleLoanId = null">All loans ({{ loans.length }})</button>
+            <button v-if="detailLoan" type="button" :aria-label="`Loan details: ${detailLoan.name}`" :aria-pressed="visibleLoanId === detailLoan.id" @click="visibleLoanId = detailLoan.id">Loan details</button>
+          </nav>
+          <LoanOverview :portfolio="visiblePortfolio" />
+        </div>
         <section v-else class="panel empty-state" aria-labelledby="empty-heading">
           <div class="empty-topline">
             <span class="eyebrow">YOUR NEXT CHAPTER</span>
@@ -96,6 +196,8 @@ const announcement = computed(() => {
             then principal. Your monthly minimum stays fixed; dates follow the next payment’s day
             of the month, adjusted for shorter months. No fees, capitalization, deferment,
             income-driven plans, or forgiveness are modeled. Servicer calculations may differ.
+            All starting balances must use the same date. Each loan keeps its own payment schedule;
+            freed payments aren’t rolled over to other loans in this baseline.
           </p>
           <details>
             <summary>What’s the difference between subsidized and unsubsidized?</summary>
@@ -118,7 +220,7 @@ const announcement = computed(() => {
     <footer class="site-footer">
       <span>loan<span class="brand-light">killer</span>.</span>
       <p>Small steps. A smaller balance. You’ve got this.</p>
-      <span class="footer-version">THE BASELINE · V0.1</span>
+      <span class="footer-version">THE BASELINE · V0.2</span>
     </footer>
   </div>
 </template>
@@ -148,6 +250,10 @@ h1 > span::after { position: absolute; content: ''; height: 0.32em; bottom: 0.05
 .storage-notice p { margin: 0; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.7; }
 .storage-notice strong { font-weight: 600; }
 .workspace { display: grid; grid-template-columns: minmax(20rem, 0.85fr) minmax(0, 1.6fr); align-items: start; gap: var(--space-6); }
+.loan-workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.overview-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.overview-tabs button { border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); padding: var(--space-2) var(--space-4); font-size: var(--font-sm); min-height: 2.75rem; }
+.overview-tabs button[aria-pressed='true'] { background: var(--blue-light); border-color: var(--blue-border); color: var(--text-link); font-weight: 600; }
 .empty-state { padding: var(--space-7); min-height: 44rem; display: flex; flex-direction: column; align-items: center; text-align: center; overflow: hidden; }
 .empty-topline { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .empty-tag { font-size: 0.6rem; color: var(--text-muted); border: 1px solid var(--border); padding: 0.35rem var(--space-2); border-radius: var(--radius-sm); letter-spacing: 0.08em; }

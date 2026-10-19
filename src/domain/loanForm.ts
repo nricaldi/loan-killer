@@ -21,7 +21,7 @@ export function parseMoney(value: string): number | null {
   return Number.isSafeInteger(cents) && cents <= 1_000_000_000 ? cents : null
 }
 
-export function validateLoanForm(values: LoanFormValues): { errors: FormErrors; loan: Loan | null } {
+export function validateLoanForm(values: LoanFormValues, requiredBalanceDate?: string): { errors: FormErrors; loan: Loan | null } {
   const errors: FormErrors = {}
   const principalCents = parseMoney(values.principal)
   const accruedInterestCents = parseMoney(values.accruedInterest)
@@ -43,6 +43,9 @@ export function validateLoanForm(values: LoanFormValues): { errors: FormErrors; 
     if (!date || date.getUTCFullYear() < 1900 || date.getUTCFullYear() > 2100) {
       errors[field] = 'Enter a valid date between 1900 and 2100.'
     }
+  }
+  if (!errors.balanceDate && requiredBalanceDate && values.balanceDate !== requiredBalanceDate) {
+    errors.balanceDate = `Use ${requiredBalanceDate} to match the other loan balances.`
   }
   if (!errors.balanceDate && !errors.nextPaymentDate && daysBetween(values.balanceDate, values.nextPaymentDate) < 0) {
     errors.nextPaymentDate = 'Use a date on or after the balance date.'

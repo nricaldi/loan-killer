@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
-import type { PaidOffProjection, Loan } from '../domain/loan'
+import type { PaidOffProjection } from '../domain/loan'
 import { daysBetween } from '../domain/dates'
 import { chartMoney, formatDate, money } from '../format'
 
-const props = defineProps<{ loan: Loan; projection: PaidOffProjection }>()
+const props = defineProps<{
+  balanceDate: string
+  initialBalanceCents: number
+  projection: PaidOffProjection
+}>()
 const id = useId()
 const gradientId = `${id}-balance-fill`
 const titleId = `${id}-chart-title`
@@ -13,13 +17,13 @@ const width = 720
 const height = 220
 
 const points = computed(() => [
-  { date: props.loan.balanceDate, balanceCents: props.loan.principalCents + props.loan.accruedInterestCents },
+  { date: props.balanceDate, balanceCents: props.initialBalanceCents },
   ...props.projection.schedule,
 ])
-const maxBalance = computed(() => Math.max(...points.value.map((point) => point.balanceCents), 1))
-const totalDays = computed(() => Math.max(daysBetween(props.loan.balanceDate, props.projection.payoffDate), 1))
+const maxBalance = computed(() => points.value.reduce((maximum, point) => Math.max(maximum, point.balanceCents), 1))
+const totalDays = computed(() => Math.max(daysBetween(props.balanceDate, props.projection.payoffDate), 1))
 const coordinates = computed(() => points.value.map((point) => ({
-  x: daysBetween(props.loan.balanceDate, point.date) / totalDays.value * width,
+  x: daysBetween(props.balanceDate, point.date) / totalDays.value * width,
   y: (1 - point.balanceCents / maxBalance.value) * height,
 })))
 const line = computed(() => coordinates.value.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '))
@@ -46,7 +50,7 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
           :aria-labelledby="`${titleId} ${descriptionId}`"
         >
           <title :id="titleId">Projected loan balance with minimum payments</title>
-          <desc :id="descriptionId">{{ money(loan.principalCents + loan.accruedInterestCents) }} on {{ formatDate(loan.balanceDate) }}, reaching zero on {{ formatDate(projection.payoffDate) }}. This is a projection, not actual payment history. A payment-by-payment table follows.</desc>
+          <desc :id="descriptionId">{{ money(initialBalanceCents) }} on {{ formatDate(balanceDate) }}, reaching zero on {{ formatDate(projection.payoffDate) }}. This is a projection, not actual payment history. A payment-by-payment table follows.</desc>
           <defs>
             <linearGradient :id="gradientId" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stop-color="#a8d6f5" stop-opacity="0.55" />
@@ -61,9 +65,9 @@ const midpoint = computed(() => points.value[Math.floor((points.value.length - 1
       </div>
     </div>
     <div class="date-labels" aria-hidden="true">
-      <span>{{ formatDate(loan.balanceDate, true) }}</span>
+      <span>{{ formatDate(balanceDate, true) }}</span>
       <span v-if="midpoint && projection.paymentCount > 3" class="midpoint-label">{{ formatDate(midpoint.date, true) }}</span>
-      <span v-if="projection.payoffDate !== loan.balanceDate">{{ formatDate(projection.payoffDate, true) }}</span>
+      <span v-if="projection.payoffDate !== balanceDate">{{ formatDate(projection.payoffDate, true) }}</span>
     </div>
     <figcaption><span class="legend-line" aria-hidden="true" /> Estimated balance · minimum payments only</figcaption>
   </figure>
