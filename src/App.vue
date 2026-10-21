@@ -142,7 +142,6 @@ function removeLoan(id: string) {
           <LoanOverview :portfolio="visiblePortfolio" :comparison="preview">
             <template #loans>
               <div class="loan-controls">
-                <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
                 <LoanList
                   v-if="portfolio"
                   :loans="portfolio.loans"
@@ -154,7 +153,7 @@ function removeLoan(id: string) {
                   @payment="updateMinimum"
                   @remove="removeLoan"
                 />
-                <p id="loan-payment-help" class="loan-controls-note">Select a loan to preview payments for it; select it again to show all loans. Minimum edits save automatically. Extra payments below are hypothetical.</p>
+                <p id="loan-payment-help" class="sr-only">Select a loan to preview payments for it; select it again to show all loans. Minimum edits save automatically. Extra payments are hypothetical.</p>
               </div>
             </template>
             <template #journey>
@@ -237,9 +236,7 @@ function removeLoan(id: string) {
 main { display: flex; flex-direction: column; gap: var(--space-5); padding-block: var(--space-5); }
 .workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .storage-status.needs-attention { order: -1; }
-.loan-controls { margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
-.loan-view-label { margin: 0 0 var(--space-2); font-size: var(--font-xs); color: var(--text-secondary); }
-.loan-controls-note { margin: var(--space-2) 0 0; font-size: var(--font-xs); color: var(--text-muted); line-height: 1.6; }
+.loan-controls { margin-bottom: var(--space-4); }
 .empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
 .empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
 .empty-state > p:not(.eyebrow) { max-width: 30rem; color: var(--text-muted); font-size: var(--font-sm); line-height: 1.8; margin: var(--space-3) 0 var(--space-5); }

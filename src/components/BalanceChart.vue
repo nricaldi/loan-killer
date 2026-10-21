@@ -12,6 +12,7 @@ const props = defineProps<{
   label?: string
   comparison?: { projection: PaidOffProjection; label: string }
   interactive?: boolean
+  compact?: boolean
 }>()
 const id = useId()
 const gradientId = `${id}-balance-fill`
@@ -69,7 +70,7 @@ function inspectPointer(event: PointerEvent) {
 </script>
 
 <template>
-  <figure class="balance-chart">
+  <figure class="balance-chart" :class="{ compact }">
     <div class="chart-body">
       <div class="y-labels" aria-hidden="true">
         <span v-for="tick in ticks" :key="tick.fraction">{{ tick.label }}</span>
@@ -109,7 +110,10 @@ function inspectPointer(event: PointerEvent) {
       <span><i class="legend-line" aria-hidden="true" />{{ label ?? 'Estimated balance · minimum payments only' }}</span>
       <span v-if="comparison"><i class="legend-line comparison-legend" aria-hidden="true" />{{ comparison.label }}</span>
     </figcaption>
-    <PaymentInspector v-if="interactive" ref="inspector" :payments="(comparison?.projection ?? projection).schedule" :balance-date="balanceDate" :end-date="endDate" :initial-balance-cents="initialBalanceCents" :label="comparison?.label ?? label ?? 'Minimum payments'" @inspect="inspectedDate = $event" />
+    <component :is="compact ? 'details' : 'div'" v-if="interactive" class="inspection-details">
+      <summary v-if="compact">Explore payments</summary>
+      <PaymentInspector ref="inspector" :payments="(comparison?.projection ?? projection).schedule" :balance-date="balanceDate" :end-date="endDate" :initial-balance-cents="initialBalanceCents" :label="comparison?.label ?? label ?? 'Minimum payments'" @inspect="inspectedDate = $event" />
+    </component>
   </figure>
 </template>
 
@@ -131,5 +135,9 @@ figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-conten
 figcaption > span { display: flex; align-items: center; gap: var(--space-2); }
 .legend-line { display: inline-block; width: 1.5rem; border-top: 2px dashed var(--chart-line); }
 .comparison-legend { border-top: 3px solid var(--chart-extra); }
+.compact { margin-top: var(--space-4); }
+.compact .chart-body { height: 10.5rem; }
+.compact figcaption { min-block-size: 1rem; align-content: start; justify-content: start; }
+.inspection-details summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
 @media (max-width: 35rem) { .chart-body { height: 12rem; } .midpoint-label { display: none; } figcaption { font-size: 0.65rem; } }
 </style>

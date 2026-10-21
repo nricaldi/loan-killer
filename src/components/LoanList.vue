@@ -39,8 +39,9 @@ async function cancelRemoval() {
 <template>
   <section ref="list" class="loan-list" aria-labelledby="loans-heading">
     <div class="list-heading">
-      <div>
+      <div class="list-title">
         <h2 id="loans-heading">Your loans <span>{{ loans.length }}</span></h2>
+        <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
       </div>
       <button class="add-button" type="button" @click="emit('add', $event)">+ Add loan</button>
     </div>
@@ -87,6 +88,8 @@ async function cancelRemoval() {
   font-size: var(--font-sm);
   margin-left: var(--space-2);
 }
+.list-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.loan-view-label { margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
 
 .add-button {
   flex-shrink: 0;

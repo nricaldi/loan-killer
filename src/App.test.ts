@@ -315,16 +315,21 @@ describe('interactive payment workspace', () => {
     expect(document.activeElement).toBe(wrapper.get('[aria-label="Edit Direct Loan 02"]').element)
   })
 
-  it('lays out controls, a full-width chart, and a separate comparison section in that order', async () => {
+  it('puts the chart immediately after the loans, with compact one-time controls and separate comparisons', async () => {
     await enterLoan()
     await wrapper.get('#extra-monthly-amount').setValue('100')
     const controls = wrapper.get('#extra-payment').element
     const chart = wrapper.get('.journey-visual').element
     const comparison = wrapper.get('.plan-comparison').element
-    expect(controls.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const loans = wrapper.get('.loan-controls').element
+    expect(loans.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(chart.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(chart.compareDocumentPosition(comparison) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(comparison.closest('#extra-payment')).toBeNull()
     expect(wrapper.find('.strategy-field .strategy-picker').exists()).toBe(true)
+    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    expect(wrapper.get('.payment-summary .impact-details').attributes('open')).toBeUndefined()
+    expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$300.00 / mo')
     expect(wrapper.findAll('figure')).toHaveLength(1)
     await wrapper.get('[data-scenario-id="one-time"] button').trigger('click')
     expect(wrapper.get('.balance-chart figcaption').text()).toContain('With one-time payment')
@@ -332,6 +337,47 @@ describe('interactive payment workspace', () => {
     await wrapper.get('[aria-label="Monthly minimum for Direct Loan 01"]').setValue('400')
     expect(wrapper.find('.balance-chart').exists()).toBe(true)
     expect(wrapper.find('.plan-comparison').exists()).toBe(false)
+  })
+
+  it('keeps the chart and primary controls mounted while one-time previews appear and clear', async () => {
+    await enterLoan({ '#annual-rate': '6' })
+    const chart = wrapper.get('.journey-visual').element
+    const field = wrapper.get<HTMLInputElement>('#extra-payment-amount')
+    const impact = wrapper.get('.impact-area').element
+    expect(wrapper.get('.inspection-details').attributes('open')).toBeUndefined()
+    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    field.element.focus()
+    await field.setValue('300')
+    expect(wrapper.get('.journey-visual').element).toBe(chart)
+    expect(wrapper.get('.impact-area').element).toBe(impact)
+    expect(document.activeElement).toBe(field.element)
+    expect(wrapper.get('[data-testid="preview-payoff-date"]').text()).toBe(wrapper.get('[data-testid="plan-payoff-date"]').text())
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
+    expect(wrapper.get('.journey-visual .schedule').text()).toContain('Extra payment')
+    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    await wrapper.get('.payment-summary button').trigger('click')
+    expect(wrapper.get('.journey-visual').element).toBe(chart)
+    expect(wrapper.get('.impact-area').element).toBe(impact)
+    expect(document.activeElement).toBe(field.element)
+    expect(wrapper.find('[data-testid="preview-payoff-date"]').exists()).toBe(false)
+    expect(wrapper.find('.journey-visual .schedule .extra-tag').exists()).toBe(false)
+  })
+
+  it('shows selected minimum totals beside the chart and updates its payoff date immediately on minimum edits', async () => {
+    await enterLoan()
+    await addSecondLoan()
+    expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$550.00 / mo')
+    const input = wrapper.get<HTMLInputElement>('[aria-label="Monthly minimum for Direct Loan 01"]')
+    input.element.focus()
+    await input.setValue('500')
+    expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$750.00 / mo')
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('Apr 1, 2025')
+    expect(document.activeElement).toBe(input.element)
+    await wrapper.get('[aria-label="Show Direct Loan 02 in chart"]').trigger('click')
+    expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$250.00 / mo')
+    await wrapper.get('[aria-label="Monthly minimum for Direct Loan 02"]').setValue('0')
+    expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$0.00 / mo')
+    expect(wrapper.find('[data-testid="payoff-date"]').exists()).toBe(false)
   })
 
   it('puts saved remaining balances and edit actions directly on the visible loan cards', async () => {
@@ -598,7 +644,7 @@ describe('multiple-loan dashboard', () => {
     expect(wrapper.get('[data-testid="remaining-interest"]').text()).toBe('$25.00')
     expect(wrapper.get('[data-testid="total-payments"]').text()).toBe('$1,525.00')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
-    expect(wrapper.text()).toContain('6 payments across 2 loans')
+    expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$550.00 / mo')
     expect(wrapper.text()).toContain('freed payments aren’t rolled over')
     expect(wrapper.findAll('tbody tr')).toHaveLength(6)
   })
@@ -834,7 +880,7 @@ describe('strategy integration', () => {
     expect(wrapper.get('.strategy-target li strong').text()).toBe('Direct Loan 02')
     expect(wrapper.get('.preview-scope').text()).toContain('Direct Loan 02')
     expect(wrapper.get('[data-testid="monthly-budget"]').text()).toBe('$50.00 minimums + $50.00 extra = $100.00 starting monthly budget')
-    expect(wrapper.get('.payment-summary').text()).toContain('Selected loan paid off')
+    expect(wrapper.get('.payment-summary').text()).toContain('Payoff change')
     expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).not.toBe('$0.00')
     expect(wrapper.get('.comparison-line').attributes('d')).not.toBe(wrapper.get('.projection-line').attributes('d'))
     expect(wrapper.get('.plan-comparison').text()).not.toContain('Direct Loan 01')

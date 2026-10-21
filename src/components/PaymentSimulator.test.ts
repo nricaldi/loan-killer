@@ -57,6 +57,15 @@ describe('one-time payment simulator', () => {
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
   })
 
+  it('opens secondary monthly options when submitting an invalid monthly amount', async () => {
+    mountSimulator([loan], true)
+    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    await wrapper.get('#extra-monthly-amount').setValue('1.234')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.get('.monthly-options').attributes('open')).toBeDefined()
+    expect(document.activeElement).toBe(wrapper.get('#extra-monthly-amount').element)
+  })
+
   it('validates the amount and focuses the invalid field', async () => {
     mountSimulator()
     await compare('-100')
@@ -223,7 +232,7 @@ describe('monthly and combined payment scenarios', () => {
     await wrapper.get('.payment-summary button').trigger('click')
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.get('.summary-placeholder [data-testid="monthly-budget"]').text()).toContain('$0.00 extra = $300.00')
-    expect(document.activeElement).toBe(input.element)
+    expect(document.activeElement).toBe(wrapper.get('#extra-payment-amount').element)
   })
 
   it('emits a live chart preview and clears it on reset and unmount', async () => {
@@ -437,7 +446,7 @@ describe('strategy selection and comparisons', () => {
     await wrapper.get('#extra-monthly-amount').setValue('50')
     await wrapper.get('#extra-payment-amount').setValue('1000')
     expect(wrapper.get('.strategy-target li').text()).toBe('Graduate loan$150.00')
-    expect(wrapper.get('.strategy-target').text()).toContain('freed minimums')
+    expect(wrapper.get('#monthly-help').text()).toContain('freed minimums')
   })
 
   it('skips loans paid off by their minimum before choosing a smallest-balance target', async () => {
@@ -474,8 +483,8 @@ describe('strategy selection and comparisons', () => {
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     await wrapper.get('#extra-payment-amount').setValue('100')
     const firstImpact = wrapper.get('.payment-summary').text()
-    expect(firstImpact).toContain('You’ll save in interest')
-    expect(firstImpact).toContain('All selected loans paid off')
+    expect(firstImpact).toContain('Interest saved')
+    expect(firstImpact).toContain('Payoff change')
     await wrapper.get('#extra-monthly-amount').setValue('50')
     expect(wrapper.get('.payment-summary').text()).not.toBe(firstImpact)
     expect(wrapper.get('.payment-summary h3').text()).toContain('$50.00 extra each month')
@@ -488,11 +497,12 @@ describe('strategy selection and comparisons', () => {
     expect(wrapper.get('.payment-summary h3').text()).toBe('With $50.00 extra each month')
   })
 
-  it('exposes one-time controls and strategy cards without requiring disclosure or refresh', async () => {
+  it('prioritizes one-time controls and keeps monthly options secondary without a refresh button', async () => {
     mountSimulator(strategyLoans, true)
     expect(wrapper.get('#extra-payment-amount').element.closest('details')).toBeNull()
     expect(wrapper.get('#extra-payment-target').element.closest('details')).toBeNull()
-    expect(wrapper.get('.strategy-picker').element.closest('details')).toBeNull()
+    expect(wrapper.get('.strategy-picker').element.closest('details')).toBe(wrapper.get('.monthly-options').element)
+    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
     expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Refresh comparison')
     await wrapper.get('#extra-payment-amount').setValue('100')
