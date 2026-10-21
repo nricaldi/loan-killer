@@ -69,7 +69,7 @@ const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : 
 
 <style scoped>
 .journey-visual { min-width: 0; }
-.payoff-summary { min-width: 0; flex: 1; font-size: var(--font-xs); line-height: 1.6; }
+.payoff-summary { min-width: min(100%, 12rem); flex: 1 1 12rem; font-size: var(--font-xs); line-height: 1.6; }
 .payoff-summary p { margin: 0; }
 .payoff-summary strong { display: block; font-size: var(--font-lg); line-height: 1.4; color: var(--text); }
 .payoff-summary .baseline-context { min-block-size: 1.25rem; font-size: 0.65rem; color: var(--text-muted); }
@@ -87,6 +87,11 @@ const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : 
 .unpaid-panel > p:not(.chart-minimum), .unpaid-details { font-size: var(--font-xs); color: var(--text-muted); line-height: 1.7; }
 .unpaid-panel h2 { margin-top: var(--space-3); }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); }
+@media (max-width: 35rem) {
+  .trajectory-heading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payoff-summary, .trajectory-heading .chart-minimum { min-width: 0; }
+  .chart-switch { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (any-pointer: coarse) { .chart-switch button { min-height: var(--size-touch-target); } }
 .blocked-loans { padding-left: var(--space-5); font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.8; }
 .blocked-loans li + li { margin-top: var(--space-3); }
