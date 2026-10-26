@@ -241,5 +241,9 @@ input[type='range'] { display: block; width: 100%; min-height: 2.5rem; margin: v
 .field-error { color: var(--danger); font-size: var(--font-xs); line-height: 1.7; margin: var(--space-2) 0 0; }
 .date-warning { background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.8; }
 .simulator-footnote { margin: var(--space-5) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--border); }
-@media (max-width: 60rem) { .payment-workspace.has-chart { grid-template-columns: 1fr; } }
+@media (max-width: 60rem) {
+  .payment-workspace.has-chart { grid-template-columns: 1fr; }
+  /* iOS Safari zooms focused fields when their text is smaller than 16px. */
+  input:not([type='range']), select { font-size: var(--font-md); }
+}
 </style>
