@@ -264,6 +264,18 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--da
 .balance-help { margin-top: calc(-1 * var(--space-2)); margin-bottom: var(--space-5); }
 .field-error { color: var(--danger); font-size: var(--font-xs); line-height: 1.6; margin: var(--space-2) 0 0; }
 .date-row input { padding-inline: var(--space-2); font-size: var(--font-xs); }
+/* Keep Safari's native date control inside its grid cell, including padding. */
+.date-row input[type='date'] {
+  appearance: none;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.date-row input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+.date-row input::-webkit-datetime-edit { min-width: 0; padding: 0; }
 .form-message { margin: 0 0 var(--space-3); font-size: var(--font-xs); line-height: 1.6; }
 .form-actions { display: flex; align-items: center; gap: var(--space-4); }
 .primary-button { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
