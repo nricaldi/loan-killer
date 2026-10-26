@@ -249,7 +249,7 @@ function useExample() {
 .example-notice { margin-top: var(--space-3); font-size: var(--font-xs); color: var(--text-muted); line-height: 1.6; }
 form { margin-top: var(--space-6); }
 .field { min-width: 0; margin-bottom: var(--space-4); }
-.field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); column-gap: var(--space-3); }
 label { display: block; margin-bottom: var(--space-2); font-size: var(--font-xs); font-weight: 650; }
 input, select { width: 100%; min-width: 0; min-height: 2.75rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); padding: 0.7rem var(--space-3); font: inherit; font-size: var(--font-sm); }
 select { padding-right: var(--space-5); }
@@ -272,5 +272,5 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--da
   /* iOS Safari zooms focused fields when their text is smaller than 16px. */
   input, select, .date-row input { font-size: var(--font-md); }
 }
-@media (max-width: 25rem) { .loan-panel { padding: var(--space-4); } .field-row { grid-template-columns: 1fr; gap: 0; } }
+@media (max-width: 25rem) { .loan-panel { padding: var(--space-4); } }
 </style>
