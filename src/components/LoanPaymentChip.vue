@@ -58,4 +58,8 @@ label { font-size: var(--font-xs); color: var(--text-secondary); white-space: no
 input { width: 100%; min-height: 2.75rem; padding: var(--space-2) var(--space-2) var(--space-2) 1.3rem; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); font-variant-numeric: tabular-nums; }
 input[aria-invalid='true'] { border-color: var(--danger); }
 .field-error { margin: var(--space-2) 0 0; font-size: var(--font-xs); color: var(--danger); line-height: 1.5; }
+@media (max-width: 60rem) {
+  /* iOS Safari zooms focused fields when their text is smaller than 16px. */
+  input { font-size: var(--font-md); }
+}
 </style>

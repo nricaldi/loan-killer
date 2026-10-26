@@ -268,5 +268,9 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--da
 .form-actions { display: flex; align-items: center; gap: var(--space-4); }
 .primary-button { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .form-footnote { margin: var(--space-3) 0 0; text-align: center; color: var(--text-muted); font-size: var(--font-xs); }
+@media (max-width: 60rem) {
+  /* iOS Safari zooms focused fields when their text is smaller than 16px. */
+  input, select, .date-row input { font-size: var(--font-md); }
+}
 @media (max-width: 25rem) { .loan-panel { padding: var(--space-4); } .field-row { grid-template-columns: 1fr; gap: 0; } }
 </style>
