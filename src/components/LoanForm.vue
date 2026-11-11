@@ -116,7 +116,7 @@ function useExample() {
 
       <div class="field-row">
         <div class="field">
-          <label for="principal">Current principal</label>
+          <label for="principal">Unpaid principal</label>
           <div class="input-affix">
             <span aria-hidden="true">$</span>
             <input
