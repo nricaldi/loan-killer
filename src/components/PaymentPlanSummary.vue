@@ -94,11 +94,12 @@ const targetPayoffChange = computed(() => {
 </template>
 
 <style scoped>
-.payment-summary { min-block-size: var(--size-payment-impact); padding: var(--space-3); background: var(--surface-muted); color: var(--text); border-radius: var(--radius-sm); }
-h3 { min-block-size: 2.4rem; margin: 0 0 var(--space-3); font-size: var(--font-xs); font-weight: 600; line-height: 1.5; }
-.impact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); min-block-size: 4rem; }
+.payment-summary { padding: var(--space-4); background: var(--blue-light); border: 1px solid var(--blue-border); color: var(--text); border-radius: var(--radius-sm); }
+h3 { margin: 0 0 var(--space-4); font-size: var(--font-sm); font-weight: 600; line-height: 1.5; }
+.impact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.impact-grid > :last-child { grid-column: 1 / -1; }
 .impact-grid p { margin: 0 0 var(--space-2); font-size: var(--font-xs); color: var(--text-secondary); }
-.impact-grid strong { display: block; font-size: var(--font-md); font-weight: 650; line-height: 1.3; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.impact-grid strong { display: block; font-size: var(--font-lg); font-weight: 650; line-height: 1.3; letter-spacing: -0.03em; overflow-wrap: anywhere; }
 .impact-details { margin-top: var(--space-2); }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
 .monthly-budget { margin: var(--space-2) 0 0; font-size: var(--font-xs); line-height: 1.7; }

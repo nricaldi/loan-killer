@@ -114,36 +114,42 @@ async function clear() {
 
 <template>
   <div class="payment-workspace" :class="{ 'has-chart': embedded && $slots.default }">
-    <slot />
     <section id="extra-payment" class="simulator" :class="{ panel: !embedded, embedded }" aria-labelledby="extra-payment-heading" tabindex="-1">
-      <h2 id="extra-payment-heading">One-time extra payment</h2>
+      <h2 id="extra-payment-heading">Extra payments</h2>
       <p class="preview-scope sr-only">Payment previews apply to {{ loans.length === 1 ? loans[0]?.name : `the ${loans.length} selected loans` }}.</p>
 
       <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
         <div class="one-time-controls">
-          <label class="sr-only" for="extra-payment-amount">One-time extra payment</label>
           <div class="scenario-fields">
             <div class="scenario-field">
+              <label for="extra-payment-amount">One-time payment today</label>
               <div class="amount-input"><span aria-hidden="true">$</span><input id="extra-payment-amount" v-model="amount" type="text" inputmode="decimal" required :aria-invalid="!!errors.amount" :aria-describedby="errors.amount ? 'extra-amount-error extra-date-help' : 'extra-date-help'" /></div>
               <p v-if="errors.amount" id="extra-amount-error" class="field-error">{{ errors.amount }}</p>
             </div>
             <div class="scenario-field">
-              <label class="sr-only" for="extra-payment-target">Send it to</label>
-              <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : 'extra-target-help'">
+              <label for="extra-payment-target">To loan</label>
+              <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : undefined">
                 <option v-for="loan in loans" :key="loan.id" :value="loan.id">{{ loan.name }} · {{ loan.annualRatePercent }}%</option>
               </select>
               <p v-if="errors.target" id="extra-target-error" class="field-error">{{ errors.target }}</p>
             </div>
           </div>
-          <p id="extra-target-help" class="form-note">Preview only · updates the chart instantly.</p>
         </div>
 
+        <div class="monthly-options">
+          <div class="monthly-controls">
+            <label for="extra-monthly-amount">Extra per month</label>
+            <div class="amount-input monthly-input"><span aria-hidden="true">$</span><input id="extra-monthly-amount" v-model="monthlyAmount" type="text" inputmode="decimal" required :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" /></div>
+            <p v-if="errors.monthly" id="extra-monthly-error" class="field-error">{{ errors.monthly }}</p>
+            <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
+            <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
+          </div>
+        </div>
         <div class="impact-area">
           <PaymentPlanSummary v-if="result" :result="result" :selected="selected" @clear="clear" />
           <div v-else class="summary-placeholder">
             <h3>Payment impact</h3>
             <div class="placeholder-metrics" aria-hidden="true"><span>Interest saved<strong>—</strong></span><span>Payoff change<strong>—</strong></span><span>Debt-free by<strong>—</strong></span></div>
-            <p>Enter an amount to see how much interest and time you could save.</p>
             <details class="placeholder-details">
               <summary>Payment details</summary>
               <p data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
@@ -151,16 +157,8 @@ async function clear() {
           </div>
         </div>
 
-        <details class="monthly-options">
-          <summary>Extra monthly payments <span v-if="enteredMonthlyCents && enteredMonthlyCents > 0">· {{ money(enteredMonthlyCents) }}/mo</span></summary>
-          <div class="monthly-controls">
-            <label for="extra-monthly-amount">Extra monthly budget</label>
-            <div class="amount-input monthly-input"><span aria-hidden="true">$</span><input id="extra-monthly-amount" v-model="monthlyAmount" type="text" inputmode="decimal" required :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" /></div>
-            <p v-if="errors.monthly" id="extra-monthly-error" class="field-error">{{ errors.monthly }}</p>
-            <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
-            <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
-            <p class="form-note">Added on top of your selected loans’ minimums, not per loan.</p>
-          </div>
+        <details class="strategy-options">
+          <summary>Payment strategy</summary>
           <div class="strategy-field">
             <PaymentStrategyPicker v-model="strategy" />
             <p v-if="errors.strategy" id="strategy-error" class="field-error">{{ errors.strategy }}</p>
@@ -189,6 +187,7 @@ async function clear() {
 
       <p v-if="!embedded" class="simulator-footnote">These are hypothetical payments, not transactions. Your baseline and entered balances stay unchanged. Loan edits clear this scenario. We don’t model paid-ahead status; check your servicer’s overpayment instructions.</p>
     </section>
+    <div v-if="$slots.default" class="chart-area"><slot /></div>
   </div>
   <section v-if="result" class="panel plan-comparison" aria-labelledby="plan-comparison-heading">
     <h2 id="plan-comparison-heading">Compare all plans</h2>
@@ -202,16 +201,16 @@ async function clear() {
 
 <style scoped>
 .payment-workspace { min-width: 0; }
-.payment-workspace.has-chart { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; gap: var(--space-5); }
+.payment-workspace.has-chart { display: grid; grid-template-columns: 25rem minmax(0, 1fr); align-items: start; gap: var(--space-5); }
 .simulator { min-width: 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .comparison-details { margin-top: var(--space-3); }
-.one-time-controls .form-note { margin: var(--space-2) 0 0; }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
-.impact-area, .summary-placeholder { min-block-size: var(--size-payment-impact); }
-.summary-placeholder { padding: var(--space-3); border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; }
-.summary-placeholder h3 { min-block-size: 2.4rem; margin: 0 0 var(--space-3); font-size: var(--font-xs); color: var(--text); }
+.chart-area { min-width: 0; }
+.summary-placeholder { padding: var(--space-4); border-radius: var(--radius-sm); background: var(--blue-light); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; }
+.summary-placeholder h3 { margin: 0 0 var(--space-4); font-size: var(--font-sm); color: var(--text); }
 .summary-placeholder p { margin: 0; }
-.placeholder-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); min-block-size: 4rem; }
+.placeholder-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.placeholder-metrics > :last-child { grid-column: 1 / -1; }
 .placeholder-metrics strong { display: block; margin-top: var(--space-2); font-size: var(--font-md); }
 .placeholder-details { margin-top: var(--space-2); }
 .plan-comparison { padding: var(--space-5); min-width: 0; }
@@ -226,7 +225,7 @@ h2 { font-size: var(--font-md); }
 .form-note, .simulator-footnote { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.6; }
 .scenario-form { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
 .scenario-form > * { min-width: 0; }
-.scenario-fields { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-2); align-items: start; }
+.scenario-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--space-2); align-items: start; }
 .scenario-field { min-width: 0; }
 label { display: block; font-size: var(--font-xs); font-weight: 600; line-height: 1.6; margin-bottom: var(--space-2); }
 input:not([type='range']), select { min-width: 0; width: 100%; height: var(--size-touch-target); padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); }
@@ -234,16 +233,17 @@ input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--da
 .amount-input { position: relative; }
 .amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: var(--font-sm); pointer-events: none; }
 .amount-input input { padding-left: 1.7rem; }
-.monthly-controls { min-width: 0; margin-top: var(--space-3); }
-.monthly-input { width: 7rem; }
-input[type='range'] { display: block; width: 100%; min-height: 2.5rem; margin: var(--space-3) 0 0; accent-color: var(--chart-line); cursor: pointer; }
-.strategy-field { display: grid; gap: var(--space-3); border-top: 1px solid var(--border); margin-top: var(--space-3); padding-top: var(--space-3); }
+.monthly-controls { min-width: 0; }
+.monthly-input { width: 100%; }
+input[type='range'] { display: block; width: 100%; min-height: 2.75rem; margin: var(--space-2) 0 0; accent-color: var(--chart-line); cursor: pointer; }
+.strategy-field { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
 .field-error { color: var(--danger); font-size: var(--font-xs); line-height: 1.7; margin: var(--space-2) 0 0; }
 .date-warning { background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.8; }
 .simulator-footnote { margin: var(--space-5) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--border); }
-@media (max-width: 60rem) {
+@media (max-width: 65rem) {
   .payment-workspace.has-chart { grid-template-columns: 1fr; }
   /* iOS Safari zooms focused fields when their text is smaller than 16px. */
   input:not([type='range']), select { font-size: var(--font-md); }
 }
+@media (max-width: 35rem) { .scenario-fields { grid-template-columns: 1fr; } }
 </style>

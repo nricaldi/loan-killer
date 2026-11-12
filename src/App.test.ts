@@ -315,7 +315,7 @@ describe('interactive payment workspace', () => {
     expect(document.activeElement).toBe(wrapper.get('[aria-label="Edit Direct Loan 02"]').element)
   })
 
-  it('puts the chart immediately after the loans, with compact one-time controls and separate comparisons', async () => {
+  it('puts payment controls before the chart, with separate comparisons', async () => {
     await enterLoan()
     await wrapper.get('#extra-monthly-amount').setValue('100')
     const controls = wrapper.get('#extra-payment').element
@@ -323,11 +323,11 @@ describe('interactive payment workspace', () => {
     const comparison = wrapper.get('.plan-comparison').element
     const loans = wrapper.get('.loan-controls').element
     expect(loans.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(chart.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(controls.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(chart.compareDocumentPosition(comparison) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(comparison.closest('#extra-payment')).toBeNull()
     expect(wrapper.find('.strategy-field .strategy-picker').exists()).toBe(true)
-    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    expect(wrapper.get('#extra-monthly-amount').element.closest('details')).toBeNull()
     expect(wrapper.get('.payment-summary .impact-details').attributes('open')).toBeUndefined()
     expect(wrapper.get('[data-testid="chart-monthly-minimum"]').text()).toBe('$300.00 / mo')
     expect(wrapper.findAll('figure')).toHaveLength(1)
@@ -345,7 +345,7 @@ describe('interactive payment workspace', () => {
     const field = wrapper.get<HTMLInputElement>('#extra-payment-amount')
     const impact = wrapper.get('.impact-area').element
     expect(wrapper.get('.inspection-details').attributes('open')).toBeUndefined()
-    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    expect(wrapper.get('#extra-monthly-amount').element.closest('details')).toBeNull()
     field.element.focus()
     await field.setValue('300')
     expect(wrapper.get('.journey-visual').element).toBe(chart)
@@ -354,7 +354,7 @@ describe('interactive payment workspace', () => {
     expect(wrapper.get('[data-testid="preview-payoff-date"]').text()).toBe(wrapper.get('[data-testid="plan-payoff-date"]').text())
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
     expect(wrapper.get('.journey-visual .schedule').text()).toContain('Extra payment')
-    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    expect(wrapper.get('#extra-monthly-amount').element.closest('details')).toBeNull()
     await wrapper.get('.payment-summary button').trigger('click')
     expect(wrapper.get('.journey-visual').element).toBe(chart)
     expect(wrapper.get('.impact-area').element).toBe(impact)

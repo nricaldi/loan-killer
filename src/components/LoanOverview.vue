@@ -92,9 +92,9 @@ const paidOffProjection = computed(() => projection.value.status === 'paid-off' 
 .balance-note { color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; margin: var(--space-4) 0 0; }
 .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .stat-card, .total-card { min-width: 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
-.total-card { background: var(--highlight-background); border-color: var(--highlight-background); color: var(--highlight-text); }
-.total-card .eyebrow { color: var(--highlight-muted); }
-.total-value { font-size: clamp(1.5rem, 2.5vw, 1.85rem); font-weight: 650; line-height: 1.2; letter-spacing: -0.05em; margin: var(--space-2) 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.total-card { background: var(--surface); border-color: var(--border); color: var(--text); }
+.total-card .eyebrow { color: var(--text-muted); }
+.total-value { font-size: clamp(1.35rem, 2.25vw, 1.65rem); font-weight: 650; line-height: 1.2; letter-spacing: -0.05em; margin: var(--space-2) 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .stat-value { margin: var(--space-2) 0 0; font-size: clamp(1.35rem, 2.25vw, 1.65rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .unavailable-value { font-size: var(--font-lg); }
 .journey-panel { min-width: 0; }

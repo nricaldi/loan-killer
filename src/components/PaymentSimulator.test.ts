@@ -48,6 +48,22 @@ afterEach(() => {
 })
 
 describe('one-time payment simulator', () => {
+  it('places both payment controls before impact and the chart in reading order', () => {
+    wrapper = mount(PaymentSimulator, {
+      props: { loans: [loan], embedded: true },
+      slots: { default: '<div data-testid="chart-slot">Chart</div>' },
+    })
+    const oneTime = wrapper.get('#extra-payment-amount').element
+    const monthly = wrapper.get('#extra-monthly-amount').element
+    const impact = wrapper.get('.impact-area').element
+    const chart = wrapper.get('[data-testid="chart-slot"]').element
+    expect(oneTime.closest('details')).toBeNull()
+    expect(monthly.closest('details')).toBeNull()
+    expect(oneTime.compareDocumentPosition(monthly) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(monthly.compareDocumentPosition(impact) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(impact.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('clearly labels a payment today as hypothetical and preserves scheduled minimums', () => {
     mountSimulator()
     expect(wrapper.text()).not.toContain('WHAT-IF · NOT A REAL PAYMENT')
@@ -57,12 +73,12 @@ describe('one-time payment simulator', () => {
     expect(wrapper.find('[data-testid="extra-payment-results"]').exists()).toBe(false)
   })
 
-  it('opens secondary monthly options when submitting an invalid monthly amount', async () => {
+  it('keeps monthly controls exposed and focuses an invalid monthly amount', async () => {
     mountSimulator([loan], true)
-    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    expect(wrapper.get('#extra-monthly-amount').element.closest('details')).toBeNull()
     await wrapper.get('#extra-monthly-amount').setValue('1.234')
     await wrapper.get('.scenario-form').trigger('submit')
-    expect(wrapper.get('.monthly-options').attributes('open')).toBeDefined()
+    expect(wrapper.get('#extra-monthly-amount').element.closest('details')).toBeNull()
     expect(document.activeElement).toBe(wrapper.get('#extra-monthly-amount').element)
   })
 
@@ -497,12 +513,12 @@ describe('strategy selection and comparisons', () => {
     expect(wrapper.get('.payment-summary h3').text()).toBe('With $50.00 extra each month')
   })
 
-  it('prioritizes one-time controls and keeps monthly options secondary without a refresh button', async () => {
+  it('exposes both payment controls and keeps strategy secondary without a refresh button', async () => {
     mountSimulator(strategyLoans, true)
     expect(wrapper.get('#extra-payment-amount').element.closest('details')).toBeNull()
     expect(wrapper.get('#extra-payment-target').element.closest('details')).toBeNull()
-    expect(wrapper.get('.strategy-picker').element.closest('details')).toBe(wrapper.get('.monthly-options').element)
-    expect(wrapper.get('.monthly-options').attributes('open')).toBeUndefined()
+    expect(wrapper.get('.strategy-picker').element.closest('details')).toBe(wrapper.get('.strategy-options').element)
+    expect(wrapper.get('#extra-monthly-amount').element.closest('details')).toBeNull()
     expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Refresh comparison')
     await wrapper.get('#extra-payment-amount').setValue('100')
