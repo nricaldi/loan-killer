@@ -16,10 +16,10 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 3. Review starting balance, remaining interest, total repayment, and the baseline debt-free date above the balance chart. Unpaid plans retain a 50-year balance view without invented payoff totals.
 4. Choose **Pay more each month**, **Make a one-time payment**, or both. Enter an amount or try a suggested amount to see its impact immediately.
 5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
-6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Monthly allocation strategy is available for multi-loan scopes.
+6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
 
-Use **Done** to close one payment row or **Compact** to close both. Amounts, targets, strategies, and the selected preview stay active; **Reset extra payments** is the separate action that clears them. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
+Use **Done** to close one payment row or **Compact** to close both. Amounts, automatic recommendations, and the selected preview stay active; **Reset extra payments** is the separate action that clears them. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
 
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
@@ -31,7 +31,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Explicit all-loans or individual-loan scope across totals, chart, and payment exploration.
 - A baseline cost and payoff outlook followed by guided extra-payment options.
 - Live one-time, monthly, and combined previews with measured interest/time savings and a single shared balance chart.
-- Compact plan comparison, optional multi-loan monthly allocation strategy, and freed-minimum rollover.
+- Automatic allocation recommendations, optional explanations/comparisons, and freed-minimum rollover.
 - Inline low-payment warnings, bounded unpaid curves, overpayment handling, and unavailable-estimate states.
 - Responsive layouts, keyboard focus, and reduced-motion support.
 
@@ -51,6 +51,14 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Balances and dates are restored exactly as entered, not advanced to today. The app does not know which real payments happened. Check your figures and next-payment dates when returning; overdue next-payment dates still block new what-if calculations until updated.
 - Export/import, backups, accounts, and cloud synchronization are intentionally **not** part of this feature.
 
+## Automatic allocation recommendations
+
+Enter only the one-time and/or extra monthly amount. The app compares every one-time target in the current loan scope and both supported monthly strategies. Combined plans compare every target/strategy pair. One-time-only, monthly-only, and combined plans each retain their own winner, so switching the plan comparison updates the allocation, summary, and chart together.
+
+Complete payoff estimates rank ahead of incomplete ones. Among complete options, the app minimizes projected remaining interest, then the overall payoff date, with stable IDs breaking exact ties. It shows the actual first extra monthly allocations, not a guess from starting rates or balances. A faster but more expensive alternative is flagged. Exact ties are identified, and no cheapest-plan claim is made if every option is incomplete.
+
+**Why this recommendation?** contains the rule and the compared interest totals/payoff dates. These recommendations cover the modeled single-loan lump-sum targets and the two monthly methods; they do not claim a global optimum over arbitrary split payments. Lump sums above a target’s payoff amount remain unused. Invalid draft amounts preserve the last valid comparison.
+
 ## Extra payment today
 
 - The payment date is your browser’s local date, refreshed when you submit the comparison. It is not backdated to the loan’s balance snapshot.
@@ -62,7 +70,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Time changes use actual calendar dates, with calendar years/months/days rather than assuming 30-day months. If another loan takes longer, the overall date may stay unchanged even when the selected loan finishes earlier.
 - If either plan has no complete payoff estimate, full interest and time savings are unavailable. A complete scenario can still be displayed even if the baseline does not pay off within its limit; unknown savings are never presented as infinite or zero.
 - Per-payment rounding can create a small additional-interest difference for a tiny extra payment. Negative savings are preserved and explicitly labeled as additional interest.
-- Valid amount and target changes refresh results immediately. **Reset extra payments** removes the preview and returns to the two exploration choices. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Switching between loan views does not clear it.
+- Valid amount and loan-scope changes refresh results and recommendations immediately. **Reset extra payments** removes the preview and returns to the two exploration choices. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Switching between loan views does not clear it.
 
 ## Extra monthly payments
 
@@ -72,19 +80,19 @@ All balances must come from the **same date**. After adding the first loan, the 
 - A positive monthly increase enables rollover: the original minimum for a paid-off loan becomes available on each of that loan’s original monthly due dates. The unused portion of a final minimum also becomes available that same day. Minimums due on other dates are not spent early or skipped.
 - This maintains the starting minimum-payment budget plus the extra monthly amount as loans finish. Available cash follows the entered due dates; initial and final partial cycles can spend less. All actual payments are capped at amounts owed, with no unused final budget counted as spending or carried forward after all loans are paid off.
 - **Minimum-only and one-time-only plans do not roll over payments.** With $0 extra monthly, the monthly plan exactly matches the baseline and the combined plan exactly matches one-time only; zero does not silently enable a rollover-only strategy.
-- The one-time target dropdown only affects the lump sum. It does not override the monthly strategy. Unused one-time overpayment is never redirected, including in the combined plan; recycling future minimums is a separate part of the monthly budget.
+- The recommended one-time target receives the lump sum. Monthly payments still follow the recommended allocation method. Unused one-time overpayment is never redirected, including in the combined plan; recycling future minimums is a separate part of the monthly budget.
 - The comparison includes all applied payments in every total, not just the future scheduled minimums. A plan that never pays off within the model’s limit has no complete interest or payment total. Savings require both it and the baseline to have a complete payoff estimate.
 - Monthly/combined schedules are capped at 1,200 original monthly due slots per loan and 1,200 monthly-extra slots. If unpaid, they report the projection limit rather than infer an interest-coverage classification from irregular extra-payment rows.
 - These remain fixed-rate, simple-interest estimates, not servicer transactions.
 
 ## Strategies and projected milestones
 
-- **Highest rate first (avalanche)** directs extra monthly and freed minimum-payment money to the active loan with the highest nominal fixed rate. This remains the default.
+- **Highest rate first (avalanche)** directs extra monthly and freed minimum-payment money to the active loan with the highest nominal fixed rate. This is the engine default, but the recommendation compares both methods.
 - **Smallest balance first (snowball)** directs it to the active loan with the smallest current total balance, including unpaid interest and interest accrued through that payment date. Priorities are re-evaluated after all minimums due that day; they are not frozen to original loan sizes. A lump sum may also change the next target.
 - Equal-priority loans use stable loan IDs to break ties. Reordering the displayed loan records does not change the result.
 - Both approaches use the same budget, scheduled due dates, rollover policy, fixed one-time target, and applied lump sum. Strategy only changes monthly and combined plans with positive extra monthly money. Zero monthly extra still means no rollover and no strategy-dependent change to the baseline.
 - The engine computes actual modeled interest and calendar finish-date differences rather than declaring a guaranteed winner. Neither a cheaper result nor an earlier first payoff guarantees an earlier overall finish. Non-capitalized unpaid interest and per-payment rounding can also affect the cost ordering.
-- Changing the monthly allocation strategy recomputes the current valid amounts immediately. Invalid money edits preserve the last valid result and show a warning. Strategy selection is available only for multi-loan scopes.
+- Valid amount changes automatically compare both monthly methods and every applicable one-time target. Invalid money edits preserve the last valid result and show a warning. The chosen method and alternatives are available in the recommendation explanation.
 - Strategy-to-strategy cost and time comparisons require both strategies to fully pay off, even if the minimum-payment baseline does not. Savings versus baseline separately require a complete baseline. The first known individual payoff may still be shown for an otherwise incomplete plan.
 - Milestones use the selected plan’s actual simulated payoff dates, not allocation priority. Loans reaching zero on the same date share a milestone; duplicate names remain distinct through their IDs. The remaining-loan count only reaches zero when all loans have a known complete payoff.
 - Each loan’s timing change is compared with that loan’s own baseline date, not the whole plan’s date. Unavailable baseline dates are labeled as unknown, and later dates are not disguised as positive savings.

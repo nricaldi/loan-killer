@@ -54,3 +54,5 @@ The final page order is loans → baseline outlook and one balance chart → gui
 Inline low-payment warnings, compact loan rows, a smaller loan editor, and explicit mobile text sizing remain part of the polish pass.
 
 The exploration section now sits directly on the page background. Flat payment rows replace nested cards, with compact amount summaries that preserve the active preview. Monthly strategy uses a concise native selector. Zero-on-focus editing applies to money fields in exploration, loan entry, and saved minimums without creating a model change just from focus.
+
+Allocation now follows the entered amounts automatically. The app compares all in-scope one-time targets and both monthly methods, chooses lowest projected interest with overall payoff date as the tie-breaker, and retains separate recommended allocations for one-time, monthly, and combined views. The primary UI shows where to pay; optional explanations expose alternatives, ties, and cost/time tradeoffs. Incomplete estimates never receive a cheapest-plan claim.

@@ -89,8 +89,6 @@ describe('guided payment exploration', () => {
     render([loan, other])
     await oneTime()
     await monthly()
-    await wrapper.get('#extra-payment-target').setValue(other.id)
-    await wrapper.get('.strategy-picker select').setValue('smallest-balance')
     await wrapper.get('[data-scenario-id="monthly"] button').trigger('click')
     const preview = wrapper.emitted('preview')?.at(-1)
     const summary = wrapper.get('.payment-summary').text()
@@ -106,8 +104,8 @@ describe('guided payment exploration', () => {
     await wrapper.get('.monthly-choice').trigger('click')
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('300')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('100')
-    expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(other.id)
-    expect(wrapper.get<HTMLSelectElement>('.strategy-picker select').element.value).toBe('smallest-balance')
+    expect(wrapper.find('#extra-payment-target').exists()).toBe(false)
+    expect(wrapper.find('.strategy-picker').exists()).toBe(false)
     expect(wrapper.get('[data-scenario-id="monthly"] button').attributes('aria-pressed')).toBe('true')
   })
 
@@ -158,33 +156,56 @@ describe('guided payment exploration', () => {
     await oneTime('100')
     await monthly('50')
     await wrapper.setProps({ loans: [other] })
-    expect(wrapper.get<HTMLSelectElement>('#extra-payment-target').element.value).toBe(other.id)
+    expect(wrapper.find('#extra-payment-target').exists()).toBe(false)
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('100')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('50')
     expect(wrapper.get('.payment-summary h3').text()).toContain('Graduate loan')
     expect(wrapper.find('.strategy-field').exists()).toBe(false)
   })
 
-  it('changes the lump-sum target independently of the monthly plan', async () => {
-    render([loan, other])
-    await oneTime('100')
-    await wrapper.get('#extra-payment-target').setValue(other.id)
+  it('recommends the better one-time loan without asking the user to choose a target', async () => {
+    render([
+      { ...loan, principalCents: 0, accruedInterestCents: 100000, annualRatePercent: 100, monthlyPaymentCents: 1000 },
+      { ...other, principalCents: 10000, annualRatePercent: 12, monthlyPaymentCents: 1000 },
+    ])
+    await oneTime('50')
+    expect(wrapper.findAll('select')).toHaveLength(0)
+    expect(wrapper.get('.one-time-recommendation').text()).toContain('Pay $50.00 toward Graduate loan today')
     expect(wrapper.get('.payment-summary h3').text()).toContain('Graduate loan')
-    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('100')
+    expect(wrapper.get('.recommendation-details .recommended').text()).toContain('Graduate loan')
+    expect(wrapper.findAll('.recommendation-details tbody tr')).toHaveLength(2)
   })
 
-  it('uses the latest budget when changing allocation strategy and hides it for a single loan', async () => {
-    render([{ ...loan, accruedInterestCents: 0, annualRatePercent: 12, monthlyPaymentCents: 10000 }, { ...other, principalCents: 20000, annualRatePercent: 3, monthlyPaymentCents: 5000 }])
+  it('automatically compares monthly methods and shows where the first extra payment goes', async () => {
+    render([
+      { ...loan, principalCents: 0, accruedInterestCents: 100000, annualRatePercent: 100, monthlyPaymentCents: 1000 },
+      { ...other, principalCents: 10000, annualRatePercent: 12, monthlyPaymentCents: 1000 },
+    ])
     await monthly('50')
-    expect(wrapper.find('.strategy-field').exists()).toBe(true)
+    expect(wrapper.get('.monthly-recommendation').text()).toContain('$50.00 to Graduate loan')
+    expect(wrapper.get('.recommendation-details .recommended').text()).toContain('Smallest balance first')
     await wrapper.get('#extra-monthly-amount').setValue('100')
-    const previous = wrapper.get('[data-testid="plan-interest-saved"]').text()
-    await wrapper.get('.strategy-picker select').setValue('smallest-balance')
-    expect(wrapper.get<HTMLSelectElement>('.strategy-picker select').element.value).toBe('smallest-balance')
-    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).not.toBe(previous)
-    expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$150.00 minimums + $100.00 extra = $250.00')
-    await wrapper.setProps({ loans: [loan] })
-    expect(wrapper.find('.strategy-field').exists()).toBe(false)
+    expect(wrapper.get('.monthly-recommendation').text()).toContain('$100.00 to Graduate loan')
+    expect(wrapper.get('[data-testid="monthly-budget"]').text()).toContain('$20.00 minimums + $100.00 extra = $120.00')
+    expect(wrapper.findAll('select')).toHaveLength(0)
+  })
+
+  it('shows the cost/time tradeoff instead of claiming the lowest-interest target is also fastest', async () => {
+    render([
+      { ...loan, accruedInterestCents: 0, annualRatePercent: 24, monthlyPaymentCents: 20000 },
+      { ...other, principalCents: 100000, annualRatePercent: 1, monthlyPaymentCents: 1000 },
+    ])
+    await oneTime('100')
+    expect(wrapper.get('.one-time-recommendation').text()).toContain('Undergraduate loan')
+    expect(wrapper.get('.tradeoff').text()).toBe('An alternative finishes 11 months sooner for $2.85 more interest.')
+  })
+
+  it('does not call an incomplete allocation a lowest-cost recommendation', async () => {
+    render([{ ...loan, principalCents: 1000000000, annualRatePercent: 100, monthlyPaymentCents: 1 }, other])
+    await monthly('0.01')
+    expect(wrapper.get('.monthly-recommendation').text()).toContain('No complete payoff estimate yet')
+    expect(wrapper.get('.recommendation-details').text()).toContain('not a lowest-cost recommendation')
+    expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
   })
 
   it('shows a payable monthly plan without fabricating savings against an unpaid baseline', async () => {
