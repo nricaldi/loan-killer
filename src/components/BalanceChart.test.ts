@@ -53,3 +53,22 @@ describe('payoff comparison chart', () => {
     wrapper.unmount()
   })
 })
+
+describe('incomplete comparison curves', () => {
+  it('ends an unpaid extra-payment curve at its real balance rather than drawing it to zero', () => {
+    const baseline = projectLoan({ ...loan, monthlyPaymentCents: 0 })
+    const scenario = projectLoan({ ...loan, monthlyPaymentCents: 1 })
+    const wrapper = mount(BalanceChart, {
+      props: {
+        balanceDate: loan.balanceDate, initialBalanceCents: 102500,
+        projection: { ...baseline, schedule: baseline.schedule.slice(0, 600) },
+        comparison: { projection: { ...scenario, schedule: scenario.schedule.slice(0, 600) }, label: 'With extra payments' },
+      },
+    })
+    expect(wrapper.get('.comparison-line').attributes('d')).not.toContain('L720,220')
+    expect(wrapper.get('.comparison-endpoint').attributes('style')).not.toContain('top: 100%')
+    expect(wrapper.get('desc').text()).not.toContain('reaches zero')
+    expect(wrapper.find('.inspection-details').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

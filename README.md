@@ -11,36 +11,27 @@ npm run dev
 
 Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures from your servicer, or select **Try an example**.
 
-1. Choose the balance date and add your first loan.
-2. Select **Add another loan** or **+ Add loan** to enter another without replacing existing loans.
-3. Use **All loans** for combined totals, or a loan’s name for its individual chart and schedule. **Edit** selects that loan and focuses the form.
-4. Select **Update loan** to apply edits. Save before switching loans; unapplied edits are discarded when switching or canceling.
-5. **Remove** asks for confirmation and only removes the selected loan from this planner, not your servicer account.
-6. Select **What if I pay extra?**, choose a one-time target and amount, and set an extra monthly amount using the slider or exact amount field. Use 0 to leave either out, then **Compare payment**. Your saved loan figures and baseline remain unchanged.
-7. All four plans show payoff dates, interest, total payments, and savings. Use a plan’s **View** button to inspect its curve against the baseline and its payment schedule. Monthly-only is selected by default when only monthly extra is positive; both positive selects the combined plan.
-8. Choose **Monthly payoff strategy** before updating, or use the strategy comparison cards to inspect highest-rate-first versus smallest-balance-first using the last comparison’s same inputs. Follow the projected milestones to see which loans reach zero first.
-9. Confirmed loan changes save automatically in this browser. Reopen the same site to restore your loan list and baseline without re-entering it. Draft fields and hypothetical scenarios still reset.
+1. Add loans using figures from the same balance date, or try an example in the loan form.
+2. Use **All loans** for a combined outlook, or select a loan to focus its totals and chart. Selecting it again keeps that scope; **All loans** restores the combined view.
+3. Review starting balance, remaining interest, total repayment, and the baseline debt-free date above the balance chart. Unpaid plans retain a 50-year balance view without invented payoff totals.
+4. Choose **Pay more each month**, **Make a one-time payment**, or both. Enter an amount or try a suggested amount to see its impact immediately.
+5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
+6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Monthly allocation strategy is available for multi-loan scopes.
+7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
+
+The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
 All balances must come from the **same date**. After adding the first loan, the date is shared and read-only on additional loans. You can change the date while editing the only remaining loan. This avoids combining snapshots from different dates or guessing which payments you already made.
 
 ## Features
 
-- Accessible loan entry and field validation.
-- Current principal, accrued unpaid interest, fixed rate, monthly minimum, balance date, and next payment date.
-- Estimated debt-free date, remaining interest, and total future payments.
-- A projected balance chart and payment-by-payment schedule.
-- Stable loan identities, editing, confirmed removal, and a loan inventory with individual payoff dates.
-- Combined balances, monthly minimums, principal-weighted rate, remaining interest, and an overall debt-free date.
-- Combined schedules that respect each loan’s due dates, group payments on the same day, and include interest accruing between due dates on other loans.
-- A one-time payment simulator with interest/principal allocation, unused-overpayment handling, payoff and interest comparisons, overlaid balance curves, and a scenario schedule.
-- Extra monthly payments with a slider, exact cents entry, a visible starting monthly budget, selectable allocation strategy, and freed-minimum rollover.
-- A four-plan comparison: minimums, one-time only, monthly only, and combined; each has its own complete-or-unavailable payoff estimates.
-- Both the selected loan’s payoff change and the whole plan’s payoff change, so an earlier individual payoff isn’t mistaken for an earlier overall debt-free date.
-- Same-budget strategy comparisons with actual interest, finish-date differences, and first projected loan payoffs.
-- A projected loan-by-loan milestone timeline with baseline date comparisons, simultaneous-payoff grouping, and explicit unresolved loans.
-- Explicit handling of insufficient payments and the 1,200-payment projection limit.
+- Accessible loan entry, editing, confirmed removal, and local persistence.
+- Explicit all-loans or individual-loan scope across totals, chart, and payment exploration.
+- A baseline cost and payoff outlook followed by guided extra-payment options.
+- Live one-time, monthly, and combined previews with measured interest/time savings and a single shared balance chart.
+- Compact plan comparison, optional multi-loan monthly allocation strategy, and freed-minimum rollover.
+- Inline low-payment warnings, bounded unpaid curves, overpayment handling, and unavailable-estimate states.
 - Responsive layouts, keyboard focus, and reduced-motion support.
-- Local persistence for confirmed loans, with restore validation, save-failure warnings, and explicit recovery rather than silent overwrites.
 
 **No account, backend, analytics, or sync.** Confirmed loan records are kept in this browser’s local storage. The app does not upload them, connect to your servicer, or send payments.
 
@@ -69,7 +60,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Time changes use actual calendar dates, with calendar years/months/days rather than assuming 30-day months. If another loan takes longer, the overall date may stay unchanged even when the selected loan finishes earlier.
 - If either plan has no complete payoff estimate, full interest and time savings are unavailable. A complete scenario can still be displayed even if the baseline does not pay off within its limit; unknown savings are never presented as infinite or zero.
 - Per-payment rounding can create a small additional-interest difference for a tiny extra payment. Negative savings are preserved and explicitly labeled as additional interest.
-- Edit the amount or target and select **Update comparison** to refresh results. **Clear scenario** removes it. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Switching between loan views does not clear it.
+- Valid amount and target changes refresh results immediately. **Reset extra payments** removes the preview and returns to the two exploration choices. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Switching between loan views does not clear it.
 
 ## Extra monthly payments
 
@@ -90,8 +81,8 @@ All balances must come from the **same date**. After adding the first loan, the 
 - **Smallest balance first (snowball)** directs it to the active loan with the smallest current total balance, including unpaid interest and interest accrued through that payment date. Priorities are re-evaluated after all minimums due that day; they are not frozen to original loan sizes. A lump sum may also change the next target.
 - Equal-priority loans use stable loan IDs to break ties. Reordering the displayed loan records does not change the result.
 - Both approaches use the same budget, scheduled due dates, rollover policy, fixed one-time target, and applied lump sum. Strategy only changes monthly and combined plans with positive extra monthly money. Zero monthly extra still means no rollover and no strategy-dependent change to the baseline.
-- The comparison shows actual modeled interest differences and calendar finish-date differences rather than declaring a guaranteed winner. Neither a cheaper result nor an earlier first payoff guarantees an earlier overall finish. Non-capitalized unpaid interest and per-payment rounding can also affect the cost ordering.
-- Changing the form strategy is a draft edit until **Update comparison**. Strategy card buttons switch between already-computed results for the last captured amounts and payment date, update the form strategy, and preserve the selected plan. Other unapplied money edits remain drafts; they are not silently used by a strategy button.
+- The engine computes actual modeled interest and calendar finish-date differences rather than declaring a guaranteed winner. Neither a cheaper result nor an earlier first payoff guarantees an earlier overall finish. Non-capitalized unpaid interest and per-payment rounding can also affect the cost ordering.
+- Changing the monthly allocation strategy recomputes the current valid amounts immediately. Invalid money edits preserve the last valid result and show a warning. Strategy selection is available only for multi-loan scopes.
 - Strategy-to-strategy cost and time comparisons require both strategies to fully pay off, even if the minimum-payment baseline does not. Savings versus baseline separately require a complete baseline. The first known individual payoff may still be shown for an otherwise incomplete plan.
 - Milestones use the selected plan’s actual simulated payoff dates, not allocation priority. Loans reaching zero on the same date share a milestone; duplicate names remain distinct through their IDs. The remaining-loan count only reaches zero when all loans have a known complete payoff.
 - Each loan’s timing change is compared with that loan’s own baseline date, not the whole plan’s date. Unavailable baseline dates are labeled as unknown, and later dates are not disguised as positive savings.

@@ -3,15 +3,15 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { today } from '../domain/dates'
 import { parseMoney } from '../domain/loanForm'
 import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
-import { comparePaymentScenarios, selectPaymentStrategy, type ExtraScenarioId, type PaymentScenarios } from '../domain/paymentScenarios'
+import { comparePaymentScenarios, type ExtraScenarioId, type PaymentScenarios } from '../domain/paymentScenarios'
 import type { LoanRecord, PortfolioProjection } from '../domain/portfolio'
-import { recurringStartDate, strategyNames, type RepaymentStrategy } from '../domain/recurringPayments'
-import { formatDate, money } from '../format'
+import type { RepaymentStrategy } from '../domain/recurringPayments'
+import { money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentStrategyPicker from './PaymentStrategyPicker.vue'
 import PaymentPlanSummary from './PaymentPlanSummary.vue'
 
-const props = defineProps<{ loans: readonly LoanRecord[]; embedded?: boolean }>()
+const props = defineProps<{ loans: readonly LoanRecord[] }>()
 const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string] }>()
 let resetting = false
 const targetId = ref(props.loans[0]?.id ?? '')
@@ -24,11 +24,11 @@ const form = ref<HTMLFormElement | null>(null)
 const result = ref<PaymentScenarios | null>(null)
 const selected = ref<ExtraScenarioId>('one-time')
 const unavailable = computed(() => oneTimePaymentAvailability(props.loans, paymentDate.value))
-const startDate = computed(() => recurringStartDate(props.loans))
 const minimumCents = computed(() => props.loans.reduce((sum, loan) => sum + loan.monthlyPaymentCents, 0))
 const enteredMonthlyCents = computed(() => parseMoney(monthlyAmount.value))
 const budgetCents = computed(() => enteredMonthlyCents.value === null ? null : minimumCents.value + enteredMonthlyCents.value)
-const sliderMaximum = computed(() => Math.max(1_000, Math.ceil((enteredMonthlyCents.value ?? 0) / 25_000) * 250))
+const showMonthly = ref(false)
+const showOneTime = ref(false)
 const hasChanges = computed(() => result.value !== null && (
   targetId.value !== result.value.request.loanId
   || parseMoney(amount.value) !== result.value.request.oneTimeCents
@@ -36,18 +36,10 @@ const hasChanges = computed(() => result.value !== null && (
   || strategy.value !== result.value.request.strategy
 ))
 const selectedPlan = computed(() => result.value?.scenarios.find(({ id }) => id === selected.value))
-const firstMonthlyAllocation = computed(() => {
-  if (!result.value || result.value.request.extraMonthlyCents === 0) return []
-  const plan = result.value.strategies.find(({ strategy }) => strategy === result.value?.request.strategy)
-  const portfolio = result.value.request.oneTimeCents > 0 ? plan?.combined.portfolio : plan?.monthly.portfolio
-  return portfolio?.loans.flatMap(({ loan, projection }) => projection.schedule
-    .filter((payment) => payment.kind === 'monthly-extra' && payment.date === result.value?.recurringStartDate)
-    .map((payment) => ({ id: loan.id, name: loan.name, amountCents: payment.paymentCents }))) ?? []
-})
 const chartLabel = computed(() => {
   if (selected.value === 'one-time') return 'With one-time payment'
   const label = selected.value === 'monthly' ? 'With extra monthly payments' : 'With one-time + monthly payments'
-  return `${label} · ${strategyNames[result.value?.request.strategy ?? strategy.value]}`
+  return label
 })
 
 watch(() => props.loans, (loans) => {
@@ -62,8 +54,16 @@ watch([() => props.loans, targetId, amount, monthlyAmount, strategy], ([loans], 
 watch([result, selected], () => emit('preview', selectedPlan.value?.portfolio ?? null, chartLabel.value))
 onBeforeUnmount(() => emit('preview', null, ''))
 
-function updateSlider(event: Event) {
-  if (event.target instanceof HTMLInputElement) monthlyAmount.value = event.target.value
+async function toggleOption(option: 'monthly' | 'one-time') {
+  const expanded = option === 'monthly' ? showMonthly : showOneTime
+  expanded.value = !expanded.value
+  if (!expanded.value) {
+    if (option === 'monthly') monthlyAmount.value = '0'
+    else amount.value = '0'
+  } else {
+    await nextTick()
+    form.value?.querySelector<HTMLInputElement>(option === 'monthly' ? '#extra-monthly-amount' : '#extra-payment-amount')?.focus()
+  }
 }
 
 async function compare(focusErrors = true) {
@@ -75,7 +75,7 @@ async function compare(focusErrors = true) {
   if (oneTimeCents === null) errors.value.amount = 'Enter $0–$10,000,000 with up to two decimal places, without commas.'
   if (extraMonthlyCents === null) errors.value.monthly = 'Enter $0–$10,000,000 with up to two decimal places, without commas.'
   if (strategy.value !== 'highest-rate' && strategy.value !== 'smallest-balance') errors.value.strategy = 'Choose a monthly payoff strategy.'
-  if (unavailable.value) errors.value.general = unavailable.value
+  if ((oneTimeCents || extraMonthlyCents) && unavailable.value) errors.value.general = unavailable.value
   if (Object.keys(errors.value).length || oneTimeCents === null || extraMonthlyCents === null) {
     if (!focusErrors) return
     await nextTick()
@@ -89,14 +89,12 @@ async function compare(focusErrors = true) {
     firstError?.focus()
     return
   }
+  if (oneTimeCents === 0 && extraMonthlyCents === 0) {
+    result.value = null
+    return
+  }
   result.value = comparePaymentScenarios(props.loans, { loanId: targetId.value, oneTimeCents, extraMonthlyCents, date: paymentDate.value, strategy: strategy.value })
   selected.value = extraMonthlyCents > 0 ? oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time'
-}
-
-function chooseStrategy(choice: RepaymentStrategy) {
-  if (!result.value) return
-  result.value = selectPaymentStrategy(result.value, choice)
-  strategy.value = choice
 }
 
 async function clear() {
@@ -106,134 +104,99 @@ async function clear() {
   monthlyAmount.value = '0'
   strategy.value = 'highest-rate'
   errors.value = {}
+  showMonthly.value = false
+  showOneTime.value = false
   await nextTick()
   resetting = false
-  form.value?.querySelector<HTMLInputElement>('#extra-payment-amount')?.focus()
+  form.value?.querySelector<HTMLButtonElement>('.monthly-choice')?.focus()
 }
 </script>
 
 <template>
-  <div class="payment-workspace" :class="{ 'has-chart': embedded && $slots.default }">
-    <section id="extra-payment" class="simulator" :class="{ panel: !embedded, embedded }" aria-labelledby="extra-payment-heading" tabindex="-1">
-      <h2 id="extra-payment-heading">Extra payments</h2>
-      <p class="preview-scope sr-only">Payment previews apply to {{ loans.length === 1 ? loans[0]?.name : `the ${loans.length} selected loans` }}.</p>
-
+  <div class="payment-workspace">
+    <div v-if="$slots.default" class="chart-area"><slot /></div>
+    <section id="extra-payment" class="panel simulator" aria-labelledby="extra-payment-heading">
+      <div class="explore-heading">
+        <h2 id="extra-payment-heading">Find a faster way to pay it off</h2>
+        <p class="preview-scope">{{ loans.length === 1 ? loans[0]?.name : `All ${loans.length} loans` }}</p>
+      </div>
       <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
-        <div class="one-time-controls">
-          <div class="scenario-fields">
-            <div class="scenario-field">
-              <label for="extra-payment-amount">One-time payment today</label>
-              <div class="amount-input"><span aria-hidden="true">$</span><input id="extra-payment-amount" v-model="amount" type="text" inputmode="decimal" required :aria-invalid="!!errors.amount" :aria-describedby="errors.amount ? 'extra-amount-error extra-date-help' : 'extra-date-help'" /></div>
-              <p v-if="errors.amount" id="extra-amount-error" class="field-error">{{ errors.amount }}</p>
+        <div class="exploration-options">
+          <section class="explore-option" :class="{ expanded: showMonthly }">
+            <button class="option-choice monthly-choice" type="button" :aria-expanded="showMonthly" aria-controls="monthly-controls" @click="toggleOption('monthly')"><span>Pay more each month</span><span aria-hidden="true">{{ showMonthly ? '−' : '+' }}</span></button>
+            <div v-show="showMonthly" id="monthly-controls" class="option-controls">
+              <label for="extra-monthly-amount">How much extra per month?</label>
+              <div class="amount-input"><span aria-hidden="true">$</span><input id="extra-monthly-amount" v-model="monthlyAmount" type="text" inputmode="decimal" :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" /></div>
+              <div class="presets" aria-label="Try an extra monthly amount"><button v-for="value in [25, 50, 100]" :key="value" type="button" @click="monthlyAmount = String(value)">+${{ value.toLocaleString('en-US') }}</button></div>
+              <p v-if="errors.monthly" id="extra-monthly-error" class="field-error">{{ errors.monthly }}</p>
+              <p v-if="enteredMonthlyCents && budgetCents !== null" class="budget-note">Monthly total: <strong>{{ money(budgetCents) }}</strong>. Payments from paid-off loans roll forward.</p>
+              <details v-if="loans.length > 1" class="strategy-field">
+                <summary>Where should the extra go?</summary>
+                <PaymentStrategyPicker v-model="strategy" />
+              </details>
             </div>
-            <div class="scenario-field">
-              <label for="extra-payment-target">To loan</label>
-              <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : undefined">
-                <option v-for="loan in loans" :key="loan.id" :value="loan.id">{{ loan.name }} · {{ loan.annualRatePercent }}%</option>
-              </select>
+          </section>
+          <section class="explore-option" :class="{ expanded: showOneTime }">
+            <button class="option-choice one-time-choice" type="button" :aria-expanded="showOneTime" aria-controls="one-time-controls" @click="toggleOption('one-time')"><span>Make a one-time payment</span><span aria-hidden="true">{{ showOneTime ? '−' : '+' }}</span></button>
+            <div v-show="showOneTime" id="one-time-controls" class="option-controls">
+              <label for="extra-payment-amount">How much could you pay today?</label>
+              <div class="amount-input"><span aria-hidden="true">$</span><input id="extra-payment-amount" v-model="amount" type="text" inputmode="decimal" :aria-invalid="!!errors.amount" :aria-describedby="errors.amount ? 'extra-amount-error extra-date-help' : 'extra-date-help'" /></div>
+              <div class="presets" aria-label="Try a one-time amount"><button v-for="value in [100, 500, 1000]" :key="value" type="button" @click="amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
+              <p v-if="errors.amount" id="extra-amount-error" class="field-error">{{ errors.amount }}</p>
+              <div v-show="loans.length > 1" class="target-field">
+                <label for="extra-payment-target">Which loan?</label>
+                <select id="extra-payment-target" v-model="targetId" :aria-invalid="!!errors.target" :aria-describedby="errors.target ? 'extra-target-error' : undefined"><option v-for="loan in loans" :key="loan.id" :value="loan.id">{{ loan.name }} · {{ loan.annualRatePercent }}%</option></select>
+              </div>
               <p v-if="errors.target" id="extra-target-error" class="field-error">{{ errors.target }}</p>
             </div>
-          </div>
+          </section>
         </div>
-
-        <div class="monthly-options">
-          <div class="monthly-controls">
-            <label for="extra-monthly-amount">Extra per month</label>
-            <div class="amount-input monthly-input"><span aria-hidden="true">$</span><input id="extra-monthly-amount" v-model="monthlyAmount" type="text" inputmode="decimal" required :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" /></div>
-            <p v-if="errors.monthly" id="extra-monthly-error" class="field-error">{{ errors.monthly }}</p>
-            <label class="sr-only" for="extra-monthly-slider">Adjust extra monthly payment</label>
-            <input id="extra-monthly-slider" type="range" min="0" :max="sliderMaximum" step="0.01" :value="(enteredMonthlyCents ?? 0) / 100" :aria-valuetext="`${money(enteredMonthlyCents ?? 0)} extra per month`" aria-describedby="monthly-help" @input="updateSlider" />
-          </div>
-        </div>
-        <div class="impact-area">
-          <PaymentPlanSummary v-if="result" :result="result" :selected="selected" @clear="clear" />
-          <div v-else class="summary-placeholder">
-            <p data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
-          </div>
-        </div>
-
-        <details class="strategy-options">
-          <summary>Payment strategy</summary>
-          <div class="strategy-field">
-            <PaymentStrategyPicker v-model="strategy" />
-            <p v-if="errors.strategy" id="strategy-error" class="field-error">{{ errors.strategy }}</p>
-            <div class="strategy-target" aria-live="polite" aria-atomic="true">
-              <template v-if="result && result.request.extraMonthlyCents > 0">
-                <p>First allocation · {{ formatDate(result.recurringStartDate) }}</p>
-                <ul v-if="firstMonthlyAllocation.length">
-                  <li v-for="target in firstMonthlyAllocation" :key="target.id"><strong>{{ target.name }}</strong><span>{{ money(target.amountCents) }}</span></li>
-                </ul>
-                <p v-else>No active balance remains for the extra budget on this date.</p>
-              </template>
-              <p v-else>Add an extra monthly budget to see which loans it targets first.</p>
-            </div>
-          </div>
-        </details>
-        <details class="payment-rules" :open="!embedded">
-          <summary>How extra payments are allocated</summary>
-          <p id="monthly-help" class="form-note">{{ startDate ? `Starts ${formatDate(startDate)}, then monthly on that date’s day, adjusted for shorter months.` : '' }} This is one extra amount for the plan, not per loan. {{ strategyNames[strategy] }}; all minimums keep their own due dates. A positive monthly increase also rolls freed minimums forward on their original due dates.</p>
-          <p id="strategy-help" class="form-note">Choose how extra monthly money and freed minimums are allocated. Both strategies pay every minimum first. Smallest balance includes unpaid interest. Strategy does not change your one-time target or enable rollover when extra monthly is $0.</p>
-          <p id="extra-date-help" class="form-note">Modeled for today, {{ formatDate(paymentDate) }}. Applied to unpaid interest first, then principal. Scheduled minimums continue unless the loan is paid off.</p>
-        </details>
-        <p v-if="unavailable && !errors.general" class="date-warning">{{ unavailable }}</p>
-        <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields before comparing.' }}</p>
+        <p id="monthly-help" class="sr-only">This is one extra monthly amount across the selected loans, above their minimums. Freed minimums roll forward on their due dates.</p>
+        <p id="strategy-help" class="sr-only">Choose how extra monthly money and freed minimums are allocated. All minimums are paid first.</p>
+        <p id="extra-date-help" class="sr-only">A hypothetical payment today, applied to unpaid interest before principal. Scheduled minimums continue.</p>
+        <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
         <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
+        <div v-if="result" class="impact-area">
+          <PaymentPlanSummary :result="result" :selected="selected" @clear="clear" />
+          <a class="chart-link" href="#outlook-heading">See this on the chart ↑</a>
+        </div>
       </form>
-
-      <p v-if="!embedded" class="simulator-footnote">These are hypothetical payments, not transactions. Your baseline and entered balances stay unchanged. Loan edits clear this scenario. We don’t model paid-ahead status; check your servicer’s overpayment instructions.</p>
+      <details v-if="result && result.request.oneTimeCents > 0 && result.request.extraMonthlyCents > 0" class="plan-comparison">
+        <summary>Compare payment options</summary>
+        <ScenarioComparison :result="result" :selected="selected" @select="selected = $event" />
+      </details>
     </section>
-    <div v-if="$slots.default" class="chart-area"><slot /></div>
   </div>
-  <section v-if="result" class="panel plan-comparison" aria-labelledby="plan-comparison-heading">
-    <h2 id="plan-comparison-heading">Compare all plans</h2>
-    <details v-if="embedded" class="comparison-details">
-      <summary>View plans and schedules</summary>
-      <ScenarioComparison :result="result" :selected="selected" :show-chart="false" @select="selected = $event" @strategy="chooseStrategy" @clear="clear" />
-    </details>
-    <ScenarioComparison v-else :result="result" :selected="selected" @select="selected = $event" @strategy="chooseStrategy" @clear="clear" />
-  </section>
 </template>
 
 <style scoped>
-.payment-workspace { min-width: 0; }
-.payment-workspace.has-chart { display: grid; grid-template-columns: 25rem minmax(0, 1fr); align-items: start; gap: var(--space-5); }
-.simulator { min-width: 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
-.comparison-details { margin-top: var(--space-3); }
-summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
+.payment-workspace { display: grid; gap: var(--space-6); min-width: 0; }
 .chart-area { min-width: 0; }
-.summary-placeholder { color: var(--text-secondary); font-size: var(--font-sm); line-height: 1.5; }
-.summary-placeholder p { margin: 0; }
-.plan-comparison { padding: var(--space-5); min-width: 0; }
-.strategy-target { padding: var(--space-3); background: var(--surface-muted); border-radius: var(--radius-sm); font-size: var(--font-xs); color: var(--text-secondary); line-height: 1.6; }
-.strategy-target p { margin: 0; }
-.strategy-target p:last-child:not(:first-child) { margin-top: var(--space-2); }
-.strategy-target ul { padding: 0; margin: var(--space-2) 0; list-style: none; }
-.strategy-target li { display: flex; justify-content: space-between; gap: var(--space-3); }
-.strategy-target strong { color: var(--text); overflow-wrap: anywhere; }
-.strategy-target span { white-space: nowrap; font-variant-numeric: tabular-nums; }
-h2 { font-size: var(--font-md); }
-.form-note, .simulator-footnote { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.6; }
-.scenario-form { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
-.scenario-form > * { min-width: 0; }
-.scenario-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--space-2); align-items: start; }
-.scenario-field { min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: span 3; }
-label { display: block; font-size: var(--font-sm); font-weight: 600; line-height: 1.5; margin-bottom: 0; }
-input:not([type='range']), select { min-width: 0; width: 100%; height: var(--size-touch-target); padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); }
+.simulator { padding: var(--space-5); min-width: 0; }
+.explore-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-4); }
+.preview-scope { margin: 0; color: var(--text-secondary); font-size: var(--font-sm); overflow-wrap: anywhere; }
+.exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+.explore-option { min-width: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-md); }
+.explore-option.expanded { border-color: var(--blue-border); background: var(--blue-light); }
+.option-choice { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; min-height: 4rem; padding: var(--space-4); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-link); text-align: left; font-weight: 600; }
+.option-choice > :last-child { font-size: var(--font-lg); }
+.option-controls { padding: 0 var(--space-4) var(--space-4); }
+label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); font-weight: 600; }
+input, select { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; }
 input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--danger); }
 .amount-input { position: relative; }
-.amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: var(--font-sm); pointer-events: none; }
+.amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
 .amount-input input { padding-left: 1.7rem; }
-.monthly-controls { min-width: 0; display: grid; gap: var(--space-2); }
-.monthly-input { width: 100%; }
-input[type='range'] { display: block; width: 100%; min-height: 2.75rem; margin: var(--space-2) 0 0; accent-color: var(--chart-line); cursor: pointer; }
-.strategy-field { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
-.field-error { color: var(--danger); font-size: var(--font-xs); line-height: 1.7; margin: var(--space-2) 0 0; }
-.date-warning { background: var(--blue-light); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.8; }
-.simulator-footnote { margin: var(--space-5) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--border); }
-@media (max-width: 65rem) {
-  .payment-workspace.has-chart { grid-template-columns: 1fr; }
-  /* iOS Safari zooms focused fields when their text is smaller than 16px. */
-  input:not([type='range']), select { font-size: var(--font-md); }
-}
-@media (max-width: 35rem) { .scenario-fields { grid-template-columns: 1fr; } }
+.presets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.presets button { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); color: var(--text-link); background: var(--surface); font-size: var(--font-sm); }
+.target-field, .strategy-field { margin-top: var(--space-4); }
+.strategy-field :deep(fieldset) { margin-top: var(--space-3); }
+.budget-note, .date-warning { font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.5; margin: var(--space-3) 0 0; }
+.field-error { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--font-sm); }
+.impact-area { margin-top: var(--space-5); }
+.chart-link { display: inline-block; padding-block: var(--space-3); color: var(--text-link); font-size: var(--font-sm); }
+.plan-comparison { margin-top: var(--space-4); }
+summary { cursor: pointer; color: var(--text-link); font-size: var(--font-sm); }
+.plan-comparison > :deep(section) { margin-top: var(--space-4); }
+@media (max-width: 40rem) { .exploration-options { grid-template-columns: 1fr; } .simulator { padding: var(--space-4); } }
 </style>

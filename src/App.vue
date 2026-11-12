@@ -15,7 +15,6 @@ import { formatDate, money } from './format'
 const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
 const editingId = ref<string | null>(null)
 const visibleLoanId = ref<string | null>(null)
-const chartView = ref<'payments' | 'balance'>('balance')
 const editorOpen = ref(false)
 const addButton = ref<HTMLButtonElement | null>(null)
 let editorTrigger: HTMLElement | null = null
@@ -79,9 +78,10 @@ function editLoan(id: string, event: MouseEvent) {
   editorOpen.value = true
 }
 
-function toggleLoan(id: string) {
+function selectLoan(id: string | null) {
+  if (visibleLoanId.value === id) return
   preview.value = null
-  visibleLoanId.value = visibleLoanId.value === id ? null : id
+  visibleLoanId.value = id
 }
 
 function updateMinimum(id: string, cents: number) {
@@ -96,6 +96,16 @@ function updateMinimum(id: string, cents: number) {
 
 function updatePreview(portfolio: PortfolioProjection | null, label: string) {
   preview.value = portfolio ? { portfolio, label } : null
+}
+
+async function recoverStorage(replace: boolean) {
+  if (replace) replaceSavedCopy()
+  else retrySaving()
+  if (!storageIssue.value) {
+    lastAction.value = 'Saved in this browser.'
+    await nextTick()
+    addButton.value?.focus()
+  }
 }
 
 function removeLoan(id: string) {
@@ -148,16 +158,16 @@ function removeLoan(id: string) {
                   :editing-id="editingId"
                   :visible-loan-id="visibleLoanId"
                   @edit="editLoan"
-                  @view="toggleLoan"
+                  @view="selectLoan"
                   @payment="updateMinimum"
                   @remove="removeLoan"
                 />
-                <p id="loan-payment-help" class="sr-only">Select a loan to preview payments for it; select it again to show all loans. Minimum edits save automatically. Extra payments are hypothetical.</p>
+                <p id="loan-payment-help" class="sr-only">Select a loan to preview payments for it; use All loans to return to the combined plan. Minimum edits save automatically. Extra payments are hypothetical.</p>
               </div>
             </template>
             <template #journey>
-              <PaymentSimulator :key="portfolioRevision" :loans="selectedLoans" embedded @preview="updatePreview">
-                <LoanTrajectory v-model:view="chartView" :portfolio="visiblePortfolio" :comparison="preview" />
+              <PaymentSimulator :key="portfolioRevision" :loans="selectedLoans" @preview="updatePreview">
+                <LoanTrajectory :portfolio="visiblePortfolio" :comparison="preview" :scope="visibleLoanId ? selectedLoans[0]?.name : 'All loans'" />
               </PaymentSimulator>
             </template>
           </LoanOverview>
@@ -172,55 +182,18 @@ function removeLoan(id: string) {
       </div>
 
       <LoanStorageNotice
+        v-if="storageIssue"
         class="storage-status"
         :class="{ 'needs-attention': storageIssue }"
         :issue="storageIssue"
         :requires-replacement="requiresReplacement"
         :loan-count="loans.length"
-        @retry="retrySaving"
-        @replace="replaceSavedCopy"
+        @retry="recoverStorage(false)"
+        @replace="recoverStorage(true)"
       />
 
-      <details class="assumptions">
-        <summary>Estimate assumptions and loan details</summary>
-        <div>
-          <h2>A useful estimate, not a servicer statement.</h2>
-          <p>
-            We model fixed-rate U.S. federal loans already in repayment, with daily simple interest
-            (annual rate ÷ 365), rounded to cents at each payment. Payments go to unpaid interest,
-            then principal. Your monthly minimum stays fixed; dates follow the next payment’s day
-            of the month, adjusted for shorter months. No fees, capitalization, deferment,
-            income-driven plans, or forgiveness are modeled. Servicer calculations may differ.
-            All starting balances must use the same date. Each loan keeps its own payment schedule;
-            freed payments aren’t rolled over to other loans in this baseline.
-            A hypothetical extra payment goes to unpaid interest, then principal, and does not
-            replace a scheduled minimum or change the next due date. Paid-ahead status isn’t modeled.
-            Monthly-increase scenarios follow your chosen strategy and roll freed minimums forward
-            on their original due dates, keeping the original monthly budget plus the extra amount.
-          </p>
-          <details>
-            <summary>What’s the difference between subsidized and unsubsidized?</summary>
-            <p>
-              For subsidized loans, the government generally covers interest while you’re enrolled
-              at least half-time and during certain other eligible periods. Unsubsidized loans
-              generally accrue interest from disbursement. During normal repayment, you’re
-              generally responsible for interest on both, so this baseline models them the same way.
-            </p>
-            <a href="https://studentaid.gov/understand-aid/types/loans/subsidized-unsubsidized" target="_blank" rel="noopener noreferrer">
-              Read the federal student aid explanation <span aria-hidden="true">↗</span>
-              <span class="sr-only"> (opens in a new tab)</span>
-            </a>
-          </details>
-        </div>
-      </details>
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
     </main>
-
-    <footer class="site-footer">
-      <span>loan<span class="brand-light">killer</span>.</span>
-      <p>Small steps. A smaller balance. You’ve got this.</p>
-      <span class="footer-version">LOCAL PLANNER · V0.6</span>
-    </footer>
   </div>
 </template>
 
@@ -235,22 +208,11 @@ function removeLoan(id: string) {
 main { display: flex; flex-direction: column; gap: var(--space-5); padding-block: var(--space-5); }
 .workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .storage-status.needs-attention { order: -1; }
-.loan-controls { margin-bottom: var(--space-4); }
+.loan-controls { min-width: 0; }
 .empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
 .empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
 .empty-state > p:not(.eyebrow) { max-width: 30rem; color: var(--text-muted); font-size: var(--font-sm); line-height: 1.8; margin: var(--space-3) 0 var(--space-5); }
 .empty-state .text-button { margin-top: var(--space-3); }
-.assumptions { color: var(--text-muted); font-size: var(--font-xs); }
-.assumptions > div { padding-block: var(--space-3); max-width: 60rem; }
-.assumptions h2 { font-size: var(--font-xs); font-weight: 600; }
-.assumptions p { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.8; margin: var(--space-2) 0 0; }
-.assumptions details { margin-top: var(--space-3); font-size: var(--font-xs); line-height: 1.8; }
-.assumptions summary { cursor: pointer; color: var(--text-secondary); }
-.assumptions a { display: inline-block; margin-top: var(--space-2); color: var(--text-link); }
-.site-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); border-top: 1px solid var(--border); padding: var(--space-6) 0; color: var(--text-muted); }
-.site-footer > span:first-child { font-weight: 600; font-size: var(--font-md); letter-spacing: -0.04em; }
-.site-footer p { font-size: var(--font-xs); margin: 0; }
-.footer-version { font-size: 0.6rem; letter-spacing: 0.1em; }
 @media (max-width: 65rem) { .app-shell { padding-inline: var(--space-6); } }
-@media (max-width: 35rem) { .app-shell { padding-inline: var(--space-4); } .brand { font-size: 1.25rem; gap: var(--space-2); } .brand-icon { width: 2rem; height: 2rem; } .empty-state { padding: var(--space-7) var(--space-4); } .footer-version { display: none; } .site-footer { justify-content: center; } }
+@media (max-width: 35rem) { .app-shell { padding-inline: var(--space-4); } .brand { font-size: 1.25rem; gap: var(--space-2); } .brand-icon { width: 2rem; height: 2rem; } .empty-state { padding: var(--space-7) var(--space-4); } }
 </style>

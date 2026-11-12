@@ -49,8 +49,6 @@ Check empty, one-loan, multi-loan, and long-name states at 375px, 768px, and des
 
 ## Implemented on this branch
 
-- Both extra-payment inputs are visible before the shared impact and chart; strategy and rules remain secondary.
-- Baseline totals are compact and adjacent to the chart. Incomplete totals and empty savings placeholders are omitted.
-- The editor and saved-minimum controls warn beside payments that cannot cover ongoing interest, and distinguish projection-limit cases. Low servicer minimums remain savable.
-- Unpaid plans retain a red balance chart through 50 years, including mixed portfolios and incomplete extra-payment previews. The endpoint accrues interest through the exact horizon; it is not a payoff estimate.
-- Compact loan rows, one add action, less editor copy, explicit mobile text sizing, and shared input grid rows address the screenshot feedback.
+The final page order is loans → baseline outlook and one balance chart → guided extra-payment choices. Scope is explicit and selecting the same loan is idempotent. The comparison expansion only appears when both extra amounts are positive and contains compact plan rows. Zero inputs no longer create a savings preview. Gray dotted baseline and blue scenario curves share the chart, including incomplete projections with a shared 50-year horizon. Payment schedules/inspection, total-paid chart switching, balance details, routine storage/assumption panels, and footer are removed from the dashboard. Storage errors and recovery remain available.
+
+Inline low-payment warnings, compact loan rows, a smaller loan editor, and explicit mobile text sizing remain part of the polish pass.

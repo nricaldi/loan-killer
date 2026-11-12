@@ -32,7 +32,7 @@ function updatePayment(event: Event) {
 <template>
   <div class="loan-chip" :class="{ selected }" :data-chip-id="loan.id">
     <div class="chip-header">
-      <button class="chip-name" type="button" :aria-label="`Show ${loan.name} in chart`" :aria-pressed="selected" @click="emit('select')">{{ loan.name }}</button>
+      <button class="chip-name" type="button" :aria-label="`View ${loan.name}`" :aria-pressed="selected" @click="emit('select')">{{ loan.name }}</button>
       <slot name="actions" />
     </div>
     <p class="chip-balance"><strong>{{ money(loan.principalCents + loan.accruedInterestCents) }}</strong></p>

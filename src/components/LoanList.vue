@@ -6,7 +6,7 @@ import LoanPaymentChip from './LoanPaymentChip.vue'
 defineProps<{ loans: ProjectedLoan[]; editingId: string | null; visibleLoanId: string | null }>()
 const emit = defineEmits<{
   edit: [id: string, event: MouseEvent]
-  view: [id: string]
+  view: [id: string | null]
   remove: [id: string]
   payment: [id: string, cents: number]
 }>()
@@ -39,11 +39,12 @@ async function cancelRemoval() {
       <div class="list-title">
         <h2 id="loans-heading">Your loans <span>{{ loans.length }}</span></h2>
       </div>
+      <button class="all-loans" type="button" :aria-pressed="visibleLoanId === null" @click="emit('view', null)">All loans</button>
     </div>
 
     <ul>
       <li v-for="{ loan } in loans" :key="loan.id" :data-loan-id="loan.id">
-        <LoanPaymentChip :loan="loan" :selected="visibleLoanId === null || visibleLoanId === loan.id" @select="emit('view', loan.id)" @payment="emit('payment', loan.id, $event)">
+        <LoanPaymentChip :loan="loan" :selected="visibleLoanId === loan.id" @select="emit('view', loan.id)" @payment="emit('payment', loan.id, $event)">
           <template #actions>
             <div class="loan-actions">
               <button class="icon-button" type="button" :aria-label="`Edit ${loan.name}`" :title="`Edit ${loan.name}`" :aria-pressed="editingId === loan.id" @click="emit('edit', loan.id, $event)">
@@ -133,4 +134,6 @@ li {
   min-height: 2.5rem;
 }
 
+.all-loans { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font-size: var(--font-sm); }
+.all-loans[aria-pressed='true'] { background: var(--blue-light); border-color: var(--chart-line); font-weight: 600; }
 </style>
