@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PortfolioProjection } from '../domain/portfolio'
+import { combinePaymentSchedules, type PortfolioProjection } from '../domain/portfolio'
+import { balanceAtDate, type UnpaidProjection } from '../domain/loan'
+import { addMonths } from '../domain/dates'
 import { formatDate, money } from '../format'
 import BalanceChart from './BalanceChart.vue'
 import PaymentsChart from './PaymentsChart.vue'
@@ -20,10 +22,40 @@ const chartComparison = computed(() => comparisonProjection.value && props.compa
 const chartProjection = computed(() => paidOffProjection.value ?? comparisonProjection.value)
 const previewOnly = computed(() => !paidOffProjection.value && comparisonProjection.value !== null)
 const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : undefined)
+const unpaidPreview = computed(() => {
+  const portfolio = props.comparison?.portfolio ?? props.portfolio
+  const date = addMonths(portfolio.balanceDate, 600)
+  const loans = portfolio.loans.map(({ loan, projection }) => ({
+    loan, projection: { ...projection, schedule: projection.schedule.filter((payment) => payment.date <= date) },
+  }))
+  const schedule = combinePaymentSchedules(loans)
+  const balanceCents = loans.reduce((total, { loan, projection }) => total + balanceAtDate(
+    loan, projection.schedule.at(-1) ?? { ...loan, date: loan.balanceDate }, date,
+  ), 0)
+  return {
+    projection: { status: portfolio.projection.status === 'insufficient-payment' ? 'insufficient-payment' : 'projection-limit', schedule } as UnpaidProjection,
+    endPoint: { date, balanceCents },
+  }
+})
 </script>
 
 <template>
   <section class="journey-visual" aria-label="Payment projection">
+    <div class="summary-grid" aria-label="Your baseline payoff estimate">
+      <section class="stat-card">
+        <p class="eyebrow">Starting balance</p>
+        <p class="stat-value" data-testid="starting-balance">{{ money(balanceCents) }}</p>
+      </section>
+      <section v-if="paidOffProjection" class="stat-card">
+        <p class="eyebrow">Interest with minimums</p>
+        <p class="stat-value" data-testid="remaining-interest">{{ money(paidOffProjection.remainingInterestCents) }}</p>
+      </section>
+      <section v-if="paidOffProjection" class="total-card" aria-labelledby="cost-heading">
+        <p id="cost-heading" class="eyebrow">Total with minimums</p>
+        <p class="total-value" data-testid="total-payments">{{ money(paidOffProjection.totalPaymentsCents) }}</p>
+      </section>
+    </div>
+
     <div v-if="chartProjection" class="trajectory-panel">
       <div class="trajectory-heading">
         <h2 class="sr-only">Payment projection</h2>
@@ -47,7 +79,9 @@ const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : 
     <section v-else class="unpaid-panel" aria-labelledby="unpaid-heading">
       <p class="chart-minimum">Total minimum<strong data-testid="chart-monthly-minimum">{{ money(portfolio.monthlyPaymentCents) }}<small> / mo</small></strong></p>
       <h2 id="unpaid-heading">{{ portfolio.monthlyPaymentCents === 0 ? 'No payoff date with $0 minimum payments.' : loanCount > 1 ? 'Some loans need a payment check.' : projection.status === 'insufficient-payment' ? 'This payment isn’t getting you to zero.' : 'The payoff is beyond this projection.' }}</h2>
-      <p>Try an extra payment to preview a payoff plan.</p>
+      <p>Increase the minimum or try an extra monthly payment.</p>
+      <BalanceChart :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="unpaidPreview.projection" :end-point="unpaidPreview.endPoint" :label="comparison?.label ?? 'Minimum payments · 50-year view'" compact />
+      <p class="projection-note">Balance after 50 years: <strong>{{ money(unpaidPreview.endPoint.balanceCents) }}</strong>. This is a limited view, not a payoff estimate.</p>
       <details class="unpaid-details">
         <summary>Why no payoff date?</summary>
         <p v-if="blockedLoans.some(({ loan }) => loan.monthlyPaymentCents === 0)">A $0 minimum stays at $0 in this estimate until you update it. Interest may still accrue.</p>
@@ -69,6 +103,13 @@ const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : 
 
 <style scoped>
 .journey-visual { min-width: 0; }
+.summary-grid { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); padding-bottom: var(--space-4); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); }
+.stat-card, .total-card { min-width: 0; flex: 1 1 8rem; }
+.summary-grid .eyebrow { font-size: var(--font-xs); letter-spacing: 0; font-weight: 400; margin-bottom: var(--space-1); }
+.stat-value, .total-value { margin: 0; font-size: var(--font-lg); font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.unpaid-panel { padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--danger); border-radius: var(--radius-md); }
+.unpaid-panel h2 { color: var(--danger); }
+
 .payoff-summary { min-width: min(100%, 12rem); flex: 1 1 12rem; font-size: var(--font-xs); line-height: 1.6; }
 .payoff-summary p { margin: 0; }
 .payoff-summary strong { display: block; font-size: var(--font-lg); line-height: 1.4; color: var(--text); }

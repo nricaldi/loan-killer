@@ -106,7 +106,7 @@ function removeLoan(id: string) {
   if (editingId.value === id) editingId.value = null
   if (visibleLoanId.value === id) visibleLoanId.value = null
   lastAction.value = `Removed ${removed?.name ?? 'loan'} from the plan.`
-  if (!loans.value.length) void nextTick(() => addButton.value?.focus())
+  void nextTick(() => addButton.value?.focus())
 }
 </script>
 
@@ -122,7 +122,7 @@ function removeLoan(id: string) {
         </span>
         <span>loan<span class="brand-light">killer</span><span class="brand-period">.</span></span>
       </a>
-      <button ref="addButton" class="primary-button header-add" type="button" @click="addLoan">+ Add loan</button>
+      <button ref="addButton" class="primary-button header-add add-button" type="button" @click="addLoan">+ Add loan</button>
     </header>
 
     <LoanModal v-if="editorOpen" :editing="!!editingLoan" @close="closeEditor">
@@ -147,7 +147,6 @@ function removeLoan(id: string) {
                   :loans="portfolio.loans"
                   :editing-id="editingId"
                   :visible-loan-id="visibleLoanId"
-                  @add="addLoan"
                   @edit="editLoan"
                   @view="toggleLoan"
                   @payment="updateMinimum"
@@ -227,7 +226,7 @@ function removeLoan(id: string) {
 
 <style scoped>
 .app-shell { max-width: 78rem; margin: 0 auto; padding: 0 var(--space-8); }
-.site-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+.site-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: var(--space-3); color: var(--text); text-decoration: none; font-size: 1.5rem; letter-spacing: -0.055em; font-weight: 700; }
 .brand-icon { width: 2.5rem; height: 2.5rem; display: grid; place-items: center; background: var(--blue-primary); border: 1px solid var(--blue-border); border-radius: var(--radius-md); }
 .brand-icon svg { width: 1.75rem; height: 1.75rem; }

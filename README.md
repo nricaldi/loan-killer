@@ -111,7 +111,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - No fees, variable rates, capitalization events, deferment, grace periods, income-driven repayment, or forgiveness. This is an estimate, not financial advice or a replacement for a servicer statement. Servicer day-count and rounding rules can differ.
 - The independent-loan projection stops after 1,200 monthly payments. If unpaid, it does not claim a payoff date or complete interest total. An insufficient-payment warning means payments do not cover newly accrued interest over the final 12 simulated payments; other unpaid cases receive a projection-limit warning.
 - A one-time payment is additional to the 1,200 scheduled-payment limit. Payment counts include it, and same-day grouped rows are marked when they include an extra payment.
-- If any loan fails to pay off within its limit, combined balances and minimums are still shown, but overall payoff, complete interest totals, and the combined chart are withheld. Complete projections for other loans remain available individually.
+- If any loan fails to pay off within its limit, combined balances and minimums are still shown, but overall payoff and complete interest totals are withheld. The balance chart shows the first 50 years of the entered payments, including growing or flat debt, without claiming a payoff date. Complete projections for other loans remain available individually.
 
 ## Validate
 

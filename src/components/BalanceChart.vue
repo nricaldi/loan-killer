@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import type { PaidOffProjection } from '../domain/loan'
+import type { PaidOffProjection, Projection } from '../domain/loan'
 import { daysBetween } from '../domain/dates'
 import { chartMoney, formatDate, money } from '../format'
 import PaymentInspector from './PaymentInspector.vue'
@@ -8,7 +8,8 @@ import PaymentInspector from './PaymentInspector.vue'
 const props = defineProps<{
   balanceDate: string
   initialBalanceCents: number
-  projection: PaidOffProjection
+  projection: Projection
+  endPoint?: { date: string; balanceCents: number }
   label?: string
   comparison?: { projection: PaidOffProjection; label: string }
   interactive?: boolean
@@ -23,7 +24,7 @@ const height = 220
 const inspector = ref<InstanceType<typeof PaymentInspector> | null>(null)
 const inspectedDate = ref<string | null>(null)
 
-function chartPoints(projection: PaidOffProjection) {
+function chartPoints(projection: Projection) {
   return [
     { date: props.balanceDate, balanceCents: props.initialBalanceCents },
     ...projection.schedule.flatMap((payment) => payment.kind === 'scheduled' ? [payment] : [
@@ -33,11 +34,17 @@ function chartPoints(projection: PaidOffProjection) {
   ]
 }
 
-const points = computed(() => chartPoints(props.projection))
+const points = computed(() => {
+  const data = chartPoints(props.projection)
+  if (props.endPoint && props.endPoint.date > (data.at(-1)?.date ?? props.balanceDate)) data.push(props.endPoint)
+  return data
+})
 const comparisonPoints = computed(() => props.comparison ? chartPoints(props.comparison.projection) : [])
 const maxBalance = computed(() => [...points.value, ...comparisonPoints.value].reduce((maximum, point) => Math.max(maximum, point.balanceCents), 1))
-const endDate = computed(() => props.comparison && props.comparison.projection.payoffDate > props.projection.payoffDate
-  ? props.comparison.projection.payoffDate : props.projection.payoffDate)
+const projectionEndDate = computed(() => props.projection.status === 'paid-off'
+  ? props.projection.payoffDate : props.endPoint?.date ?? points.value.at(-1)?.date ?? props.balanceDate)
+const endDate = computed(() => props.comparison && props.comparison.projection.payoffDate > projectionEndDate.value
+  ? props.comparison.projection.payoffDate : projectionEndDate.value)
 const totalDays = computed(() => Math.max(daysBetween(props.balanceDate, endDate.value), 1))
 
 function coordinatesFor(data: { date: string; balanceCents: number }[]) {
@@ -70,7 +77,7 @@ function inspectPointer(event: PointerEvent) {
 </script>
 
 <template>
-  <figure class="balance-chart" :class="{ compact }">
+  <figure class="balance-chart" :class="{ compact, unpaid: projection.status !== 'paid-off' }">
     <div class="chart-body">
       <div class="y-labels" aria-hidden="true">
         <span v-for="tick in ticks" :key="tick.fraction">{{ tick.label }}</span>
@@ -84,7 +91,7 @@ function inspectPointer(event: PointerEvent) {
           :aria-labelledby="`${titleId} ${descriptionId}`"
         >
           <title :id="titleId">{{ comparison ? `Projected balances: ${label ?? 'Minimum payments only'} versus ${comparison.label}` : label ?? 'Projected loan balance with minimum payments' }}</title>
-          <desc :id="descriptionId">{{ money(initialBalanceCents) }} on {{ formatDate(balanceDate) }}. {{ label ?? 'Minimum payments only' }} reaches zero on {{ formatDate(projection.payoffDate) }}. {{ comparison ? `${comparison.label} reaches zero on ${formatDate(comparison.projection.payoffDate)}.` : '' }} This is a projection, not actual payment history. A payment-by-payment table follows.</desc>
+          <desc :id="descriptionId">{{ money(initialBalanceCents) }} on {{ formatDate(balanceDate) }}. <template v-if="projection.status === 'paid-off'">{{ label ?? 'Minimum payments only' }} reaches zero on {{ formatDate(projection.payoffDate) }}.</template><template v-else>Projected balance {{ money(points.at(-1)?.balanceCents ?? initialBalanceCents) }} on {{ formatDate(endDate) }}. No payoff date is estimated in this view.</template> {{ comparison ? `${comparison.label} reaches zero on ${formatDate(comparison.projection.payoffDate)}.` : '' }} This is a projection, not actual payment history. A payment-by-payment table follows.</desc>
           <defs>
             <linearGradient :id="gradientId" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stop-color="#a8d6f5" stop-opacity="0.55" />
@@ -97,13 +104,13 @@ function inspectPointer(event: PointerEvent) {
           <line v-if="interactive && inspectionX !== null" class="inspection-line" :x1="inspectionX" :x2="inspectionX" y1="0" :y2="height" vector-effect="non-scaling-stroke" />
         </svg>
         <span v-if="coordinates[0]" class="endpoint" aria-hidden="true" :style="{ left: '0%', top: `${coordinates[0].y / height * 100}%` }" />
-        <span v-if="coordinates.at(-1)" class="endpoint" aria-hidden="true" :style="{ left: `${(coordinates.at(-1)?.x ?? 0) / width * 100}%`, top: '100%' }" />
+        <span v-if="coordinates.at(-1)" class="endpoint" aria-hidden="true" :style="{ left: `${(coordinates.at(-1)?.x ?? 0) / width * 100}%`, top: `${(coordinates.at(-1)?.y ?? 0) / height * 100}%` }" />
         <span v-if="comparisonCoordinates.at(-1)" class="endpoint comparison-endpoint" aria-hidden="true" :style="{ left: `${(comparisonCoordinates.at(-1)?.x ?? 0) / width * 100}%`, top: '100%' }" />
       </div>
     </div>
     <div class="date-labels" aria-hidden="true">
       <span>{{ formatDate(balanceDate, true) }}</span>
-      <span v-if="midpoint && projection.paymentCount > 3" class="midpoint-label">{{ formatDate(midpoint.date, true) }}</span>
+      <span v-if="midpoint && projection.schedule.length > 3" class="midpoint-label">{{ formatDate(midpoint.date, true) }}</span>
       <span v-if="endDate !== balanceDate">{{ formatDate(endDate, true) }}</span>
     </div>
     <figcaption>
@@ -140,4 +147,7 @@ figcaption > span { display: flex; align-items: center; gap: var(--space-2); }
 .compact figcaption { min-block-size: 1rem; align-content: start; justify-content: start; }
 .inspection-details summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
 @media (max-width: 35rem) { .chart-body { height: 12rem; } .midpoint-label { display: none; } figcaption { font-size: 0.65rem; } }
+.unpaid .projection-line { stroke: var(--danger); stroke-dasharray: none; }
+.unpaid .endpoint { border-color: var(--danger); }
+.unpaid .legend-line { border-color: var(--danger); border-top-style: solid; }
 </style>

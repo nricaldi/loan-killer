@@ -148,12 +148,7 @@ async function clear() {
         <div class="impact-area">
           <PaymentPlanSummary v-if="result" :result="result" :selected="selected" @clear="clear" />
           <div v-else class="summary-placeholder">
-            <h3>Payment impact</h3>
-            <div class="placeholder-metrics" aria-hidden="true"><span>Interest saved<strong>—</strong></span><span>Payoff change<strong>—</strong></span><span>Debt-free by<strong>—</strong></span></div>
-            <details class="placeholder-details">
-              <summary>Payment details</summary>
-              <p data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
-            </details>
+            <p data-testid="monthly-budget">{{ budgetCents === null ? 'Enter a valid monthly amount to see your budget.' : `${money(minimumCents)} minimums + ${money(enteredMonthlyCents ?? 0)} extra = ${money(budgetCents)} starting monthly budget` }}</p>
           </div>
         </div>
 
@@ -206,13 +201,8 @@ async function clear() {
 .comparison-details { margin-top: var(--space-3); }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); line-height: 1.7; }
 .chart-area { min-width: 0; }
-.summary-placeholder { padding: var(--space-4); border-radius: var(--radius-sm); background: var(--blue-light); color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; }
-.summary-placeholder h3 { margin: 0 0 var(--space-4); font-size: var(--font-sm); color: var(--text); }
+.summary-placeholder { color: var(--text-secondary); font-size: var(--font-sm); line-height: 1.5; }
 .summary-placeholder p { margin: 0; }
-.placeholder-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
-.placeholder-metrics > :last-child { grid-column: 1 / -1; }
-.placeholder-metrics strong { display: block; margin-top: var(--space-2); font-size: var(--font-md); }
-.placeholder-details { margin-top: var(--space-2); }
 .plan-comparison { padding: var(--space-5); min-width: 0; }
 .strategy-target { padding: var(--space-3); background: var(--surface-muted); border-radius: var(--radius-sm); font-size: var(--font-xs); color: var(--text-secondary); line-height: 1.6; }
 .strategy-target p { margin: 0; }
@@ -226,14 +216,14 @@ h2 { font-size: var(--font-md); }
 .scenario-form { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
 .scenario-form > * { min-width: 0; }
 .scenario-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--space-2); align-items: start; }
-.scenario-field { min-width: 0; }
-label { display: block; font-size: var(--font-xs); font-weight: 600; line-height: 1.6; margin-bottom: var(--space-2); }
+.scenario-field { min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: span 3; }
+label { display: block; font-size: var(--font-sm); font-weight: 600; line-height: 1.5; margin-bottom: 0; }
 input:not([type='range']), select { min-width: 0; width: 100%; height: var(--size-touch-target); padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); }
 input[aria-invalid='true'], select[aria-invalid='true'] { border-color: var(--danger); }
 .amount-input { position: relative; }
 .amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: var(--font-sm); pointer-events: none; }
 .amount-input input { padding-left: 1.7rem; }
-.monthly-controls { min-width: 0; }
+.monthly-controls { min-width: 0; display: grid; gap: var(--space-2); }
 .monthly-input { width: 100%; }
 input[type='range'] { display: block; width: 100%; min-height: 2.75rem; margin: var(--space-2) 0 0; accent-color: var(--chart-line); cursor: pointer; }
 .strategy-field { display: grid; gap: var(--space-3); margin-top: var(--space-3); }

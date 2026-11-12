@@ -5,7 +5,6 @@ import LoanPaymentChip from './LoanPaymentChip.vue'
 
 defineProps<{ loans: ProjectedLoan[]; editingId: string | null; visibleLoanId: string | null }>()
 const emit = defineEmits<{
-  add: [event: MouseEvent]
   edit: [id: string, event: MouseEvent]
   view: [id: string]
   remove: [id: string]
@@ -20,11 +19,9 @@ async function requestRemoval(id: string) {
   list.value?.querySelector<HTMLButtonElement>('.remove-confirmation .text-button')?.focus()
 }
 
-async function remove(id: string) {
+function remove(id: string) {
   pendingRemoval.value = null
   emit('remove', id)
-  await nextTick()
-  list.value?.querySelector<HTMLButtonElement>('.add-button')?.focus()
 }
 
 async function cancelRemoval() {
@@ -41,13 +38,11 @@ async function cancelRemoval() {
     <div class="list-heading">
       <div class="list-title">
         <h2 id="loans-heading">Your loans <span>{{ loans.length }}</span></h2>
-        <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
       </div>
-      <button class="add-button" type="button" @click="emit('add', $event)">+ Add loan</button>
     </div>
 
     <ul>
-      <li v-for="{ loan, projection } in loans" :key="loan.id" :data-loan-id="loan.id">
+      <li v-for="{ loan } in loans" :key="loan.id" :data-loan-id="loan.id">
         <LoanPaymentChip :loan="loan" :selected="visibleLoanId === null || visibleLoanId === loan.id" @select="emit('view', loan.id)" @payment="emit('payment', loan.id, $event)">
           <template #actions>
             <div class="loan-actions">
@@ -59,9 +54,6 @@ async function cancelRemoval() {
               </button>
             </div>
           </template>
-          <p v-if="loan.monthlyPaymentCents === 0" class="loan-note">No required monthly payment</p>
-          <p v-else-if="projection.status !== 'paid-off'" class="loan-warning">{{ projection.status === 'insufficient-payment' ? 'Payment needs attention' : 'Beyond projection limit' }}</p>
-          <span v-if="loan.fromExample" class="example-label">From example</span>
           <div v-if="pendingRemoval === loan.id" class="remove-confirmation" role="group" :aria-label="`Confirm removal of ${loan.name}`">
             <p>Remove this loan from your plan? This won’t affect your actual loan.</p>
             <div>
@@ -89,23 +81,10 @@ async function cancelRemoval() {
   margin-left: var(--space-2);
 }
 .list-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-.loan-view-label { margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
-
-.add-button {
-  flex-shrink: 0;
-  background: var(--blue-light);
-  color: var(--text-link);
-  border: 1px solid var(--blue-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-xs);
-  font-weight: 600;
-  min-height: 2.75rem;
-}
 
 ul {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  grid-template-columns: 1fr;
   gap: var(--space-3);
   list-style: none;
   padding: 0;
@@ -115,15 +94,7 @@ ul {
 li {
   min-width: 0;
 }
-.loan-note, .loan-warning, .remove-confirmation p {
-  font-size: var(--font-xs);
-  color: var(--text-muted);
-  line-height: 1.7;
-}
-
-.loan-warning {
-  color: var(--danger);
-}
+.remove-confirmation p { font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.5; }
 
 .loan-actions {
   display: flex;
@@ -135,20 +106,9 @@ li {
 .icon-button:last-child:hover { color: var(--danger); }
 .icon-button svg { width: var(--size-icon); height: var(--size-icon); }
 
-@media (hover: hover) and (pointer: fine) {
-  .loan-actions { opacity: 0; pointer-events: none; }
-  li:hover .loan-actions, li:focus-within .loan-actions { opacity: 1; pointer-events: auto; }
-}
 @media (any-pointer: coarse) {
   .loan-actions { opacity: 1; pointer-events: auto; }
   .icon-button { width: var(--size-touch-target); height: var(--size-touch-target); }
-}
-
-.example-label {
-  display: block;
-  margin-top: var(--space-2);
-  font-size: 0.65rem;
-  color: var(--text-muted);
 }
 
 .remove-confirmation {

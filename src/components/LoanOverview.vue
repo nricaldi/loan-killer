@@ -5,9 +5,7 @@ import { formatDate, money } from '../format'
 import LoanTrajectory from './LoanTrajectory.vue'
 
 const props = defineProps<{ portfolio: PortfolioProjection; comparison?: { portfolio: PortfolioProjection; label: string } | null }>()
-const projection = computed(() => props.portfolio.projection)
 const loanCount = computed(() => props.portfolio.loans.length)
-const balanceCents = computed(() => props.portfolio.principalCents + props.portfolio.accruedInterestCents)
 const title = computed(() => loanCount.value === 1
   ? props.portfolio.loans[0]?.loan.name
   : `${loanCount.value} federal student loans`)
@@ -19,30 +17,10 @@ const rate = computed(() => {
     ? '—'
     : `${new Intl.NumberFormat('en-US', { maximumFractionDigits: loanCount.value === 1 ? 4 : 3 }).format(percent)}%`
 })
-const paidOffProjection = computed(() => projection.value.status === 'paid-off' ? projection.value : null)
 </script>
 
 <template>
   <div class="overview">
-    <div class="summary-grid" aria-label="Your baseline payoff estimate">
-      <section class="stat-card">
-        <p class="eyebrow">STARTING BALANCE</p>
-        <p class="stat-value" data-testid="starting-balance">{{ money(balanceCents) }}</p>
-      </section>
-      <section class="stat-card">
-        <p class="eyebrow">TOTAL INTEREST TO PAY</p>
-        <p v-if="paidOffProjection" class="stat-value" data-testid="remaining-interest">{{ money(paidOffProjection.remainingInterestCents) }}</p>
-        <p v-else class="stat-value unavailable-value">Not available</p>
-      </section>
-      <section v-if="paidOffProjection" class="total-card" aria-labelledby="cost-heading">
-        <p id="cost-heading" class="eyebrow">ESTIMATED TOTAL TO REPAY</p>
-        <p class="total-value" data-testid="total-payments">{{ money(paidOffProjection.totalPaymentsCents) }}</p>
-      </section>
-      <section v-else class="stat-card">
-        <p class="eyebrow">ESTIMATED TOTAL TO REPAY</p><p class="stat-value unavailable-value">Not available</p>
-      </section>
-    </div>
-
     <section class="journey-panel" aria-label="Explore your payment journey">
       <slot name="loans" />
       <div class="journey-content">
@@ -90,15 +68,7 @@ const paidOffProjection = computed(() => projection.value.status === 'paid-off' 
 .balance-facts strong { font-size: var(--font-md); font-weight: 600; font-variant-numeric: tabular-nums; }
 .balance-facts small { font-size: var(--font-xs); font-weight: 400; white-space: nowrap; }
 .balance-note { color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; margin: var(--space-4) 0 0; }
-.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
-.stat-card, .total-card { min-width: 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
-.total-card { background: var(--surface); border-color: var(--border); color: var(--text); }
-.total-card .eyebrow { color: var(--text-muted); }
-.total-value { font-size: clamp(1.35rem, 2.25vw, 1.65rem); font-weight: 650; line-height: 1.2; letter-spacing: -0.05em; margin: var(--space-2) 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.stat-value { margin: var(--space-2) 0 0; font-size: clamp(1.35rem, 2.25vw, 1.65rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.unavailable-value { font-size: var(--font-lg); }
 .journey-panel { min-width: 0; }
 .journey-content { display: grid; gap: var(--space-5); min-width: 0; }
-@media (max-width: 55rem) { .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .total-card { grid-column: 1 / -1; } }
-@media (max-width: 35rem) { .balance-card, .stat-card, .total-card { padding: var(--space-4); } .balance-facts { grid-template-columns: 1fr 1fr; } .balance-facts > div:last-child { grid-column: 1 / -1; } .summary-grid { gap: var(--space-3); } .stat-value { font-size: clamp(1.1rem, 5.5vw, 1.5rem); } .starting-balance small { font-size: var(--font-xs); } }
+@media (max-width: 35rem) { .balance-card { padding: var(--space-4); } .balance-facts { grid-template-columns: 1fr 1fr; } .balance-facts > div:last-child { grid-column: 1 / -1; } .starting-balance small { font-size: var(--font-xs); } }
 </style>

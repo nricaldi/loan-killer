@@ -46,3 +46,11 @@ Retain actionable errors, stale-result warnings, unused-payment amounts, unavail
 ## Visual validation for the implementation pass
 
 Check empty, one-loan, multi-loan, and long-name states at 375px, 768px, and desktop widths. Exercise one-time only, monthly only, combined, reset, invalid input after a valid result, an oversized payment, and no baseline payoff. Confirm that scope changes and minimum edits cannot leave results attached to the wrong loans. Verify keyboard order follows the input → impact → chart flow, and that savings/date values remain readable without truncation. Run the existing component and calculation checks after implementation.
+
+## Implemented on this branch
+
+- Both extra-payment inputs are visible before the shared impact and chart; strategy and rules remain secondary.
+- Baseline totals are compact and adjacent to the chart. Incomplete totals and empty savings placeholders are omitted.
+- The editor and saved-minimum controls warn beside payments that cannot cover ongoing interest, and distinguish projection-limit cases. Low servicer minimums remain savable.
+- Unpaid plans retain a red balance chart through 50 years, including mixed portfolios and incomplete extra-payment previews. The endpoint accrues interest through the exact horizon; it is not a payoff estimate.
+- Compact loan rows, one add action, less editor copy, explicit mobile text sizing, and shared input grid rows address the screenshot feedback.
