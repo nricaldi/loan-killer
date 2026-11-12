@@ -522,6 +522,19 @@ describe('guided payoff flow', () => {
     expect(wrapper.findAll('figure')).toHaveLength(1)
   })
 
+  it('lets a zero minimum be focused and left alone without saving a change', async () => {
+    await enterLoan({ '#monthly-payment': '0' })
+    const saved = localStorage.getItem(LOAN_STORAGE_KEY)
+    const minimum = wrapper.get<HTMLInputElement>('[aria-label="Monthly minimum for Direct Loan 01"]')
+    minimum.element.focus()
+    expect(minimum.element.value).toBe('')
+    expect(minimum.attributes('aria-invalid')).toBe('false')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+    minimum.element.blur()
+    expect(minimum.element.value).toBe('0.00')
+    expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
+  })
+
   it('makes scope explicit and never toggles a selected loan back to all loans', async () => {
     await enterLoan()
     await addSecondLoan()

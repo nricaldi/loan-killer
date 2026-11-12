@@ -19,6 +19,8 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Monthly allocation strategy is available for multi-loan scopes.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
 
+Use **Done** to close one payment row or **Compact** to close both. Amounts, targets, strategies, and the selected preview stay active; **Reset extra payments** is the separate action that clears them. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
+
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
 All balances must come from the **same date**. After adding the first loan, the date is shared and read-only on additional loans. You can change the date while editing the only remaining loan. This avoids combining snapshots from different dates or guessing which payments you already made.

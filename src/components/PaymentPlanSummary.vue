@@ -87,11 +87,11 @@ const targetPayoffChange = computed(() => {
 </template>
 
 <style scoped>
-.payment-summary { padding: var(--space-4); background: var(--blue-light); border: 1px solid var(--blue-border); color: var(--text); border-radius: var(--radius-sm); }
+.payment-summary { padding-top: var(--space-4); border-top: 2px solid var(--chart-line); color: var(--text); }
 h3 { margin: 0 0 var(--space-4); font-size: var(--font-sm); font-weight: 600; line-height: 1.5; }
 .impact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .impact-grid p { margin: 0 0 var(--space-2); font-size: var(--font-xs); color: var(--text-secondary); }
-.impact-grid strong { display: block; font-size: var(--font-lg); font-weight: 650; line-height: 1.3; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.impact-grid strong { color: var(--highlight-background); display: block; font-size: var(--font-lg); font-weight: 650; line-height: 1.3; letter-spacing: -0.03em; overflow-wrap: anywhere; }
 .monthly-budget { margin: var(--space-2) 0 0; font-size: var(--font-xs); line-height: 1.7; }
 .impact-note { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.6; }
 .plan-status { font-size: var(--font-xs); line-height: 1.7; }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vZeroOnFocus } from '../directives/zeroOnFocus'
 import { computed, nextTick, reactive, ref } from 'vue'
 import { addMonths, today } from '../domain/dates'
 import { projectLoan, type Loan } from '../domain/loan'
@@ -123,6 +124,7 @@ function useExample() {
             <input
               id="principal"
               v-model="values.principal"
+              v-zero-on-focus
               name="principal"
               type="text"
               inputmode="decimal"
@@ -141,6 +143,7 @@ function useExample() {
             <input
               id="accrued-interest"
               v-model="values.accruedInterest"
+              v-zero-on-focus
               name="accruedInterest"
               type="text"
               inputmode="decimal"
@@ -160,6 +163,7 @@ function useExample() {
             <input
               id="annual-rate"
               v-model="values.annualRate"
+              v-zero-on-focus
               name="annualRate"
               type="text"
               inputmode="decimal"
@@ -179,6 +183,7 @@ function useExample() {
             <input
               id="monthly-payment"
               v-model="values.monthlyPayment"
+              v-zero-on-focus
               name="monthlyPayment"
               type="text"
               inputmode="decimal"

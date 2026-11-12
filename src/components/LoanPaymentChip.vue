@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vZeroOnFocus } from '../directives/zeroOnFocus'
 import { computed, ref, useId, watch } from 'vue'
 import { parseMoney } from '../domain/loanForm'
 import type { LoanRecord } from '../domain/portfolio'
@@ -39,7 +40,7 @@ function updatePayment(event: Event) {
     <p class="chip-rate">{{ loan.annualRatePercent }}% fixed<span v-if="loan.fromExample"> · From example</span></p>
     <div class="chip-payment">
       <label :for="`${id}-payment`">Min. / month</label>
-      <div class="payment-input"><span aria-hidden="true">$</span><input :id="`${id}-payment`" :value="amount" type="text" inputmode="decimal" :aria-label="`Monthly minimum for ${loan.name}`" :class="{ 'payment-warning': minimumWarning }" :aria-invalid="invalid" :aria-describedby="invalid ? `${id}-error` : minimumWarning ? `${id}-warning` : 'loan-payment-help'" @input="updatePayment" /></div>
+      <div class="payment-input"><span aria-hidden="true">$</span><input :id="`${id}-payment`" v-zero-on-focus :value="amount" type="text" inputmode="decimal" :aria-label="`Monthly minimum for ${loan.name}`" :class="{ 'payment-warning': minimumWarning }" :aria-invalid="invalid" :aria-describedby="invalid ? `${id}-error` : minimumWarning ? `${id}-warning` : 'loan-payment-help'" @input="updatePayment" /></div>
     </div>
     <p v-if="invalid" :id="`${id}-error`" class="field-error" role="status">Use $0–$10,000,000, up to 2 decimals. Estimate uses the last valid minimum.</p>
     <details v-if="minimumWarning" :id="`${id}-warning`" class="minimum-warning">
