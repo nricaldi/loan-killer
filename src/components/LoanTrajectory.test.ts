@@ -66,4 +66,40 @@ describe('unpaid balance projection', () => {
     expect(wrapper.getComponent(BalanceChart).props('projection').schedule.every((payment) => payment.date <= '2076-10-21')).toBe(true)
     wrapper.unmount()
   })
+  it('updates the same metrics while retaining baseline totals and dates, then restores them on reset', async () => {
+    const records = [{ ...loans[0]!, principalCents: 100000, annualRatePercent: 6, monthlyPaymentCents: 10000 }]
+    const portfolio = projectPortfolio(records)!
+    const wrapper = mount(LoanTrajectory, { props: { portfolio } })
+    const baselineTotal = wrapper.get('[data-testid="total-payments"]').text()
+    const baselineDate = wrapper.get('[data-testid="payoff-date"]').text()
+    const result = comparePaymentScenarios(records, { loanId: records[0]!.id, date: records[0]!.balanceDate, oneTimeCents: 20000, extraMonthlyCents: 5000 })
+    const plan = result.scenarios.find(({ id }) => id === 'combined')!.portfolio
+    await wrapper.setProps({ comparison: { portfolio: plan, label: 'With extra payments' } })
+    expect(wrapper.findAll('.summary-grid > div')).toHaveLength(3)
+    expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe(baselineTotal)
+    expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe(baselineDate)
+    expect(wrapper.get('[data-testid="total-payments"]').text()).not.toBe(baselineTotal)
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).not.toBe(baselineDate)
+    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).toContain('saved')
+    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toContain('sooner')
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,000.00')
+    await wrapper.setProps({ comparison: null })
+    expect(wrapper.get('[data-testid="total-payments"]').text()).toBe(baselineTotal)
+    expect(wrapper.find('[data-testid="baseline-total"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows an achievable preview without inventing savings against unpaid minimums', async () => {
+    const records = [{ ...loans[0]!, principalCents: 100000, monthlyPaymentCents: 0 }]
+    const portfolio = projectPortfolio(records)!
+    const result = comparePaymentScenarios(records, { loanId: records[0]!.id, date: records[0]!.balanceDate, oneTimeCents: 0, extraMonthlyCents: 10000 })
+    const plan = result.scenarios.find(({ id }) => id === 'monthly')!.portfolio
+    const wrapper = mount(LoanTrajectory, { props: { portfolio, comparison: { portfolio: plan, label: 'Monthly' } } })
+    expect(wrapper.get('[data-testid="total-payments"]').text()).toBe('$1,000.00')
+    expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe('No complete estimate')
+    expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe('No payoff date')
+    expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
 })

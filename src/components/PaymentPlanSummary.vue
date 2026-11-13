@@ -4,7 +4,7 @@ import { daysBetween } from '../domain/dates'
 import type { ExtraScenarioId, PaymentScenarios } from '../domain/paymentScenarios'
 import { dateDistance, formatDate, money } from '../format'
 
-const props = defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId }>()
+const props = defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId; detailsOnly?: boolean }>()
 const emit = defineEmits<{ clear: [] }>()
 const plan = computed(() => {
   const selected = props.result.scenarios.find(({ id }) => id === props.selected)
@@ -51,7 +51,7 @@ const targetPayoffChange = computed(() => {
 
 <template>
   <section class="payment-summary" aria-labelledby="payment-summary-heading" aria-live="polite" aria-atomic="true">
-    <div class="impact-highlight">
+    <div v-if="!detailsOnly" class="impact-highlight">
       <h3 id="payment-summary-heading"><template v-for="(part, index) in headingParts" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></h3>
       <div v-if="savings" class="impact-grid has-savings">
         <div>
@@ -84,6 +84,7 @@ const targetPayoffChange = computed(() => {
       <p v-else class="plan-status">No payoff date yet with this plan. Try increasing your extra monthly payment or one-time payment.</p>
       <p v-if="!savings && paidOffProjection" class="savings-status">Savings aren’t available without a baseline payoff estimate.</p>
     </div>
+    <h3 v-if="detailsOnly" id="payment-summary-heading" class="plan-description"><template v-for="(part, index) in headingParts" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></h3>
     <p v-if="includesOneTime && result.oneTime.unusedCents > 0" class="impact-note">{{ money(result.oneTime.unusedCents) }} unused; it isn’t moved to another loan.</p>
     <p v-if="selected === 'one-time' && result.request.extraMonthlyCents > 0" class="impact-note">This preview excludes your extra monthly budget.</p>
     <p v-if="selected === 'monthly' && result.request.oneTimeCents > 0" class="impact-note">This preview excludes your one-time payment.</p>
@@ -103,6 +104,8 @@ const targetPayoffChange = computed(() => {
 .impact-highlight { padding: var(--space-5); background: var(--highlight-background); color: var(--highlight-text); border-radius: var(--radius-md); }
 h3 { margin: 0 0 var(--space-5); color: var(--highlight-muted); font-size: var(--font-sm); font-weight: 400; line-height: 1.5; }
 h3 strong { color: var(--highlight-text); font-weight: 700; }
+.plan-description { margin-bottom: 8px; color: var(--text-secondary); }
+.plan-description strong { color: var(--text); }
 .impact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
 .impact-grid > :last-child { grid-column: 1 / -1; }
 .impact-grid p { margin: 0 0 var(--space-2); font-size: var(--font-sm); color: var(--highlight-muted); }

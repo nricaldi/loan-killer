@@ -47,9 +47,7 @@ describe('guided payment exploration', () => {
   it('shows actual one-time savings and emits the matching plan without changing loan records', async () => {
     render()
     await oneTime()
-    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).toBe('$0.00')
-    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toBe('1 month sooner')
-    expect(wrapper.get('[data-testid="plan-payoff-date"]').text()).toBe('Apr 1, 2025')
+    expect(wrapper.find('.impact-highlight').exists()).toBe(false)
     expect(wrapper.get('.payment-summary h3').text()).toBe('With $300.00 toward Undergraduate loan today')
     expect(wrapper.emitted('preview')?.at(-1)?.[1]).toBe('With one-time payment')
     expect(loan.monthlyPaymentCents).toBe(30000)
@@ -190,7 +188,7 @@ describe('guided payment exploration', () => {
   it('does not call an incomplete allocation a lowest-cost recommendation', async () => {
     render([{ ...loan, principalCents: 1000000000, annualRatePercent: 100, monthlyPaymentCents: 1 }, other])
     await monthly('0.01')
-    expect(wrapper.get('.plan-status').text()).toContain('No payoff date yet')
+    expect(wrapper.find('.impact-highlight').exists()).toBe(false)
     expect(wrapper.get('.recommendation-details').text()).toContain('not a lowest-cost recommendation')
     expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
   })
@@ -199,7 +197,7 @@ describe('guided payment exploration', () => {
     render([{ ...loan, monthlyPaymentCents: 0 }])
     await monthly()
     expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="plan-total-payments"]').text()).toBe('$1,025.00')
+    expect(wrapper.find('.impact-highlight').exists()).toBe(false)
     expect(wrapper.get('.payment-summary').text()).toContain('savings aren’t available')
   })
 
