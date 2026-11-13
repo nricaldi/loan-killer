@@ -619,7 +619,7 @@ describe('guided payoff flow', () => {
     await wrapper.get('.all-loans').trigger('click')
     expect(wrapper.get('.preview-scope').text()).toBe('All 2 loans')
     expect(wrapper.findAll('select')).toHaveLength(0)
-    expect(wrapper.get('.monthly-recommendation').text()).toContain('Next:')
+    expect(wrapper.get('.impact-details .monthly-recommendation').text()).toContain('First extra payment:')
     await wrapper.get('[aria-label="Monthly minimum for Direct Loan 02"]').setValue('350')
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.find('#extra-monthly-amount').exists()).toBe(false)

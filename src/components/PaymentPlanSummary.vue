@@ -20,12 +20,17 @@ const projection = computed(() => plan.value.portfolio.projection)
 const paidOffProjection = computed(() => projection.value.status === 'paid-off' ? projection.value : null)
 const target = computed(() => includesOneTime.value
   ? plan.value.portfolio.loans.find(({ loan }) => loan.id === props.result.request.loanId) : undefined)
-const heading = computed(() => {
-  const oneTime = `${money(props.result.oneTime.appliedCents)} toward ${props.result.oneTime.targetBaseline.loan.name} today`
-  const monthly = `${money(monthlyExtraCents.value)} extra each month`
-  if (includesOneTime.value && monthlyExtraCents.value > 0) return `With ${oneTime} and ${monthly}`
-  if (includesOneTime.value) return `With ${oneTime}`
-  return monthlyExtraCents.value > 0 ? `With ${monthly}` : 'With your saved minimum payments'
+const headingParts = computed(() => {
+  const parts: { text: string; bold?: boolean }[] = []
+  if (includesOneTime.value) parts.push(
+    { text: 'With ' }, { text: money(props.result.oneTime.appliedCents), bold: true },
+    { text: ' toward ' }, { text: props.result.oneTime.targetBaseline.loan.name, bold: true }, { text: ' today' },
+  )
+  if (monthlyExtraCents.value > 0) parts.push(
+    { text: includesOneTime.value ? ' and ' : 'With ' },
+    { text: money(monthlyExtraCents.value), bold: true }, { text: ' extra each month' },
+  )
+  return parts.length ? parts : [{ text: 'With your saved minimum payments' }]
 })
 const payoffChange = computed(() => {
   const before = props.result.oneTime.baseline.projection
@@ -47,14 +52,14 @@ const targetPayoffChange = computed(() => {
 <template>
   <section class="payment-summary" aria-labelledby="payment-summary-heading" aria-live="polite" aria-atomic="true">
     <div class="impact-highlight">
-      <h3 id="payment-summary-heading">{{ heading }}</h3>
+      <h3 id="payment-summary-heading"><template v-for="(part, index) in headingParts" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></h3>
       <div v-if="savings" class="impact-grid has-savings">
         <div>
           <p>{{ additionalInterest ? 'Additional interest' : 'Interest saved' }}</p>
           <strong data-testid="plan-interest-saved">{{ savings ? money(Math.abs(savings.interestCents)) : 'Not available' }}</strong>
         </div>
         <div>
-          <p>Payoff change</p>
+          <p>Time saved</p>
           <strong data-testid="plan-time-saved">{{ payoffChange }}</strong>
         </div>
         <div>
@@ -97,6 +102,7 @@ const targetPayoffChange = computed(() => {
 .payment-summary { color: var(--text); }
 .impact-highlight { padding: var(--space-5); background: var(--highlight-background); color: var(--highlight-text); border-radius: var(--radius-md); }
 h3 { margin: 0 0 var(--space-5); color: var(--highlight-muted); font-size: var(--font-sm); font-weight: 400; line-height: 1.5; }
+h3 strong { color: var(--highlight-text); font-weight: 700; }
 .impact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
 .impact-grid > :last-child { grid-column: 1 / -1; }
 .impact-grid p { margin: 0 0 var(--space-2); font-size: var(--font-sm); color: var(--highlight-muted); }

@@ -157,7 +157,7 @@ describe('guided payment exploration', () => {
     ])
     await oneTime('50')
     expect(wrapper.findAll('select')).toHaveLength(0)
-    expect(wrapper.get('.one-time-recommendation').text()).toContain('Pay $50.00 toward Graduate loan today')
+    expect(wrapper.find('.one-time-recommendation').exists()).toBe(false)
     expect(wrapper.get('.payment-summary h3').text()).toContain('Graduate loan')
     expect(wrapper.get('.recommendation-details .recommended').text()).toContain('Graduate loan')
     expect(wrapper.findAll('.recommendation-details tbody tr')).toHaveLength(2)
@@ -183,14 +183,14 @@ describe('guided payment exploration', () => {
       { ...other, principalCents: 100000, annualRatePercent: 1, monthlyPaymentCents: 1000 },
     ])
     await oneTime('100')
-    expect(wrapper.get('.one-time-recommendation').text()).toContain('Undergraduate loan')
+    expect(wrapper.get('.payment-summary h3').text()).toContain('Undergraduate loan')
     expect(wrapper.get('.tradeoff').text()).toBe('An alternative finishes 11 months sooner for $2.85 more interest.')
   })
 
   it('does not call an incomplete allocation a lowest-cost recommendation', async () => {
     render([{ ...loan, principalCents: 1000000000, annualRatePercent: 100, monthlyPaymentCents: 1 }, other])
     await monthly('0.01')
-    expect(wrapper.get('.monthly-recommendation').text()).toContain('No complete payoff estimate yet')
+    expect(wrapper.get('.plan-status').text()).toContain('No payoff date yet')
     expect(wrapper.get('.recommendation-details').text()).toContain('not a lowest-cost recommendation')
     expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
   })

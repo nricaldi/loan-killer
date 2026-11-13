@@ -7,7 +7,7 @@ import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
 import type { ExtraScenarioId } from '../domain/paymentScenarios'
 import type { LoanRecord, PortfolioProjection } from '../domain/portfolio'
 import { recommendPayments, type PaymentRecommendations } from '../domain/paymentRecommendations'
-import { dateDistance, formatDate, money } from '../format'
+import { dateDistance, money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentRecommendationDetails from './PaymentRecommendationDetails.vue'
 import PaymentPlanSummary from './PaymentPlanSummary.vue'
@@ -32,8 +32,6 @@ const selected = ref<ExtraScenarioId>('one-time')
 const recommendations = shallowRef<PaymentRecommendations | null>(null)
 const activeRecommendation = computed(() => recommendations.value?.plans[selected.value])
 const result = computed(() => activeRecommendation.value?.result ?? null)
-const monthlyRecommendation = computed(() => recommendations.value?.plans[selected.value === 'combined' ? 'combined' : 'monthly'])
-const oneTimeRecommendation = computed(() => recommendations.value?.plans[selected.value === 'combined' ? 'combined' : 'one-time'])
 const comparisonResult = computed(() => result.value ? {
   ...result.value,
   scenarios: result.value.scenarios.map((plan) => {
@@ -42,7 +40,6 @@ const comparisonResult = computed(() => result.value ? {
   }),
 } : null)
 const unavailable = computed(() => oneTimePaymentAvailability(props.loans, paymentDate.value))
-const enteredOneTimeCents = computed(() => parseMoney(amount.value))
 const enteredMonthlyCents = computed(() => parseMoney(monthlyAmount.value))
 const hasChanges = computed(() => result.value !== null && (
   parseMoney(amount.value) !== result.value.request.oneTimeCents
@@ -144,21 +141,20 @@ async function clear() {
               <h3>{{ card.kind === 'monthly' ? 'Recurring' : 'One-time payment' }}</h3>
               <button type="button" class="remove-card" :aria-label="`Remove ${card.kind === 'monthly' ? 'recurring' : 'one-time'} payment ${index + 1}`" @click="removeCard(card.id)">×</button>
             </div>
-            <label :for="inputId(card)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay today' }}</label>
+            <label class="sr-only" :for="inputId(card)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay today' }}</label>
             <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card)" v-model="card.amount" v-zero-on-focus type="text" inputmode="decimal" :aria-invalid="parseMoney(card.amount) === null" :aria-describedby="parseMoney(card.amount) === null ? `card-error-${card.id}` : undefined" /></div>
             <div class="presets" :aria-label="card.kind === 'monthly' ? 'Try an extra monthly amount' : 'Try a one-time amount'"><button v-for="value in (card.kind === 'monthly' ? [25, 50, 100] : [100, 500, 1000])" :key="value" type="button" @click="card.amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
             <p v-if="parseMoney(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
           </section>
         </div>
         <p v-else class="empty-options">Try an extra payment to see what you could save.</p>
-        <div v-if="monthlyRecommendation && enteredMonthlyCents" class="allocation-recommendation monthly-recommendation"><p v-if="!monthlyRecommendation.option.payoffDate">No complete payoff estimate yet. Try a larger amount.</p><template v-else><p v-for="payment in monthlyRecommendation.firstMonthlyPayments" :key="payment.loanId">Next: <strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong> · {{ formatDate(monthlyRecommendation.result.recurringStartDate) }}</p></template></div>
-        <div v-if="oneTimeRecommendation?.option.loanName && enteredOneTimeCents" class="allocation-recommendation one-time-recommendation"><p><strong>Pay {{ money(oneTimeRecommendation.result.oneTime.appliedCents) }} toward {{ oneTimeRecommendation.option.loanName }} today.</strong></p></div>
         <p id="monthly-help" class="sr-only">This is one extra monthly amount across the selected loans, above their minimums. Freed minimums roll forward on their due dates.</p>
         <p id="extra-date-help" class="sr-only">A hypothetical payment today, applied to unpaid interest before principal. Scheduled minimums continue.</p>
         <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
         <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
         <div v-if="result" class="impact-area">
           <PaymentPlanSummary :result="result" :selected="selected" @clear="clear">
+            <p v-if="activeRecommendation?.firstMonthlyPayments.length" class="monthly-recommendation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>.</p>
             <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" embedded />
           </PaymentPlanSummary>
 
@@ -182,17 +178,18 @@ async function clear() {
 .explore-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); min-width: 0; }
 .preview-scope { margin: 0; color: var(--text-secondary); font-size: var(--font-sm); overflow-wrap: anywhere; }
 .add-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
-.add-actions button { min-height: 44px; padding: 8px 14px; background: var(--blue-light); color: var(--text-link); border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--font-sm); font-weight: 600; }
+.add-actions button { min-height: 44px; padding: 8px 14px; background: var(--highlight-background); color: var(--highlight-text); border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--font-sm); font-weight: 600; }
 .exploration-options { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; padding: 3px 3px 14px; margin-inline: -3px; margin-bottom: 8px; }
-.saving-card { flex: 0 0 min(17rem, 85%); min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); scroll-snap-align: start; }
-.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.saving-card { flex: 0 0 min(14rem, 85%); min-width: 0; padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); scroll-snap-align: start; }
+.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 0; }
 .card-heading h3 { margin: 0; font-size: var(--font-sm); }
-.remove-card { flex: 0 0 44px; height: 44px; border: 0; background: transparent; color: var(--text-secondary); font-size: 24px; }
+.remove-card { flex: 0 0 32px; height: 32px; border: 0; background: transparent; color: var(--text-secondary); font-size: 24px; }
 .empty-options { color: var(--text-secondary); font-size: var(--font-sm); }
 .saving-card .presets { flex-wrap: nowrap; gap: 6px; }
-.saving-card .presets button { flex: 1; padding-inline: 4px; }
+.saving-card .presets button { flex: 1; min-height: 32px; padding: 4px; background: transparent; font-size: 12px; }
+@media (pointer: coarse) { .saving-card .presets button { min-height: 44px; } .remove-card { flex-basis: 44px; height: 44px; } }
 label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); font-weight: 600; }
-input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; }
+input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-2); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; }
 input[aria-invalid='true'] { border-color: var(--danger); }
 .amount-input { position: relative; }
 .amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
@@ -201,10 +198,6 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .presets button { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-sm); color: var(--text-link); background: var(--blue-light); font-size: var(--font-sm); }
 .budget-note, .date-warning { font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.5; margin: var(--space-3) 0 0; }
 .field-error { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--font-sm); }
-.allocation-recommendation { font-size: var(--font-sm); line-height: 1.5; }
-.allocation-recommendation p { margin: 0 0 var(--space-2); color: var(--text-secondary); }
-.allocation-recommendation strong { color: var(--highlight-background); }
-.allocation-recommendation .recommendation-label { color: var(--text); font-weight: 600; }
 .tradeoff { font-size: var(--font-sm); line-height: 1.5; color: var(--text-secondary); }
 .impact-area { margin-top: var(--space-5); }
 .chart-link { display: inline-block; padding-block: var(--space-3); color: var(--text-link); font-size: var(--font-sm); }
