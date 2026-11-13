@@ -561,7 +561,7 @@ describe('guided payoff flow', () => {
     expect(wrapper.find('.comparison-line').exists()).toBe(true)
     expect(wrapper.get('.balance-chart figcaption').text()).toContain('Minimum payments')
     expect(wrapper.get('.balance-chart figcaption').text()).toContain('With extra monthly payments')
-    expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe(baseline)
+    expect(wrapper.get('.repayment-track').attributes('aria-label')).toContain(baseline)
     expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe(date)
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
     await wrapper.get('#extra-monthly-amount').setValue('0')

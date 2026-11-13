@@ -35,6 +35,27 @@ describe('payoff comparison chart', () => {
     wrapper.unmount()
   })
 
+  it('labels the actual payoff point and integrates time savings without another timeline', () => {
+    const baseline = projectLoan(loan)
+    const scenario = projectLoan(loan, { date: loan.balanceDate, amountCents: 30000 })
+    const wrapper = mount(BalanceChart, { props: { balanceDate: loan.balanceDate, initialBalanceCents: 102500, projection: baseline, comparison: { projection: scenario, label: 'With one-time payment' } } })
+    expect(wrapper.get('.payoff-label [data-testid="payoff-date"]').text()).toBe('Apr 1, 2025')
+    expect(wrapper.get('.payoff-label').attributes('style')).toContain('75%')
+    expect(wrapper.get('.time-saved-range').attributes('style')).toContain('width: 25%')
+    expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe('May 1, 2025')
+    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toBe('1 month sooner')
+    wrapper.unmount()
+  })
+
+  it('keeps a payoff beyond the chart visible without attaching it to a false endpoint', () => {
+    const incomplete = { status: 'insufficient-payment' as const, schedule: [] }
+    const wrapper = mount(BalanceChart, { props: { balanceDate: loan.balanceDate, initialBalanceCents: 102500, projection: incomplete, endPoint: { date: '2075-01-01', balanceCents: 102500 }, payoffDate: '2080-01-01' } })
+    expect(wrapper.find('.payoff-label').exists()).toBe(false)
+    expect(wrapper.get('.payoff-result').text()).toContain('Jan 1, 2080 · beyond this chart')
+    expect(wrapper.find('.time-saved-range').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('uses the later payoff date as the shared time axis', () => {
     const baseline = projectLoan(loan)
     const scenario = projectLoan(loan, { date: loan.balanceDate, amountCents: 30_000 })

@@ -76,7 +76,7 @@ describe('unpaid balance projection', () => {
     const plan = result.scenarios.find(({ id }) => id === 'combined')!.portfolio
     await wrapper.setProps({ comparison: { portfolio: plan, label: 'With extra payments' } })
     expect(wrapper.findAll('.segment-labels > div')).toHaveLength(3)
-    expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe(baselineTotal)
+    expect(wrapper.get('.repayment-track').attributes('aria-label')).toContain(baselineTotal)
     expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe(baselineDate)
     expect(wrapper.get('[data-testid="total-payments"]').text()).not.toBe(baselineTotal)
     expect(wrapper.get('[data-testid="payoff-date"]').text()).not.toBe(baselineDate)
@@ -96,7 +96,7 @@ describe('unpaid balance projection', () => {
     const plan = result.scenarios.find(({ id }) => id === 'monthly')!.portfolio
     const wrapper = mount(LoanTrajectory, { props: { portfolio, comparison: { portfolio: plan, label: 'Monthly' } } })
     expect(wrapper.get('[data-testid="total-payments"]').text()).toBe('$1,000.00')
-    expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe('No complete estimate')
+    expect(wrapper.get('.repayment-track').attributes('aria-label')).toContain('Baseline savings unavailable')
     expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe('No payoff date')
     expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
     wrapper.unmount()
@@ -111,7 +111,7 @@ describe('unpaid balance projection', () => {
     const width = (selector: string) => Number.parseFloat(wrapper.get(selector).attributes('style')!.replace('width:', ''))
     expect(width('.debt-segment') + width('.interest-segment') + width('.saved-segment')).toBeCloseTo(100, 8)
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
-    expect(wrapper.get('.snapshot-note').text()).toContain('$25.00 accrued interest')
+    expect(wrapper.get('.repayment-track').attributes('aria-label')).toContain('$25.00 accrued interest')
     expect(wrapper.get('.repayment-track').attributes('aria-label')).toContain('Amount owed $1,025.00')
     await wrapper.setProps({ comparison: null })
     expect(width('.saved-segment')).toBe(0)
@@ -123,7 +123,7 @@ describe('unpaid balance projection', () => {
     const portfolio = projectPortfolio([{ ...loans[0]!, principalCents: 10000, monthlyPaymentCents: 10000, nextPaymentDate: loans[0]!.balanceDate }])!
     const wrapper = mount(LoanTrajectory, { props: { portfolio } })
     expect(wrapper.get('.interest-segment').attributes('style')).toContain('width: 0%')
-    expect(wrapper.get('.plan-marker').attributes('style')).toContain('left: 0%')
+    expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('Oct 21, 2026')
     expect(wrapper.html()).not.toContain('NaN')
     wrapper.unmount()
   })
