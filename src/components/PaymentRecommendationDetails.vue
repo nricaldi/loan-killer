@@ -4,7 +4,7 @@ import type { PaymentRecommendation, RecommendedOption } from '../domain/payment
 import { strategyNames } from '../domain/recurringPayments'
 import { dateDistance, formatDate, money } from '../format'
 
-defineProps<{ recommendation: PaymentRecommendation; selected: ExtraScenarioId }>()
+defineProps<{ recommendation: PaymentRecommendation; selected: ExtraScenarioId; embedded?: boolean }>()
 function label(option: RecommendedOption, selected: ExtraScenarioId) {
   if (selected === 'monthly') return strategyNames[option.strategy]
   return selected === 'one-time' ? option.loanName : `${option.loanName} today · ${strategyNames[option.strategy]} monthly`
@@ -13,9 +13,9 @@ function label(option: RecommendedOption, selected: ExtraScenarioId) {
 
 <template>
   <div class="recommendation-details">
-    <p v-if="recommendation.fastestAlternative" class="tradeoff">An alternative finishes {{ dateDistance(recommendation.option.payoffDate!, recommendation.fastestAlternative.payoffDate!) }} sooner for {{ money(recommendation.fastestAlternative.interestCents! - recommendation.option.interestCents!) }} more interest.</p>
-    <details>
-      <summary>Why this recommendation?</summary>
+    <p v-if="!embedded && recommendation.fastestAlternative" class="tradeoff">An alternative finishes {{ dateDistance(recommendation.option.payoffDate!, recommendation.fastestAlternative.payoffDate!) }} sooner for {{ money(recommendation.fastestAlternative.interestCents! - recommendation.option.interestCents!) }} more interest.</p>
+    <component :is="embedded ? 'div' : 'details'">
+      <summary v-if="!embedded">Why this recommendation?</summary>
       <p v-if="recommendation.option.payoffDate === null">None of the compared options has a complete payoff estimate. The chart is a preview, not a lowest-cost recommendation. Try a larger payment.</p>
       <p v-else-if="recommendation.alternatives.length === 1">There’s one loan in this view, so your extra payment has only one destination. Payments cover unpaid interest before principal.</p>
       <p v-else-if="recommendation.tied">More than one option ties for the lowest projected interest and the same overall payoff date. The tied options give the same modeled outcome.</p>
@@ -28,7 +28,7 @@ function label(option: RecommendedOption, selected: ExtraScenarioId) {
           <tbody><tr v-for="option in recommendation.alternatives" :key="`${option.loanId}-${option.strategy}`" :class="{ recommended: option === recommendation.option }"><th scope="row">{{ label(option, selected) }}<span v-if="option === recommendation.option"> · {{ option.payoffDate ? recommendation.tied ? 'Tied best' : 'Recommended' : 'Preview' }}</span></th><td>{{ option.interestCents === null ? 'Not available' : money(option.interestCents) }}</td><td>{{ option.payoffDate ? formatDate(option.payoffDate) : 'No payoff estimate' }}</td></tr></tbody>
         </table>
       </div>
-    </details>
+    </component>
   </div>
 </template>
 

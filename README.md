@@ -32,7 +32,8 @@ All balances must come from the **same date**. After adding the first loan, the 
 - A baseline cost and payoff outlook followed by guided extra-payment options.
 - Live one-time, monthly, and combined previews with measured interest/time savings and a single shared balance chart.
 - Automatic allocation recommendations, optional explanations/comparisons, and freed-minimum rollover.
-- Inline low-payment warnings, bounded unpaid curves, overpayment handling, and unavailable-estimate states.
+- Compact loan cards with always-visible monthly payment editing and actionable low-payment suggestions.
+- A prominent impact summary, bounded unpaid curves, overpayment handling, and unavailable-estimate states.
 - Responsive layouts, keyboard focus, and reduced-motion support.
 
 **No account, backend, analytics, or sync.** Confirmed loan records are kept in this browser’s local storage. The app does not upload them, connect to your servicer, or send payments.
@@ -50,6 +51,10 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Anyone using the same browser profile can access the data. The app does not encrypt its JSON copy. Clearing site data, storage eviction, or closing a private-browsing session can remove it. This is convenience storage, not a backup.
 - Balances and dates are restored exactly as entered, not advanced to today. The app does not know which real payments happened. Check your figures and next-payment dates when returning; overdue next-payment dates still block new what-if calculations until updated.
 - Export/import, backups, accounts, and cloud synchronization are intentionally **not** part of this feature.
+
+Low-payment warnings offer a **10-year plan** amount, rounded up to a whole dollar and verified against the actual cent-rounded payment schedule to pay off within ten calendar years of the entered balance date. This is a suggested payoff goal, not a servicer-required minimum. Clicking it applies the payment in a loan card immediately; the loan editor still requires **Update loan**. If the entered dates make a ten-year payoff impossible, the suggestion is labeled **Try** instead. No number is offered without a complete modeled payoff.
+
+Expanded extra-payment controls use one column, with the allocation directly below the amount. The high-contrast impact block emphasizes savings and payoff change; budget math and recommendation comparisons share the **Why this plan?** disclosure.
 
 ## Automatic allocation recommendations
 

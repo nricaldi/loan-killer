@@ -58,3 +58,19 @@ describe('editable loan chip', () => {
     wrapper.unmount()
   })
 })
+
+describe('low-payment action', () => {
+  it('shows and applies a concrete ten-year suggestion without selecting the loan', async () => {
+    const wrapper = mount(LoanPaymentChip, { props: { loan: { ...loan, principalCents: 761500, annualRatePercent: 6.3, monthlyPaymentCents: 500 }, selected: false } })
+    const button = wrapper.get('.suggest-payment')
+    expect(button.text()).toContain('10-year plan:')
+    await button.trigger('click')
+    const cents = wrapper.emitted('payment')![0]![0] as number
+    expect(cents).toBeGreaterThan(500)
+    expect(wrapper.get<HTMLInputElement>('input').element.value).toBe((cents / 100).toFixed(2))
+    expect(wrapper.emitted('select')).toBeUndefined()
+    await wrapper.setProps({ loan: { ...loan, principalCents: 761500, annualRatePercent: 6.3, monthlyPaymentCents: cents } })
+    expect(wrapper.find('.minimum-warning').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

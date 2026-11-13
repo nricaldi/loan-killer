@@ -3,6 +3,8 @@ import { vZeroOnFocus } from '../directives/zeroOnFocus'
 import { computed, nextTick, reactive, ref } from 'vue'
 import { addMonths, today } from '../domain/dates'
 import { projectLoan, type Loan } from '../domain/loan'
+import { suggestMonthlyPayment } from '../domain/paymentSuggestion'
+import { money } from '../format'
 import { paymentWarning } from '../domain/paymentWarning'
 import { validateLoanForm, type FormErrors, type LoanFormValues } from '../domain/loanForm'
 
@@ -47,6 +49,14 @@ const minimumWarning = computed(() => {
   const { loan } = validateLoanForm(values, props.sharedBalanceDate)
   return loan ? paymentWarning(projectLoan(loan)) : null
 })
+
+const suggestion = computed(() => {
+  const { loan } = validateLoanForm(values, props.sharedBalanceDate)
+  return minimumWarning.value && loan ? suggestMonthlyPayment(loan) : null
+})
+function useSuggestion() {
+  if (suggestion.value) values.monthlyPayment = (suggestion.value.amountCents / 100).toFixed(2)
+}
 
 async function submit() {
   const result = validateLoanForm(values, props.sharedBalanceDate)
@@ -197,7 +207,8 @@ function useExample() {
           <p v-if="errors.monthlyPayment" id="payment-error" class="field-error">{{ errors.monthlyPayment }}</p>
           <div v-if="minimumWarning && !errors.monthlyPayment" id="payment-warning" class="payment-warning-text" role="status">
             <strong>{{ minimumWarning.title }}</strong>
-            <p>{{ minimumWarning.detail }}</p>
+            <button v-if="suggestion" class="suggest-payment" type="button" @click="useSuggestion">{{ suggestion.tenYear ? '10-year plan:' : 'Try' }} {{ money(suggestion.amountCents) }}/month</button>
+            <p v-else>Check the balance and payment dates.</p>
           </div>
         </div>
       </div>
@@ -293,4 +304,5 @@ input.payment-warning, input[aria-invalid='true'], select[aria-invalid='true'] {
 .payment-warning-text p { margin: var(--space-1) 0 0; }
 .example-button { margin-top: var(--space-3); }
 @media (max-width: 35rem) { .field-row { grid-template-columns: 1fr; } }
+.suggest-payment { display: block; min-height: var(--size-touch-target); border: 0; padding: var(--space-1) 0; background: transparent; color: var(--text-link); font-size: var(--font-sm); text-decoration: underline; text-underline-offset: 0.2em; }
 </style>

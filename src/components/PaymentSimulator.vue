@@ -7,7 +7,7 @@ import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
 import type { ExtraScenarioId } from '../domain/paymentScenarios'
 import type { LoanRecord, PortfolioProjection } from '../domain/portfolio'
 import { recommendPayments, type PaymentRecommendations } from '../domain/paymentRecommendations'
-import { formatDate, money } from '../format'
+import { dateDistance, formatDate, money } from '../format'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentRecommendationDetails from './PaymentRecommendationDetails.vue'
 import PaymentPlanSummary from './PaymentPlanSummary.vue'
@@ -34,10 +34,8 @@ const comparisonResult = computed(() => result.value ? {
   }),
 } : null)
 const unavailable = computed(() => oneTimePaymentAvailability(props.loans, paymentDate.value))
-const minimumCents = computed(() => props.loans.reduce((sum, loan) => sum + loan.monthlyPaymentCents, 0))
 const enteredOneTimeCents = computed(() => parseMoney(amount.value))
 const enteredMonthlyCents = computed(() => parseMoney(monthlyAmount.value))
-const budgetCents = computed(() => enteredMonthlyCents.value === null ? null : minimumCents.value + enteredMonthlyCents.value)
 const showMonthly = ref(false)
 const showOneTime = ref(false)
 const hasChanges = computed(() => result.value !== null && (
@@ -142,14 +140,11 @@ async function clear() {
                 <div class="amount-input"><span aria-hidden="true">$</span><input id="extra-monthly-amount" v-model="monthlyAmount" v-zero-on-focus type="text" inputmode="decimal" :aria-invalid="!!errors.monthly" :aria-describedby="errors.monthly ? 'extra-monthly-error monthly-help' : 'monthly-help'" /></div>
                 <div class="presets" aria-label="Try an extra monthly amount"><button v-for="value in [25, 50, 100]" :key="value" type="button" @click="monthlyAmount = String(value)">+${{ value.toLocaleString('en-US') }}</button></div>
                 <p v-if="errors.monthly" id="extra-monthly-error" class="field-error">{{ errors.monthly }}</p>
-                <p v-if="enteredMonthlyCents && budgetCents !== null" class="budget-note">Monthly total: <strong>{{ money(budgetCents) }}</strong>. Payments from paid-off loans roll forward.</p>
               </div>
               <div v-if="monthlyRecommendation" class="allocation-recommendation monthly-recommendation">
                 <template v-if="monthlyRecommendation.option.payoffDate">
-                  <p class="recommendation-label">{{ monthlyRecommendation.tied ? 'Suggested first payment' : 'Recommended first payment' }}</p>
-                  <p v-for="payment in monthlyRecommendation.firstMonthlyPayments" :key="payment.loanId"><strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></p>
-                  <p v-if="monthlyRecommendation.firstMonthlyPayments.length">On {{ formatDate(monthlyRecommendation.result.recurringStartDate) }}. Keep paying minimums on your other active loans.</p>
-                  <p v-else>Your one-time payment clears the balance; no extra monthly payment is needed.</p>
+                  <p v-for="payment in monthlyRecommendation.firstMonthlyPayments" :key="payment.loanId">Next: <strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong> · {{ formatDate(monthlyRecommendation.result.recurringStartDate) }}</p>
+                  <p v-if="!monthlyRecommendation.firstMonthlyPayments.length">Your one-time payment clears the balance; no extra monthly payment is needed.</p>
                 </template>
                 <template v-else><p class="recommendation-label">No complete payoff estimate yet</p><p>Try a larger amount to find a plan that pays off.</p></template>
               </div>
@@ -166,7 +161,6 @@ async function clear() {
               </div>
               <div v-if="oneTimeRecommendation" class="allocation-recommendation one-time-recommendation">
                 <template v-if="oneTimeRecommendation.option.payoffDate">
-                  <p class="recommendation-label">{{ oneTimeRecommendation.tied ? 'Suggested payment' : 'Recommended payment' }}</p>
                   <p><strong>Pay {{ money(oneTimeRecommendation.result.oneTime.appliedCents) }} toward {{ oneTimeRecommendation.option.loanName }} today.</strong></p>
                 </template>
                 <template v-else><p class="recommendation-label">No complete payoff estimate yet</p><p>Try a larger amount to find a plan that pays off.</p></template>
@@ -179,9 +173,11 @@ async function clear() {
         <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
         <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
         <div v-if="result" class="impact-area">
-          <PaymentPlanSummary :result="result" :selected="selected" @clear="clear" />
+          <PaymentPlanSummary :result="result" :selected="selected" @clear="clear">
+            <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" embedded />
+          </PaymentPlanSummary>
           <p v-if="!showMonthly && activeRecommendation && activeRecommendation.firstMonthlyPayments.length" class="compact-allocation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>, on {{ formatDate(activeRecommendation.result.recurringStartDate) }}.</p>
-          <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" />
+          <p v-if="activeRecommendation?.fastestAlternative" class="tradeoff">An alternative finishes {{ dateDistance(activeRecommendation.option.payoffDate!, activeRecommendation.fastestAlternative.payoffDate!) }} sooner for {{ money(activeRecommendation.fastestAlternative.interestCents! - activeRecommendation.option.interestCents!) }} more interest.</p>
           <a class="chart-link" href="#outlook-heading">See this on the chart ↑</a>
         </div>
       </form>
@@ -201,13 +197,14 @@ async function clear() {
 .explore-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); min-width: 0; }
 .compact-all { min-height: var(--size-touch-target); padding: var(--space-2) 0; border: 0; background: transparent; color: var(--text-link); font-size: var(--font-sm); text-decoration: underline; text-underline-offset: 0.2em; }
 .preview-scope { margin: 0; color: var(--text-secondary); font-size: var(--font-sm); overflow-wrap: anywhere; }
-.exploration-options { border-top: 1px solid var(--border-strong); }
-.explore-option { min-width: 0; border-bottom: 1px solid var(--border-strong); }
+.exploration-options { display: grid; gap: var(--space-5); }
+.explore-option { min-width: 0; }
 .option-choice { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 3.5rem; padding: var(--space-3) 0; border: 0; background: transparent; color: var(--text); text-align: left; font-weight: 600; }
 .option-choice > :first-child { flex: 1; min-width: 0; }
 .option-amount { color: var(--text-link); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: var(--font-sm); }
 .option-action { color: var(--text-link); font-size: var(--font-sm); font-weight: 400; text-decoration: underline; text-underline-offset: 0.2em; }
-.option-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; padding: 0 0 var(--space-4); }
+.option-controls { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); }
+.amount-field { width: min(100%, 30rem); }
 .amount-field, .allocation-recommendation { min-width: 0; }
 label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); font-weight: 600; }
 input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; }
@@ -216,18 +213,19 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
 .amount-input input { padding-left: 1.7rem; }
 .presets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.presets button { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); color: var(--text-link); background: var(--surface); font-size: var(--font-sm); }
+.presets button { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-sm); color: var(--text-link); background: var(--blue-light); font-size: var(--font-sm); }
 .budget-note, .date-warning { font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.5; margin: var(--space-3) 0 0; }
 .field-error { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--font-sm); }
-.allocation-recommendation { padding-top: var(--space-1); font-size: var(--font-sm); line-height: 1.5; }
+.allocation-recommendation { font-size: var(--font-sm); line-height: 1.5; }
 .allocation-recommendation p { margin: 0 0 var(--space-2); color: var(--text-secondary); }
 .allocation-recommendation strong { color: var(--highlight-background); }
 .allocation-recommendation .recommendation-label { color: var(--text); font-weight: 600; }
+.tradeoff { font-size: var(--font-sm); line-height: 1.5; color: var(--text-secondary); }
 .compact-allocation { color: var(--text-secondary); font-size: var(--font-sm); line-height: 1.5; }
 .impact-area { margin-top: var(--space-5); }
 .chart-link { display: inline-block; padding-block: var(--space-3); color: var(--text-link); font-size: var(--font-sm); }
 .plan-comparison { margin-top: var(--space-4); }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-sm); }
 .plan-comparison > :deep(section) { margin-top: var(--space-4); }
-@media (max-width: 40rem) { .option-controls { grid-template-columns: 1fr; } .option-choice { font-size: var(--font-sm); } }
+@media (max-width: 40rem) { .option-choice { font-size: var(--font-sm); } }
 </style>

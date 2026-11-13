@@ -85,8 +85,8 @@ async function cancelRemoval() {
 
 ul {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: var(--space-2);
   list-style: none;
   padding: 0;
   margin: var(--space-3) 0 0;
@@ -136,4 +136,5 @@ li {
 
 .all-loans { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font-size: var(--font-sm); }
 .all-loans[aria-pressed='true'] { background: var(--blue-light); border-color: var(--chart-line); font-weight: 600; }
+@media (max-width: 22rem) { .icon-button { width: 2rem; height: 2rem; } }
 </style>
