@@ -11,7 +11,7 @@ const loan: LoanRecord = {
 
 describe('editable loan chip', () => {
   it('emits a zero minimum but never saves blank or negative values', async () => {
-    const wrapper = mount(LoanPaymentChip, { props: { loan, selected: true } })
+    const wrapper = mount(LoanPaymentChip, { props: { loan } })
     await wrapper.get('input').setValue('0')
     expect(wrapper.emitted('payment')).toEqual([[0]])
     expect(wrapper.get('input').attributes('aria-invalid')).toBe('false')
@@ -28,7 +28,7 @@ describe('editable loan chip', () => {
   })
 
   it('shows the saved principal plus unpaid interest without a date description', async () => {
-    const wrapper = mount(LoanPaymentChip, { props: { loan: { ...loan, accruedInterestCents: 2500 }, selected: false } })
+    const wrapper = mount(LoanPaymentChip, { props: { loan: { ...loan, accruedInterestCents: 2500 } } })
     expect(wrapper.get('.chip-balance strong').text()).toBe('$1,025.00')
     expect(wrapper.find('.chip-balance span').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Oct 19, 2026')
@@ -37,24 +37,38 @@ describe('editable loan chip', () => {
     wrapper.unmount()
   })
 
-  it('selects a loan independently from editing its payment', async () => {
-    const wrapper = mount(LoanPaymentChip, { props: { loan, selected: false } })
-    await wrapper.get('button').trigger('click')
-    expect(wrapper.emitted('select')).toHaveLength(1)
+  it('keeps the loan name static while editing its payment', async () => {
+    const wrapper = mount(LoanPaymentChip, { props: { loan } })
+    expect(wrapper.get('.chip-name').element.tagName).toBe('DIV')
     await wrapper.get('input').setValue('350.25')
     expect(wrapper.emitted('payment')).toEqual([[35025]])
-    expect(wrapper.emitted('select')).toHaveLength(1)
     wrapper.unmount()
   })
 
   it('syncs external modal edits without reformatting the amount while typing', async () => {
-    const wrapper = mount(LoanPaymentChip, { props: { loan, selected: true } })
+    const wrapper = mount(LoanPaymentChip, { props: { loan } })
     await wrapper.get('input').setValue('400')
     await wrapper.setProps({ loan: { ...loan, monthlyPaymentCents: 40000 } })
     expect(wrapper.get<HTMLInputElement>('input').element.value).toBe('400')
     await wrapper.setProps({ loan: { ...loan, monthlyPaymentCents: 50025 } })
     expect(wrapper.get<HTMLInputElement>('input').element.value).toBe('500.25')
-    expect(wrapper.get('button').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.chip-balance').text()).toBe('$1,000.00')
+    wrapper.unmount()
+  })
+})
+
+describe('low-payment action', () => {
+  it('shows and applies a concrete ten-year suggestion without selecting the loan', async () => {
+    const wrapper = mount(LoanPaymentChip, { props: { loan: { ...loan, principalCents: 761500, annualRatePercent: 6.3, monthlyPaymentCents: 500 } } })
+    const button = wrapper.get('.suggest-payment')
+    expect(button.text()).toContain('10-year plan:')
+    await button.trigger('click')
+    const cents = wrapper.emitted('payment')![0]![0] as number
+    expect(cents).toBeGreaterThan(500)
+    expect(wrapper.get<HTMLInputElement>('input').element.value).toBe((cents / 100).toFixed(2))
+    expect(wrapper.emitted('select')).toBeUndefined()
+    await wrapper.setProps({ loan: { ...loan, principalCents: 761500, annualRatePercent: 6.3, monthlyPaymentCents: cents } })
+    expect(wrapper.find('.minimum-warning').exists()).toBe(false)
     wrapper.unmount()
   })
 })

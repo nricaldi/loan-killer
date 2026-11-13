@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
 import type { ProjectedLoan } from '../domain/portfolio'
+import { money } from '../format'
 import LoanPaymentChip from './LoanPaymentChip.vue'
 
-defineProps<{ loans: ProjectedLoan[]; editingId: string | null; visibleLoanId: string | null }>()
+defineProps<{ loans: ProjectedLoan[]; editingId: string | null; hiddenLoanIds: string[]; allocations: { loanId: string; monthlyCents: number; oneTimeCents: number }[] }>()
 const emit = defineEmits<{
-  add: [event: MouseEvent]
   edit: [id: string, event: MouseEvent]
-  view: [id: string]
+  toggle: [id: string]
   remove: [id: string]
   payment: [id: string, cents: number]
 }>()
@@ -20,11 +20,9 @@ async function requestRemoval(id: string) {
   list.value?.querySelector<HTMLButtonElement>('.remove-confirmation .text-button')?.focus()
 }
 
-async function remove(id: string) {
+function remove(id: string) {
   pendingRemoval.value = null
   emit('remove', id)
-  await nextTick()
-  list.value?.querySelector<HTMLButtonElement>('.add-button')?.focus()
 }
 
 async function cancelRemoval() {
@@ -41,16 +39,18 @@ async function cancelRemoval() {
     <div class="list-heading">
       <div class="list-title">
         <h2 id="loans-heading">Your loans <span>{{ loans.length }}</span></h2>
-        <p class="loan-view-label">{{ visibleLoanId ? 'Focused on one loan' : 'Showing all loans' }}</p>
       </div>
-      <button class="add-button" type="button" @click="emit('add', $event)">+ Add loan</button>
+      <slot name="add" />
     </div>
 
     <ul>
-      <li v-for="{ loan, projection } in loans" :key="loan.id" :data-loan-id="loan.id">
-        <LoanPaymentChip :loan="loan" :selected="visibleLoanId === null || visibleLoanId === loan.id" @select="emit('view', loan.id)" @payment="emit('payment', loan.id, $event)">
+      <li v-for="{ loan } in loans" :key="loan.id" :data-loan-id="loan.id">
+        <LoanPaymentChip :loan="loan" :hidden="hiddenLoanIds.includes(loan.id)" @payment="emit('payment', loan.id, $event)">
           <template #actions>
             <div class="loan-actions">
+              <button class="icon-button visibility-toggle" type="button" :aria-label="`${hiddenLoanIds.includes(loan.id) ? 'Include' : 'Hide'} ${loan.name}`" :aria-pressed="!hiddenLoanIds.includes(loan.id)" @click="emit('toggle', loan.id)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /><path v-if="hiddenLoanIds.includes(loan.id)" d="m3 3 18 18" /></svg>
+              </button>
               <button class="icon-button" type="button" :aria-label="`Edit ${loan.name}`" :title="`Edit ${loan.name}`" :aria-pressed="editingId === loan.id" @click="emit('edit', loan.id, $event)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5M3 21l5-1L21 7a2.1 2.1 0 0 0-5-5L3 15Z" /></svg>
               </button>
@@ -59,9 +59,10 @@ async function cancelRemoval() {
               </button>
             </div>
           </template>
-          <p v-if="loan.monthlyPaymentCents === 0" class="loan-note">No required monthly payment</p>
-          <p v-else-if="projection.status !== 'paid-off'" class="loan-warning">{{ projection.status === 'insufficient-payment' ? 'Payment needs attention' : 'Beyond projection limit' }}</p>
-          <span v-if="loan.fromExample" class="example-label">From example</span>
+          <div v-for="allocation in allocations.filter(item => item.loanId === loan.id)" :key="allocation.loanId" class="allocation-tags">
+            <span v-if="allocation.oneTimeCents">{{ money(allocation.oneTimeCents) }} today</span>
+            <span v-if="allocation.monthlyCents">+{{ money(allocation.monthlyCents) }}/mo next payment</span>
+          </div>
           <div v-if="pendingRemoval === loan.id" class="remove-confirmation" role="group" :aria-label="`Confirm removal of ${loan.name}`">
             <p>Remove this loan from your plan? This won’t affect your actual loan.</p>
             <div>
@@ -89,23 +90,10 @@ async function cancelRemoval() {
   margin-left: var(--space-2);
 }
 .list-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-.loan-view-label { margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
-
-.add-button {
-  flex-shrink: 0;
-  background: var(--blue-light);
-  color: var(--text-link);
-  border: 1px solid var(--blue-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-xs);
-  font-weight: 600;
-  min-height: 2.75rem;
-}
 
 ul {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
   gap: var(--space-3);
   list-style: none;
   padding: 0;
@@ -115,15 +103,7 @@ ul {
 li {
   min-width: 0;
 }
-.loan-note, .loan-warning, .remove-confirmation p {
-  font-size: var(--font-xs);
-  color: var(--text-muted);
-  line-height: 1.7;
-}
-
-.loan-warning {
-  color: var(--danger);
-}
+.remove-confirmation p { font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.5; }
 
 .loan-actions {
   display: flex;
@@ -135,20 +115,9 @@ li {
 .icon-button:last-child:hover { color: var(--danger); }
 .icon-button svg { width: var(--size-icon); height: var(--size-icon); }
 
-@media (hover: hover) and (pointer: fine) {
-  .loan-actions { opacity: 0; pointer-events: none; }
-  li:hover .loan-actions, li:focus-within .loan-actions { opacity: 1; pointer-events: auto; }
-}
 @media (any-pointer: coarse) {
   .loan-actions { opacity: 1; pointer-events: auto; }
   .icon-button { width: var(--size-touch-target); height: var(--size-touch-target); }
-}
-
-.example-label {
-  display: block;
-  margin-top: var(--space-2);
-  font-size: 0.65rem;
-  color: var(--text-muted);
 }
 
 .remove-confirmation {
@@ -173,4 +142,6 @@ li {
   min-height: 2.5rem;
 }
 
+.allocation-tags { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; font-size: 12px; color: var(--text-link); }
+@media (max-width: 22rem) { .icon-button { width: 2rem; height: 2rem; } }
 </style>

@@ -1,4 +1,6 @@
 :root {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   color: var(--text);
   background: var(--background);
@@ -28,6 +30,8 @@
   --chart-line: #397fa8;
   --chart-extra: #214d69;
   --chart-interest: #c5d8e5;
+  --savings: #44a882;
+  --savings-text: #237452;
   --danger: #ad3030;
   --focus: #246f9c;
   --shadow-sm: 0 0.125rem 0.25rem #20354103;
@@ -49,7 +53,6 @@
   --size-icon: 1rem;
   --size-icon-button: 2rem;
   --size-touch-target: 2.75rem;
-  --size-payment-impact: 13.25rem;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;

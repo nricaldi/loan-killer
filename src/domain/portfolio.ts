@@ -26,7 +26,7 @@ export interface PortfolioProjection {
   projection: Projection
 }
 
-function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
+export function combinePaymentSchedules(loans: ProjectedLoan[]): Payment[] {
   const events = new Map<string, { loanIndex: number; payment: Payment }[]>()
   for (const [loanIndex, { projection }] of loans.entries()) {
     for (const payment of projection.schedule) {
@@ -85,6 +85,11 @@ function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
     previousBalance = balanceCents
   }
 
+  return schedule
+}
+
+function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
+  const schedule = combinePaymentSchedules(loans)
   let paymentCount = 0
   let futureInterestCents = 0
   let remainingInterestCents = 0

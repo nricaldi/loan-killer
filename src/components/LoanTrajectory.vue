@@ -1,98 +1,83 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PortfolioProjection } from '../domain/portfolio'
-import { formatDate, money } from '../format'
+import { balanceWindow } from '../domain/balanceWindow'
+import { addMonths } from '../domain/dates'
+import { money } from '../format'
 import BalanceChart from './BalanceChart.vue'
-import PaymentsChart from './PaymentsChart.vue'
-import PaymentSchedule from './PaymentSchedule.vue'
 
-const props = defineProps<{ portfolio: PortfolioProjection; comparison?: { portfolio: PortfolioProjection; label: string } | null }>()
-const chartView = defineModel<'payments' | 'balance'>('view', { default: 'balance' })
-const projection = computed(() => props.portfolio.projection)
-const paidOffProjection = computed(() => projection.value.status === 'paid-off' ? projection.value : null)
-const loanCount = computed(() => props.portfolio.loans.length)
+const props = defineProps<{
+  portfolio: PortfolioProjection
+  comparison?: { portfolio: PortfolioProjection; label: string } | null
+}>()
+const paidOffProjection = computed(() => props.portfolio.projection.status === 'paid-off' ? props.portfolio.projection : null)
+const current = computed(() => props.comparison?.portfolio.projection ?? props.portfolio.projection)
+const currentPaid = computed(() => current.value.status === 'paid-off' ? current.value : null)
 const balanceCents = computed(() => props.portfolio.principalCents + props.portfolio.accruedInterestCents)
-const blockedLoans = computed(() => props.portfolio.loans.filter(({ projection }) => projection.status !== 'paid-off'))
-const comparisonProjection = computed(() => props.comparison?.portfolio.projection.status === 'paid-off'
-  ? props.comparison.portfolio.projection : null)
-const chartComparison = computed(() => comparisonProjection.value && props.comparison
-  && paidOffProjection.value ? { projection: comparisonProjection.value, label: props.comparison.label } : undefined)
-const chartProjection = computed(() => paidOffProjection.value ?? comparisonProjection.value)
-const previewOnly = computed(() => !paidOffProjection.value && comparisonProjection.value !== null)
-const chartLabel = computed(() => previewOnly.value ? props.comparison?.label : undefined)
+const interestSaved = computed(() => paidOffProjection.value && currentPaid.value
+  ? paidOffProjection.value.totalPaymentsCents - currentPaid.value.totalPaymentsCents : null)
+const newInterestCents = computed(() => currentPaid.value ? Math.max(0, currentPaid.value.totalPaymentsCents - balanceCents.value) : 0)
+const scaleCents = computed(() => Math.max(paidOffProjection.value?.totalPaymentsCents ?? 0, currentPaid.value?.totalPaymentsCents ?? 0, balanceCents.value, 1))
+const debtPercent = computed(() => balanceCents.value / scaleCents.value * 100)
+const interestPercent = computed(() => newInterestCents.value / scaleCents.value * 100)
+const savedPercent = computed(() => Math.max(0, interestSaved.value ?? 0) / scaleCents.value * 100)
+const horizon = computed(() => props.portfolio.projection.status !== 'paid-off'
+  || (props.comparison && props.comparison.portfolio.projection.status !== 'paid-off')
+  ? addMonths(props.portfolio.balanceDate, 600) : undefined)
+const baseline = computed(() => balanceWindow(props.portfolio, horizon.value))
+const chartComparison = computed(() => props.comparison ? {
+  ...balanceWindow(props.comparison.portfolio, horizon.value), label: props.comparison.label,
+} : undefined)
 </script>
 
 <template>
-  <section class="journey-visual" aria-label="Payment projection">
-    <div v-if="chartProjection" class="trajectory-panel">
-      <div class="trajectory-heading">
-        <h2 class="sr-only">Payment projection</h2>
-        <div class="payoff-summary" :class="{ 'preview-payoff': comparisonProjection }" aria-live="polite" aria-atomic="true">
-          <p v-if="comparisonProjection">With this plan, you’d be debt-free <strong data-testid="preview-payoff-date">{{ formatDate(comparisonProjection.payoffDate) }}</strong></p>
-          <p v-else>Debt-free by <strong data-testid="payoff-date">{{ formatDate(chartProjection.payoffDate) }}</strong></p>
-          <p class="baseline-context"><template v-if="paidOffProjection && comparisonProjection">Minimums only: <span data-testid="payoff-date">{{ formatDate(paidOffProjection.payoffDate) }}</span> · {{ money(Math.abs(paidOffProjection.remainingInterestCents - comparisonProjection.remainingInterestCents)) }} {{ comparisonProjection.remainingInterestCents <= paidOffProjection.remainingInterestCents ? 'interest saved' : 'additional interest' }}</template><template v-else>{{ previewOnly ? 'No minimum-only payoff estimate' : 'With your saved minimums' }}</template></p>
-        </div>
-        <p class="chart-minimum">Total minimum<strong data-testid="chart-monthly-minimum">{{ money(portfolio.monthlyPaymentCents) }}<small> / mo</small></strong></p>
-        <div class="chart-switch" role="group" aria-label="Projection chart view">
-          <button type="button" :aria-pressed="chartView === 'payments'" @click="chartView = 'payments'">Total paid over time</button>
-          <button type="button" :aria-pressed="chartView === 'balance'" @click="chartView = 'balance'">Remaining balance</button>
-        </div>
-      </div>
-      <PaymentsChart v-if="chartView === 'payments'" :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="chartProjection" :label="chartLabel" :comparison="chartComparison" interactive compact />
-      <BalanceChart v-else :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="chartProjection" :label="chartLabel" :comparison="chartComparison" interactive compact />
-      <p v-if="comparison && !comparisonProjection" class="projection-note">The selected extra-payment plan does not pay off within the projection limit. No complete comparison curve is shown.</p>
-      <p v-if="previewOnly" class="projection-note">Showing your extra-payment plan. Minimum payments alone don’t produce a payoff date within the estimate, so no minimum-only comparison curve is shown.</p>
-      <PaymentSchedule :payments="(comparisonProjection ?? chartProjection).schedule" :combined="loanCount > 1" />
+  <section class="panel journey-visual" aria-labelledby="outlook-heading">
+    <div class="sr-only">
+      <h2 id="outlook-heading" tabindex="-1">Your payoff outlook</h2>
     </div>
-    <section v-else class="unpaid-panel" aria-labelledby="unpaid-heading">
-      <p class="chart-minimum">Total minimum<strong data-testid="chart-monthly-minimum">{{ money(portfolio.monthlyPaymentCents) }}<small> / mo</small></strong></p>
-      <h2 id="unpaid-heading">{{ portfolio.monthlyPaymentCents === 0 ? 'No payoff date with $0 minimum payments.' : loanCount > 1 ? 'Some loans need a payment check.' : projection.status === 'insufficient-payment' ? 'This payment isn’t getting you to zero.' : 'The payoff is beyond this projection.' }}</h2>
-      <p>Try an extra payment to preview a payoff plan.</p>
-      <details class="unpaid-details">
-        <summary>Why no payoff date?</summary>
-        <p v-if="blockedLoans.some(({ loan }) => loan.monthlyPaymentCents === 0)">A $0 minimum stays at $0 in this estimate until you update it. Interest may still accrue.</p>
-        <p v-if="loanCount > 1">At least one loan doesn’t pay off within its 1,200-payment limit. An overall payoff date and complete interest total would be misleading, so we haven’t shown them. Open an individual loan to inspect its schedule.</p>
-        <p v-else-if="projection.status === 'insufficient-payment' && portfolio.monthlyPaymentCents > 0">Over a full year at the end of the projection, this payment doesn’t cover new interest. Your balance isn’t decreasing. Double-check your minimum with your servicer, or enter a higher monthly payment.</p>
-        <p v-else-if="portfolio.monthlyPaymentCents > 0">The loan still has a balance after 1,200 monthly payments. We cap estimates there rather than show an unreliable finish date. Check your figures or try a higher payment.</p>
-        <p class="unpaid-footnote">No baseline payoff date or complete interest total is shown because the loan does not pay off within the projection.</p>
-        <ul v-if="loanCount > 1" class="blocked-loans">
-          <li v-for="entry in blockedLoans" :key="entry.loan.id"><strong>{{ entry.loan.name }}</strong> — {{ entry.loan.monthlyPaymentCents === 0 ? 'No payoff date with a $0 minimum.' : entry.projection.status === 'insufficient-payment' ? 'Payment doesn’t cover ongoing interest.' : 'Beyond the projection limit.' }}</li>
-        </ul>
-        <template v-else>
-          <PaymentSchedule :payments="projection.schedule.slice(0, 12)" />
-          <p class="unpaid-footnote">The breakdown above shows only the first 12 projected payments.</p>
-        </template>
-      </details>
-    </section>
+    <p class="sr-only">With <strong data-testid="monthly-minimum">{{ money(portfolio.monthlyPaymentCents) }}</strong> in monthly minimums</p>
+    <div class="visual-outlook" aria-live="polite" aria-atomic="true">
+      <section class="repayment-visual" aria-labelledby="repayment-heading">
+        <div class="metric-heading"><h3 id="repayment-heading">Total to repay</h3><strong v-if="currentPaid" data-testid="total-payments">{{ money(currentPaid.totalPaymentsCents) }}</strong><strong v-else>No complete estimate</strong></div>
+
+        <div class="repayment-track" :class="{ incomplete: !currentPaid }" role="img" :aria-label="currentPaid ? `Amount owed ${money(balanceCents)} including ${money(portfolio.accruedInterestCents)} accrued interest, future interest ${money(newInterestCents)}${interestSaved !== null ? `, ${money(Math.abs(interestSaved))} ${interestSaved >= 0 ? 'saved' : 'more to repay'} compared with minimums (${money(paidOffProjection!.totalPaymentsCents)} total)` : '. Baseline savings unavailable'}` : 'No complete repayment estimate. Try increasing the monthly payment.'">
+          <template v-if="currentPaid"><span class="debt-segment" :style="{ width: `${debtPercent}%` }" /><span class="interest-segment" :class="{ empty: !newInterestCents }" :style="{ width: `${interestPercent}%` }" /><span class="saved-segment" :class="{ empty: !savedPercent }" :style="{ width: `${savedPercent}%` }" /></template>
+        </div>
+        <div class="segment-labels">
+          <div><span><i class="debt-key" />Amount owed</span><b data-testid="starting-balance">{{ money(balanceCents) }}</b></div>
+          <div><span><i class="interest-key" />Future interest</span><b v-if="currentPaid" data-testid="remaining-interest">{{ money(newInterestCents) }}</b><b v-else>Not available</b></div>
+          <div :class="{ 'extra-cost': interestSaved !== null && interestSaved < 0 }"><span><i class="saved-key" />{{ interestSaved !== null && interestSaved < 0 ? 'Extra cost' : 'Saved' }}</span><b v-if="interestSaved !== null" data-testid="plan-interest-saved">{{ money(Math.abs(interestSaved)) }}<span class="sr-only"> {{ interestSaved >= 0 ? 'saved' : 'more interest' }}</span></b><b v-else>Not available</b></div>
+        </div>
+      </section>
+    </div>
+
+    <BalanceChart :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="baseline.projection" :end-point="baseline.endPoint" label="Minimum payments" :comparison="chartComparison" :payoff-date="currentPaid?.payoffDate" :baseline-payoff-date="paidOffProjection?.payoffDate" />
+    <p v-if="horizon" class="horizon-note">Showing the first 50 years. A line ending above zero still has a balance.</p>
   </section>
 </template>
 
 <style scoped>
-.journey-visual { min-width: 0; }
-.payoff-summary { min-width: min(100%, 12rem); flex: 1 1 12rem; font-size: var(--font-xs); line-height: 1.6; }
-.payoff-summary p { margin: 0; }
-.payoff-summary strong { display: block; font-size: var(--font-lg); line-height: 1.4; color: var(--text); }
-.payoff-summary .baseline-context { min-block-size: 1.25rem; font-size: 0.65rem; color: var(--text-muted); }
-.chart-minimum { flex-shrink: 0; margin: 0; font-size: var(--font-xs); color: var(--text-secondary); }
-.chart-minimum strong { display: block; font-size: var(--font-lg); color: var(--text); line-height: 1.4; }
-.chart-minimum small { font-size: var(--font-xs); font-weight: 400; }
-.preview-payoff { color: var(--text-link); }
-.trajectory-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
-.chart-switch { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.chart-switch button { min-height: 2rem; padding: var(--space-1) var(--space-2); background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--font-xs); }
-.chart-switch button[aria-pressed='true'] { background: var(--blue-light); color: var(--text-link); border-color: var(--blue-border); font-weight: 600; }
-.projection-note { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.6; }
-.journey-visual :deep(.schedule) { margin-top: var(--space-3); }
-.journey-visual :deep(.schedule > summary) { padding-top: var(--space-2); }
-.unpaid-panel > p:not(.chart-minimum), .unpaid-details { font-size: var(--font-xs); color: var(--text-muted); line-height: 1.7; }
-.unpaid-panel h2 { margin-top: var(--space-3); }
-summary { cursor: pointer; color: var(--text-link); font-size: var(--font-xs); }
-@media (max-width: 35rem) {
-  .trajectory-heading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .payoff-summary, .trajectory-heading .chart-minimum { min-width: 0; }
-  .chart-switch { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (any-pointer: coarse) { .chart-switch button { min-height: var(--size-touch-target); } }
-.blocked-loans { padding-left: var(--space-5); font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.8; }
-.blocked-loans li + li { margin-top: var(--space-3); }
+.journey-visual { min-width: 0; padding: var(--space-4); }
+.visual-outlook { min-width: 0; }
+h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
+.metric-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 3rem; }
+.metric-heading > strong { font-size: var(--font-lg); font-variant-numeric: tabular-nums; text-align: right; }
+.repayment-track { height: 24px; display: flex; gap: 4px; margin-top: 8px; }
+.repayment-track.incomplete { background: var(--border); border-radius: 5px; }
+.repayment-track > span { height: 100%; flex: 0 1 auto; min-width: 0; border-radius: 5px; transition: width 180ms ease-out; }
+.repayment-track > .empty { display: none; }
+.debt-segment, .debt-key { background: var(--highlight-background); }
+.interest-segment, .interest-key { background: var(--blue-primary); }
+.saved-segment, .saved-key { background: var(--savings); }
+.segment-labels > :last-child b { color: var(--savings-text); }
+.segment-labels > .extra-cost b { color: var(--danger); }
+.extra-cost .saved-key { background: var(--danger); }
+.segment-labels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.segment-labels > div { min-width: 0; }
+.segment-labels span { font-size: 12px; color: var(--text-secondary); }
+.segment-labels i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.segment-labels b { display: block; margin-top: 5px; font-size: var(--font-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-height: 2.8em; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .repayment-track > span { transition: none; } }
+.horizon-note { color: var(--text-muted); font-size: var(--font-sm); margin: var(--space-3) 0 0; }
+@media (max-width: 35rem) { .journey-visual { padding: var(--space-4); } }
 </style>

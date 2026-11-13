@@ -1,7 +1,7 @@
 import { daysBetween } from './dates'
 import { compareOneTimePayment, oneTimePaymentAvailability, type OneTimePaymentComparison, type PayoffSavings } from './oneTimePayment'
 import type { LoanRecord, PortfolioProjection } from './portfolio'
-import { projectRecurringPayments, recurringStartDate, strategyNames, validateRepaymentStrategy, type RepaymentStrategy } from './recurringPayments'
+import { createRecurringPaymentProjector, recurringStartDate, strategyNames, validateRepaymentStrategy, type RepaymentStrategy } from './recurringPayments'
 
 export type ScenarioId = 'minimum' | 'one-time' | 'monthly' | 'combined'
 export type ExtraScenarioId = Exclude<ScenarioId, 'minimum'>
@@ -38,6 +38,29 @@ export interface PaymentScenarios {
 }
 
 export function comparePaymentScenarios(loans: readonly LoanRecord[], request: PaymentScenarioRequest): PaymentScenarios {
+  return createPaymentScenarioComparer(loans, { date: request.date, extraMonthlyCents: request.extraMonthlyCents })(request)
+}
+
+export function createPaymentScenarioComparer(
+  loans: readonly LoanRecord[],
+  shared: { date: string; extraMonthlyCents: number },
+) {
+  const snapshot = loans.map((loan) => ({ ...loan }))
+  const captured = { ...shared }
+  const project = createRecurringPaymentProjector(snapshot, captured.extraMonthlyCents)
+  const monthlyCache = new Map<RepaymentStrategy, PortfolioProjection>()
+  return (input: { loanId: string; oneTimeCents: number; strategy?: RepaymentStrategy }): PaymentScenarios => {
+    const request = { ...input, ...captured }
+    return compareWithProjector(snapshot, request, project, monthlyCache)
+  }
+}
+
+function compareWithProjector(
+  loans: readonly LoanRecord[],
+  request: PaymentScenarioRequest,
+  project: ReturnType<typeof createRecurringPaymentProjector>,
+  monthlyCache: Map<RepaymentStrategy, PortfolioProjection>,
+): PaymentScenarios {
   const strategy = request.strategy ?? 'highest-rate'
   validateRepaymentStrategy(strategy)
   const unavailable = oneTimePaymentAvailability(loans, request.date)
@@ -60,9 +83,12 @@ export function comparePaymentScenarios(loans: readonly LoanRecord[], request: P
   }
 
   const strategies: StrategyProjection[] = (['highest-rate', 'smallest-balance'] as const).map((choice) => {
-    const monthly = projectRecurringPayments(loans, request.extraMonthlyCents, undefined, choice)
-    const combined = projectRecurringPayments(loans, request.extraMonthlyCents, oneTime.payment, choice)
-    if (!monthly || !combined) throw new Error('Add a loan before comparing payments.')
+    const monthly = monthlyCache.get(choice) ?? project(undefined, choice)
+    if (!monthly) throw new Error('Add a loan before comparing payments.')
+    monthlyCache.set(choice, monthly)
+    const combined = request.extraMonthlyCents === 0 ? oneTime.scenario
+      : request.oneTimeCents === 0 ? monthly : project(oneTime.payment, choice)
+    if (!combined) throw new Error('Add a loan before comparing payments.')
     return {
       strategy: choice,
       label: strategyNames[choice],

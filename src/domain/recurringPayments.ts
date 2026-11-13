@@ -38,11 +38,50 @@ export function recurringStartDate(loans: readonly LoanRecord[]): string | null 
   return loans.reduce<string | null>((first, loan) => first === null || loan.nextPaymentDate < first ? loan.nextPaymentDate : first, null)
 }
 
+function monthlyEvents(loans: readonly LoanRecord[]): Map<string, DueDate> {
+  const events = new Map<string, DueDate>()
+  const start = recurringStartDate(loans)
+  if (!start) return events
+  function eventOn(date: string): DueDate {
+    let event = events.get(date)
+    if (!event) {
+      event = { loans: [], extraMonthly: false }
+      events.set(date, event)
+    }
+    return event
+  }
+  for (let month = 0; month < 1_200; month++) {
+    eventOn(addMonths(start, month)).extraMonthly = true
+    loans.forEach((loan, index) => eventOn(addMonths(loan.nextPaymentDate, month)).loans.push(index))
+  }
+  return events
+}
+
+// One immutable loan snapshot/calendar can serve all target and strategy
+// comparisons. Each run still gets fresh ledgers and its own event map.
+export function createRecurringPaymentProjector(loans: readonly LoanRecord[], extraMonthlyCents: number) {
+  const snapshot = loans.map((loan) => ({ ...loan }))
+  let calendar: Map<string, DueDate> | undefined
+  const getCalendar = () => calendar ??= monthlyEvents(snapshot)
+  return (extraPayment?: TargetedOneTimePayment, strategy: RepaymentStrategy = 'highest-rate') =>
+    projectWithCalendar(snapshot, extraMonthlyCents, extraPayment, strategy, getCalendar)
+}
+
 export function projectRecurringPayments(
   loans: readonly LoanRecord[],
   extraMonthlyCents: number,
   extraPayment?: TargetedOneTimePayment,
   strategy: RepaymentStrategy = 'highest-rate',
+): PortfolioProjection | null {
+  return projectWithCalendar(loans, extraMonthlyCents, extraPayment, strategy)
+}
+
+function projectWithCalendar(
+  loans: readonly LoanRecord[],
+  extraMonthlyCents: number,
+  extraPayment?: TargetedOneTimePayment,
+  strategy: RepaymentStrategy = 'highest-rate',
+  calendar?: () => Map<string, DueDate>,
 ): PortfolioProjection | null {
   validateRepaymentStrategy(strategy)
   if (!Number.isSafeInteger(extraMonthlyCents) || extraMonthlyCents < 0 || extraMonthlyCents > 1_000_000_000) {
@@ -61,22 +100,10 @@ export function projectRecurringPayments(
     }
   }
 
-  const firstExtraDate = recurringStartDate(loans)
-  if (!firstExtraDate) return null
-  const events = new Map<string, DueDate>()
-  function eventOn(date: string): DueDate {
-    let event = events.get(date)
-    if (!event) {
-      event = { loans: [], extraMonthly: false }
-      events.set(date, event)
-    }
-    return event
+  const events = calendar ? new Map(calendar()) : monthlyEvents(loans)
+  if (extraPayment && extraPayment.amountCents > 0 && !events.has(extraPayment.date)) {
+    events.set(extraPayment.date, { loans: [], extraMonthly: false })
   }
-  for (let month = 0; month < 1_200; month++) {
-    eventOn(addMonths(firstExtraDate, month)).extraMonthly = true
-    loans.forEach((loan, index) => eventOn(addMonths(loan.nextPaymentDate, month)).loans.push(index))
-  }
-  if (extraPayment && extraPayment.amountCents > 0) eventOn(extraPayment.date)
 
   const ledgers: LoanLedger[] = loans.map((loan) => ({
     loan,
