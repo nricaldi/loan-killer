@@ -14,12 +14,12 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 1. Add loans using figures from the same balance date, or try an example in the loan form.
 2. Use **All loans** for a combined outlook, or select a loan to focus its totals and chart. Selecting it again keeps that scope; **All loans** restores the combined view.
 3. Review starting balance, remaining interest, total repayment, and the baseline debt-free date above the balance chart. Unpaid plans retain a 50-year balance view without invented payoff totals.
-4. Choose **Pay more each month**, **Make a one-time payment**, or both. Enter an amount or try a suggested amount to see its impact immediately.
+4. Use **+ Add payment** or **+ Add recurring** to create compact cards. Enter an amount or try a preset; add more cards as needed and scroll the row horizontally.
 5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
 
-Use **Done** to close one payment row or **Compact** to close both. Amounts, automatic recommendations, and the selected preview stay active; **Reset extra payments** is the separate action that clears them. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
+Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. Remove a card with its × button; **Reset extra payments** clears every card and the preview. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
 
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
@@ -62,7 +62,7 @@ Enter only the one-time and/or extra monthly amount. The app compares every one-
 
 Complete payoff estimates rank ahead of incomplete ones. Among complete options, the app minimizes projected remaining interest, then the overall payoff date, with stable IDs breaking exact ties. It shows the actual first extra monthly allocations, not a guess from starting rates or balances. A faster but more expensive alternative is flagged. Exact ties are identified, and no cheapest-plan claim is made if every option is incomplete.
 
-**Why this recommendation?** contains the rule and the compared interest totals/payoff dates. These recommendations cover the modeled single-loan lump-sum targets and the two monthly methods; they do not claim a global optimum over arbitrary split payments. Lump sums above a target’s payoff amount remain unused. Invalid draft amounts preserve the last valid comparison.
+**Why this plan?** contains the rule and the compared interest totals/payoff dates. These recommendations cover the modeled single-loan lump-sum targets and the two monthly methods; they do not claim a global optimum over arbitrary split payments. Lump sums above a target’s payoff amount remain unused. Invalid draft amounts preserve the last valid comparison.
 
 ## Extra payment today
 

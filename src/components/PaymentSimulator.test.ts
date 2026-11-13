@@ -14,11 +14,11 @@ function render(loans = [loan]) {
   wrapper = mount(PaymentSimulator, { props: { loans }, attachTo: document.body })
 }
 async function oneTime(amount = '300') {
-  if (wrapper.get('.one-time-choice').attributes('aria-expanded') === 'false') await wrapper.get('.one-time-choice').trigger('click')
+  if (!wrapper.find('#extra-payment-amount').exists()) await wrapper.get('.one-time-choice').trigger('click')
   await wrapper.get('#extra-payment-amount').setValue(amount)
 }
 async function monthly(amount = '100') {
-  if (wrapper.get('.monthly-choice').attributes('aria-expanded') === 'false') await wrapper.get('.monthly-choice').trigger('click')
+  if (!wrapper.find('#extra-monthly-amount').exists()) await wrapper.get('.monthly-choice').trigger('click')
   await wrapper.get('#extra-monthly-amount').setValue(amount)
 }
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2025, 0, 1, 12)) })
@@ -27,8 +27,8 @@ afterEach(() => { wrapper.unmount(); vi.useRealTimers() })
 describe('guided payment exploration', () => {
   it('starts with two choices and no empty form or zero-impact result', () => {
     render()
-    expect(wrapper.get('#extra-payment-amount').isVisible()).toBe(false)
-    expect(wrapper.get('#extra-monthly-amount').isVisible()).toBe(false)
+    expect(wrapper.find('#extra-payment-amount').exists()).toBe(false)
+    expect(wrapper.find('#extra-monthly-amount').exists()).toBe(false)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.find('.plan-comparison').exists()).toBe(false)
     expect(wrapper.find('input[type="range"]').exists()).toBe(false)
@@ -38,8 +38,8 @@ describe('guided payment exploration', () => {
     render()
     await wrapper.get('.monthly-choice').trigger('click')
     expect(document.activeElement).toBe(wrapper.get('#extra-monthly-amount').element)
-    expect(wrapper.get('#extra-payment-amount').isVisible()).toBe(false)
-    await wrapper.get('#monthly-controls .presets button').trigger('click')
+    expect(wrapper.find('#extra-payment-amount').exists()).toBe(false)
+    await wrapper.get('.saving-card .presets button').trigger('click')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('25')
     expect(wrapper.get('.payment-summary h3').text()).toBe('With $25.00 extra each month')
   })
@@ -85,28 +85,15 @@ describe('guided payment exploration', () => {
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('100')
   })
 
-  it('compacts both rows without clearing amounts, target, strategy, selection, or preview', async () => {
+  it('keeps existing amounts and preview when another empty card is added', async () => {
     render([loan, other])
     await oneTime()
     await monthly()
-    await wrapper.get('[data-scenario-id="monthly"] button').trigger('click')
-    const preview = wrapper.emitted('preview')?.at(-1)
     const summary = wrapper.get('.payment-summary').text()
-    await wrapper.get('.compact-all').trigger('click')
-    expect(document.activeElement).toBe(wrapper.get('.monthly-choice').element)
-    expect(wrapper.get('#extra-payment-amount').isVisible()).toBe(false)
-    expect(wrapper.get('#extra-monthly-amount').isVisible()).toBe(false)
-    expect(wrapper.get('.one-time-choice .option-amount').text()).toBe('$300.00')
-    expect(wrapper.get('.monthly-choice .option-amount').text()).toBe('$100.00/mo')
-    expect(wrapper.get('.payment-summary').text()).toBe(summary)
-    expect(wrapper.emitted('preview')?.at(-1)).toBe(preview)
-    await wrapper.get('.one-time-choice').trigger('click')
     await wrapper.get('.monthly-choice').trigger('click')
-    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('300')
+    expect(wrapper.findAll('.saving-card')).toHaveLength(3)
+    expect(wrapper.get('.payment-summary').text()).toBe(summary)
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('100')
-    expect(wrapper.find('#extra-payment-target').exists()).toBe(false)
-    expect(wrapper.find('.strategy-picker').exists()).toBe(false)
-    expect(wrapper.get('[data-scenario-id="monthly"] button').attributes('aria-pressed')).toBe('true')
   })
 
   it('clears a focused zero without generating an invalid-input error or changing the last preview', async () => {
@@ -233,10 +220,10 @@ describe('guided payment exploration', () => {
     await oneTime()
     await monthly()
     await wrapper.get('.payment-summary button').trigger('click')
-    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
-    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('0')
+    expect(wrapper.find('#extra-monthly-amount').exists()).toBe(false)
+    expect(wrapper.find('#extra-payment-amount').exists()).toBe(false)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
-    expect(wrapper.get('.monthly-choice').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.findAll('.saving-card')).toHaveLength(0)
     expect(document.activeElement).toBe(wrapper.get('.monthly-choice').element)
     expect(wrapper.emitted('preview')?.at(-1)?.[0]).toBeNull()
   })
