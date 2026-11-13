@@ -13,13 +13,13 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 
 1. Add loans using figures from the same balance date, or try an example in the loan form.
 2. All loans are included by default. Use a loan’s eye button to hide it from the estimate; hidden cards dim and stay editable. Open its eye to include it again. Hiding every loan leaves the list available to restore them.
-3. Review three proportional, individually rounded bars with small gaps: dark blue for amount owed, light blue for future interest, and green for savings against minimum payments. The debt-free date is always labeled at the payoff point on the balance chart, with a bracket and caption showing time saved. Unpaid plans retain a 50-year balance view without invented payoff totals.
-4. Use the always-visible one-time and recurring tools. Enter an amount or try a preset to update metrics and the chart immediately. Recommended recipients receive quiet labels on their loan cards.
+3. Review three proportional, individually rounded bars with small gaps: dark blue for amount owed, light blue for future interest, and green for savings against minimum payments. The debt-free date is always labeled at the payoff point on the balance chart, with time saved shown inside the chart. Unpaid plans retain a 50-year balance view without invented payoff totals.
+4. Use the always-visible, equal-width one-time and recurring tools. Enter an amount or try a preset to update metrics and the chart immediately. Recommended recipients receive quiet labels on their loan cards.
 5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
 
-Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. **Reset extra payments** zeroes both tools and clears the preview. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
+Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. The always-visible **Reset** button zeroes both tools and clears the preview. Clearing a tool input immediately counts as zero without a validation error and restores a visible zero on blur. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
 
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
@@ -142,8 +142,8 @@ Actual balance history, export/import, and synchronization remain deferred.
 
 The payoff outlook is the single location for headline metrics. The payment-card area retains the plan description, rationale, reset, and comparison controls without a separate results panel. Incomplete baselines are labeled explicitly; savings are only shown when both projections have complete payoff estimates.
 
-The repayment values, chart legend, and outcome caption reserve their space before simulation, keeping chart position and height stable as amounts change. Hidden loans are excluded from recommendations and keep their saved data; visibility resets to all included on reload. Recipient labels describe the one-time allocation and the first extra recurring payment, which may move to other loans later.
+The repayment values and compact legend retain a stable layout before simulation, keeping chart position and height stable as amounts change. Hidden loans are excluded from recommendations and keep their saved data; visibility resets to all included on reload. Recipient labels describe the one-time allocation and the first extra recurring payment, which may move to other loans later.
 
 The visual repayment breakdown uses starting principal plus accrued interest as amount owed, and future interest as the second segment, so already-accrued interest is counted once. The combined bars represent the minimum-payment total for a cheaper plan. Costlier previews show extra cost rather than a savings segment. Unpaid baselines show no fabricated savings. The chart annotation uses its shared calendar axis, and reduced-motion settings disable transitions.
 
-There is no separate payoff timeline or repeated minimum-payment total above the bars. The chart keeps the baseline payoff date in its legend, labels the current payoff date directly without hover, and shows dates beyond the bounded chart in its caption without placing a false endpoint.
+There is no separate payoff timeline or repeated minimum-payment total above the bars. A compact side-by-side legend sits above the plot without dates appended. The chart labels the current payoff date directly without hover, shows time saved inside the plot without an extra line, and identifies dates beyond the bounded chart without placing a false endpoint.

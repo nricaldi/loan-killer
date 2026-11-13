@@ -18,8 +18,9 @@ let resetting = false
 type SavingCard = { id: number; kind: 'monthly' | 'one-time'; amount: string }
 const initialCards = (): SavingCard[] => [{ id: 1, kind: 'one-time', amount: '0' }, { id: 2, kind: 'monthly', amount: '0' }]
 const cards = ref<SavingCard[]>(initialCards())
+const parseExtraAmount = (value: string) => value.trim() === '' ? 0 : parseMoney(value)
 function total(kind: SavingCard['kind']) {
-  const amounts = cards.value.filter(card => card.kind === kind).map(card => parseMoney(card.amount))
+  const amounts = cards.value.filter(card => card.kind === kind).map(card => parseExtraAmount(card.amount))
   if (amounts.some(value => value === null)) return 'invalid'
   return (amounts.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100).toFixed(2)
 }
@@ -128,18 +129,19 @@ async function clear() {
     <div v-if="$slots.default" class="chart-area"><slot /></div>
     <section id="extra-payment" class="simulator" aria-labelledby="extra-payment-heading">
       <div class="explore-heading">
-        <h2 id="extra-payment-heading">Find a faster way to pay it off</h2>
+        <h2 id="extra-payment-heading">Explore payments</h2>
+        <button class="reset-tools" type="button" aria-label="Reset extra payments" @click="clear">Reset</button>
       </div>
       <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
         <div v-if="cards.length" class="exploration-options" role="region" aria-label="Extra payments" tabindex="0">
-          <section v-for="card in cards" :key="card.id" class="saving-card">
+          <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ active: (parseExtraAmount(card.amount) ?? 0) > 0 }">
             <div class="card-heading">
               <h3>{{ card.kind === 'monthly' ? 'Recurring' : 'One-time payment' }}</h3>
             </div>
             <label class="sr-only" :for="inputId(card)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay today' }}</label>
-            <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card)" v-model="card.amount" v-zero-on-focus :disabled="!loans.length" type="text" inputmode="decimal" :aria-invalid="parseMoney(card.amount) === null" :aria-describedby="parseMoney(card.amount) === null ? `card-error-${card.id}` : undefined" /></div>
-            <div class="presets" :aria-label="card.kind === 'monthly' ? 'Try an extra monthly amount' : 'Try a one-time amount'"><button v-for="value in (card.kind === 'monthly' ? [25, 50, 100] : [100, 500, 1000])" :key="value" type="button" :disabled="!loans.length" @click="card.amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
-            <p v-if="parseMoney(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
+            <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card)" v-model="card.amount" v-zero-on-focus :disabled="!loans.length" type="text" inputmode="decimal" :aria-invalid="parseExtraAmount(card.amount) === null" :aria-describedby="parseExtraAmount(card.amount) === null ? `card-error-${card.id}` : undefined" @blur="card.amount = card.amount.trim() === '' ? '0' : card.amount" /></div>
+            <div class="presets" :aria-label="card.kind === 'monthly' ? 'Try an extra monthly amount' : 'Try a one-time amount'"><button v-for="value in (card.kind === 'monthly' ? [25, 50, 100] : [100, 500, 1000])" :key="value" type="button" :disabled="!loans.length" :aria-pressed="parseExtraAmount(card.amount) === value * 100" @click="card.amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
+            <p v-if="parseExtraAmount(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
           </section>
         </div>
         <p v-else class="empty-options">Try an extra payment to see what you could save.</p>
@@ -148,7 +150,7 @@ async function clear() {
         <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
         <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
         <div v-if="result" class="impact-area">
-          <PaymentPlanSummary :result="result" :selected="selected" details-only @clear="clear">
+          <PaymentPlanSummary :result="result" :selected="selected" details-only hide-reset @clear="clear">
             <p v-if="activeRecommendation?.firstMonthlyPayments.length" class="monthly-recommendation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>.</p>
             <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" embedded />
           </PaymentPlanSummary>
@@ -170,15 +172,21 @@ async function clear() {
 .chart-area { min-width: 0; }
 .simulator { min-width: 0; }
 .explore-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-4); }
-.exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 15rem)); gap: 12px; margin-bottom: 8px; }
-.saving-card { min-width: 0; padding: 12px; border: 0; border-radius: var(--radius-sm); background: var(--surface); scroll-snap-align: start; }
+.exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 8px; }
+.saving-card { min-width: 0; padding: 12px; border: 0; border-radius: var(--radius-sm); background: var(--blue-light); transition: background 160ms ease, box-shadow 160ms ease; }
+.saving-card.active { background: var(--blue-primary); }
+.saving-card:focus-within { box-shadow: inset 0 0 0 2px var(--chart-line); }
+.reset-tools { min-height: 44px; padding: 6px 12px; border: 1px solid var(--blue-border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font: inherit; font-size: 12px; font-weight: 600; }
 .card-heading { min-height: 2.8em; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .card-heading h3 { margin: 0; font-size: var(--font-sm); }
 .saving-card .presets { flex-wrap: nowrap; gap: 6px; }
-.saving-card .presets button { flex: 1; min-height: 32px; padding: 4px; background: transparent; font-size: 12px; }
+.saving-card .presets button { flex: 1; min-height: 32px; padding: 4px; background: var(--surface); font-size: 12px; border-radius: var(--radius-sm); }
+.saving-card .presets button[aria-pressed='true'] { background: var(--highlight-background); color: var(--highlight-text); }
+.saving-card .presets button:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--chart-line); }
+@media (prefers-reduced-motion: reduce) { .saving-card { transition: none; } }
 @media (pointer: coarse) { .saving-card .presets button { min-height: 44px; } }
 label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); font-weight: 600; }
-input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-2); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; }
+input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-2); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; font-weight: 650; font-size: 18px; }
 input[aria-invalid='true'] { border-color: var(--danger); }
 .amount-input { position: relative; }
 .amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-secondary); }

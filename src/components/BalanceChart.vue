@@ -73,8 +73,6 @@ const timeBenefit = computed(() => {
   if (payoff.value === baselinePayoff.value) return 'Same payoff date'
   return `${dateDistance(payoff.value, baselinePayoff.value)} ${payoff.value < baselinePayoff.value ? 'sooner' : 'later'}`
 })
-const savedInterval = computed(() => props.comparison && payoffInView.value && baselinePayoff.value && payoff.value! < baselinePayoff.value
-  ? { left: payoffPercent.value, width: Math.max(0, Math.min(100, daysBetween(props.balanceDate, baselinePayoff.value) / totalDays.value * 100) - payoffPercent.value) } : null)
 function describe(projection: Projection, label: string, data: { date: string; balanceCents: number }[]) {
   if (projection.status === 'paid-off') return `${label} reaches zero on ${formatDate(projection.payoffDate)}.`
   const last = data.at(-1)
@@ -84,12 +82,15 @@ function describe(projection: Projection, label: string, data: { date: string; b
 
 <template>
   <figure class="balance-chart" :class="{ unpaid: projection.status !== 'paid-off' }">
+    <figcaption>
+      <span><i class="legend-line" aria-hidden="true" />Minimums</span>
+      <span :class="{ 'legend-inactive': !comparison }" :title="comparison?.label"><i class="legend-line comparison-legend" aria-hidden="true" />Your plan</span>
+    </figcaption>
     <div class="chart-body">
       <div class="y-labels" aria-hidden="true">
         <span v-for="tick in ticks" :key="tick.fraction">{{ tick.label }}</span>
       </div>
       <div class="plot">
-        <div v-if="savedInterval" class="time-saved-range" aria-hidden="true" :style="{ left: `${savedInterval.left}%`, width: `${savedInterval.width}%` }" />
         <div class="grid-lines" aria-hidden="true"><span v-for="tick in ticks" :key="tick.fraction" /></div>
         <svg
           :viewBox="`0 0 ${width} ${height}`"
@@ -112,6 +113,11 @@ function describe(projection: Projection, label: string, data: { date: string; b
         <span v-if="coordinates[0]" class="endpoint" aria-hidden="true" :style="{ left: '0%', top: `${coordinates[0].y / height * 100}%` }" />
         <span v-if="coordinates.at(-1)" class="endpoint" aria-hidden="true" :style="{ left: `${(coordinates.at(-1)?.x ?? 0) / width * 100}%`, top: `${(coordinates.at(-1)?.y ?? 0) / height * 100}%` }" />
         <span v-if="comparisonCoordinates.at(-1)" class="endpoint comparison-endpoint" aria-hidden="true" :style="{ left: `${(comparisonCoordinates.at(-1)?.x ?? 0) / width * 100}%`, top: `${(comparisonCoordinates.at(-1)?.y ?? 0) / height * 100}%` }" />
+        <div class="payoff-result" aria-live="polite">
+          <p v-if="payoff && !payoffInView">Debt-free <strong data-testid="payoff-date">{{ formatDate(payoff) }}</strong> · beyond this chart</p>
+          <p v-if="timeBenefit" data-testid="plan-time-saved">{{ timeBenefit }}</p>
+          <p v-else-if="!payoff">No payoff date yet</p>
+        </div>
         <div v-if="payoffInView" class="payoff-label" :style="{ '--payoff-position': `${payoffPercent}%` }"><span class="sr-only">Debt-free date: </span><strong data-testid="payoff-date">{{ formatDate(payoff!) }}</strong></div>
       </div>
     </div>
@@ -120,28 +126,19 @@ function describe(projection: Projection, label: string, data: { date: string; b
       <span v-if="midpoint && projection.schedule.length > 3" class="midpoint-label">{{ formatDate(midpoint.date, true) }}</span>
       <span v-if="endDate !== balanceDate">{{ formatDate(endDate, true) }}</span>
     </div>
-    <figcaption>
-      <span><i class="legend-line" aria-hidden="true" />{{ label ?? 'Estimated balance · minimum payments only' }}<template v-if="comparison"> · <span data-testid="baseline-date">{{ baselinePayoff ? formatDate(baselinePayoff) : 'No payoff date' }}</span></template></span>
-      <span :class="{ 'legend-placeholder': !comparison }" :aria-hidden="!comparison"><i class="legend-line comparison-legend" aria-hidden="true" />{{ comparison?.label ?? 'With extra payments' }}</span>
-    </figcaption>
-    <div class="payoff-result" aria-live="polite">
-      <p v-if="payoff && !payoffInView">Debt-free <strong data-testid="payoff-date">{{ formatDate(payoff) }}</strong> · beyond this chart</p>
-      <p v-if="timeBenefit" data-testid="plan-time-saved">{{ timeBenefit }}</p>
-      <p v-else-if="!payoff">No payoff date yet</p>
-    </div>
   </figure>
 </template>
 
 <style scoped>
-.balance-chart { margin: var(--space-7) 0 0; }
+.balance-chart { margin: var(--space-4) 0 0; }
 .chart-body { display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: var(--space-3); height: 14rem; padding-right: var(--space-2); }
 .y-labels { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-muted); font-size: var(--font-xs); line-height: 1; margin-block: -0.375rem; }
 .plot { position: relative; min-width: 0; min-height: 0; }
-.time-saved-range { position: absolute; bottom: 6px; height: 8px; border-inline: 1px solid var(--savings); border-bottom: 2px solid var(--savings); }
 .payoff-label { left: clamp(0px, calc(var(--payoff-position) - 3.5rem), calc(100% - 7rem)); position: absolute; bottom: 18px; width: 7rem; padding: 5px 4px; border-radius: 4px; text-align: center; background: var(--surface); color: var(--text-link); font-size: 12px; white-space: nowrap; box-shadow: var(--shadow-sm); }
 .payoff-label strong { font-weight: 650; }
-.payoff-result { display: flow-root; min-height: 3rem; font-size: var(--font-sm); line-height: 1.5; color: var(--savings-text); font-weight: 650; text-align: center; }
-.payoff-result p { margin: 6px 0 0; }
+.payoff-result { position: absolute; top: 6px; right: 6px; max-width: 75%; font-size: 12px; line-height: 1.5; color: var(--savings-text); font-weight: 650; text-align: right; }
+.payoff-result p { background: var(--surface); padding: 2px 4px; border-radius: 4px; }
+.payoff-result p { margin: 0; }
 .grid-lines { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; }
 .grid-lines span { border-top: 1px dashed var(--border); }
 svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
@@ -151,10 +148,10 @@ svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; o
 .endpoint { position: absolute; width: 0.6rem; height: 0.6rem; border-radius: 50%; border: 2px solid var(--text-placeholder); background: var(--surface); transform: translate(-50%, -50%); }
 .comparison-endpoint { border-color: var(--chart-line); background: var(--chart-line); }
 .date-labels { display: flex; justify-content: space-between; gap: var(--space-2); margin: var(--space-4) var(--space-2) 0 4rem; font-size: var(--font-xs); color: var(--text-muted); }
-figcaption { display: flex; flex-direction: column; flex-wrap: wrap; min-height: 3rem; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); color: var(--text-muted); font-size: var(--font-xs); }
-.legend-placeholder { visibility: hidden; }
+figcaption { display: flex; align-items: center; gap: 16px; margin: 0 0 18px; color: var(--text-muted); font-size: 12px; }
+.legend-inactive { opacity: 0.45; }
 figcaption > span { display: flex; align-items: center; gap: var(--space-2); }
 .legend-line { display: inline-block; width: 1.5rem; border-top: 2px dotted var(--text-placeholder); }
 .comparison-legend { border-top: 3px solid var(--chart-line); }
-@media (max-width: 35rem) { .chart-body { height: 12rem; } .midpoint-label { display: none; } figcaption { font-size: 0.65rem; } }
+@media (max-width: 35rem) { .chart-body { height: 12rem; } .midpoint-label { display: none; } }
 </style>

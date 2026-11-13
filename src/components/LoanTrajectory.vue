@@ -57,7 +57,7 @@ const chartComparison = computed(() => props.comparison ? {
 </template>
 
 <style scoped>
-.journey-visual { min-width: 0; padding: var(--space-5); }
+.journey-visual { min-width: 0; padding: var(--space-4); }
 .visual-outlook { min-width: 0; }
 h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
 .metric-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 3rem; }

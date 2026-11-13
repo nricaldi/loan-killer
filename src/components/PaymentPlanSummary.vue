@@ -4,7 +4,7 @@ import { daysBetween } from '../domain/dates'
 import type { ExtraScenarioId, PaymentScenarios } from '../domain/paymentScenarios'
 import { dateDistance, formatDate, money } from '../format'
 
-const props = defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId; detailsOnly?: boolean }>()
+const props = defineProps<{ result: PaymentScenarios; selected: ExtraScenarioId; detailsOnly?: boolean; hideReset?: boolean }>()
 const emit = defineEmits<{ clear: [] }>()
 const plan = computed(() => {
   const selected = props.result.scenarios.find(({ id }) => id === props.selected)
@@ -95,7 +95,7 @@ const targetPayoffChange = computed(() => {
       <p v-if="!savings && paidOffProjection" class="impact-note">Minimum payments don’t produce a complete payoff estimate, so savings aren’t available. The totals above are for this plan.</p>
       <slot />
     </details>
-    <button class="reset-button" type="button" @click="emit('clear')">Reset extra payments</button>
+    <button v-if="!hideReset" class="reset-button" type="button" @click="emit('clear')">Reset extra payments</button>
   </section>
 </template>
 
