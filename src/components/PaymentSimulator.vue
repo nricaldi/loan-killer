@@ -172,7 +172,7 @@ async function clear() {
 .explore-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-4); }
 .exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 15rem)); gap: 12px; margin-bottom: 8px; }
 .saving-card { min-width: 0; padding: 12px; border: 0; border-radius: var(--radius-sm); background: var(--surface); scroll-snap-align: start; }
-.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.card-heading { min-height: 2.8em; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .card-heading h3 { margin: 0; font-size: var(--font-sm); }
 .saving-card .presets { flex-wrap: nowrap; gap: 6px; }
 .saving-card .presets button { flex: 1; min-height: 32px; padding: 4px; background: transparent; font-size: 12px; }

@@ -13,7 +13,7 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 
 1. Add loans using figures from the same balance date, or try an example in the loan form.
 2. All loans are included by default. Use a loan’s eye button to hide it from the estimate; hidden cards dim and stay editable. Open its eye to include it again. Hiding every loan leaves the list available to restore them.
-3. Review starting balance, total repayment (with interest beneath it), and payoff date above the balance chart. Extra payments update these metrics in place, with original minimum-payment totals/dates and money/time saved beneath them. Unpaid plans retain a 50-year balance view without invented payoff totals.
+3. Review the repayment bar and payoff timeline above the balance chart. Dark blue shows the amount already owed, light blue shows future interest, and a patterned gray remainder shows money saved against minimum payments. The original repayment total and payoff date remain visible as extra amounts change. Unpaid plans retain a 50-year balance view without invented payoff totals.
 4. Use the always-visible one-time and recurring tools. Enter an amount or try a preset to update metrics and the chart immediately. Recommended recipients receive quiet labels on their loan cards.
 5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
@@ -143,3 +143,5 @@ Actual balance history, export/import, and synchronization remain deferred.
 The payoff outlook is the single location for headline metrics. The payment-card area retains the plan description, rationale, reset, and comparison controls without a separate results panel. Incomplete baselines are labeled explicitly; savings are only shown when both projections have complete payoff estimates.
 
 Comparison rows and the two-line chart legend reserve their space before simulation, keeping chart position and height stable as amounts change. Hidden loans are excluded from recommendations and keep their saved data; visibility resets to all included on reload. Recipient labels describe the one-time allocation and the first extra recurring payment, which may move to other loans later.
+
+The visual repayment breakdown uses starting principal plus accrued interest as amount owed, and future interest as the second segment, so already-accrued interest is counted once. The full bar represents the minimum-payment total for a cheaper plan; a baseline marker handles previews costing more. Unpaid baselines show no fabricated savings. The payoff marker uses elapsed calendar days from the balance date, and reduced-motion settings disable transitions.

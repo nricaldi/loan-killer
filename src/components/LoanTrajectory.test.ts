@@ -75,7 +75,7 @@ describe('unpaid balance projection', () => {
     const result = comparePaymentScenarios(records, { loanId: records[0]!.id, date: records[0]!.balanceDate, oneTimeCents: 20000, extraMonthlyCents: 5000 })
     const plan = result.scenarios.find(({ id }) => id === 'combined')!.portfolio
     await wrapper.setProps({ comparison: { portfolio: plan, label: 'With extra payments' } })
-    expect(wrapper.findAll('.summary-grid > div')).toHaveLength(3)
+    expect(wrapper.findAll('.segment-labels > div')).toHaveLength(3)
     expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe(baselineTotal)
     expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe(baselineDate)
     expect(wrapper.get('[data-testid="total-payments"]').text()).not.toBe(baselineTotal)
@@ -99,6 +99,44 @@ describe('unpaid balance projection', () => {
     expect(wrapper.get('[data-testid="baseline-total"]').text()).toBe('No complete estimate')
     expect(wrapper.get('[data-testid="baseline-date"]').text()).toBe('No payoff date')
     expect(wrapper.find('[data-testid="plan-interest-saved"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('counts accrued interest in amount owed once and conserves the full repayment bar', async () => {
+    const records = [{ ...loans[0]!, principalCents: 100000, accruedInterestCents: 2500, annualRatePercent: 6, monthlyPaymentCents: 10000 }]
+    const portfolio = projectPortfolio(records)!
+    const result = comparePaymentScenarios(records, { loanId: records[0]!.id, date: records[0]!.balanceDate, oneTimeCents: 20000, extraMonthlyCents: 5000 })
+    const plan = result.scenarios.find(({ id }) => id === 'combined')!.portfolio
+    const wrapper = mount(LoanTrajectory, { props: { portfolio, comparison: { portfolio: plan, label: 'Combined' } } })
+    const width = (selector: string) => Number.parseFloat(wrapper.get(selector).attributes('style')!.replace('width:', ''))
+    expect(width('.debt-segment') + width('.interest-segment') + width('.saved-segment')).toBeCloseTo(100, 8)
+    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    expect(wrapper.get('.snapshot-note').text()).toContain('$25.00 accrued interest')
+    expect(wrapper.get('.repayment-track').attributes('aria-label')).toContain('Amount owed $1,025.00')
+    await wrapper.setProps({ comparison: null })
+    expect(width('.saved-segment')).toBe(0)
+    expect(width('.debt-segment') + width('.interest-segment')).toBeCloseTo(100, 8)
+    wrapper.unmount()
+  })
+
+  it('renders a zero-interest, same-date plan without NaN widths or positions', () => {
+    const portfolio = projectPortfolio([{ ...loans[0]!, principalCents: 10000, monthlyPaymentCents: 10000, nextPaymentDate: loans[0]!.balanceDate }])!
+    const wrapper = mount(LoanTrajectory, { props: { portfolio } })
+    expect(wrapper.get('.interest-segment').attributes('style')).toContain('width: 0%')
+    expect(wrapper.get('.plan-marker').attributes('style')).toContain('left: 0%')
+    expect(wrapper.html()).not.toContain('NaN')
+    wrapper.unmount()
+  })
+
+  it('shows additional cost rather than a saved segment for a negative rounding difference', () => {
+    const records = [{ ...loans[0]!, principalCents: 100000, accruedInterestCents: 2500, annualRatePercent: 12, monthlyPaymentCents: 30000, balanceDate: '2025-01-01', nextPaymentDate: '2025-02-01' }]
+    const portfolio = projectPortfolio(records)!
+    const result = comparePaymentScenarios(records, { loanId: records[0]!.id, date: '2025-01-04', oneTimeCents: 1, extraMonthlyCents: 0 })
+    const plan = result.scenarios.find(({ id }) => id === 'one-time')!.portfolio
+    const wrapper = mount(LoanTrajectory, { props: { portfolio, comparison: { portfolio: plan, label: 'One-time' } } })
+    expect(wrapper.get('.segment-labels').text()).toContain('Extra cost')
+    expect(wrapper.get('[data-testid="plan-interest-saved"]').text()).toContain('$0.01')
+    expect(wrapper.get('.saved-segment').attributes('style')).toContain('width: 0%')
     wrapper.unmount()
   })
 
