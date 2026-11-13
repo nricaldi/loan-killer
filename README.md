@@ -12,14 +12,14 @@ npm run dev
 Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures from your servicer, or select **Try an example**.
 
 1. Add loans using figures from the same balance date, or try an example in the loan form.
-2. Use **All loans** for a combined outlook, or select a loan to focus its totals and chart. Selecting it again keeps that scope; **All loans** restores the combined view.
+2. All loans are included by default. Use a loan’s eye button to hide it from the estimate; hidden cards dim and stay editable. Open its eye to include it again. Hiding every loan leaves the list available to restore them.
 3. Review starting balance, total repayment (with interest beneath it), and payoff date above the balance chart. Extra payments update these metrics in place, with original minimum-payment totals/dates and money/time saved beneath them. Unpaid plans retain a 50-year balance view without invented payoff totals.
-4. Use **+ Add payment** or **+ Add recurring** to create compact cards. Enter an amount or try a preset; add more cards as needed and scroll the row horizontally.
+4. Use the always-visible one-time and recurring tools. Enter an amount or try a preset to update metrics and the chart immediately. Recommended recipients receive quiet labels on their loan cards.
 5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
 
-Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. Remove a card with its × button; **Reset extra payments** clears every card and the preview. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
+Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. **Reset extra payments** zeroes both tools and clears the preview. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
 
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
@@ -28,7 +28,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 ## Features
 
 - Accessible loan entry, editing, confirmed removal, and local persistence.
-- Explicit all-loans or individual-loan scope across totals, chart, and payment exploration.
+- Per-loan inclusion toggles across totals, chart, and payment tools; all loans start included.
 - A baseline cost and payoff outlook followed by guided extra-payment options.
 - Live one-time, monthly, and combined previews with measured interest/time savings and a single shared balance chart.
 - Automatic allocation recommendations, optional explanations/comparisons, and freed-minimum rollover.
@@ -75,7 +75,7 @@ Complete payoff estimates rank ahead of incomplete ones. Among complete options,
 - Time changes use actual calendar dates, with calendar years/months/days rather than assuming 30-day months. If another loan takes longer, the overall date may stay unchanged even when the selected loan finishes earlier.
 - If either plan has no complete payoff estimate, full interest and time savings are unavailable. A complete scenario can still be displayed even if the baseline does not pay off within its limit; unknown savings are never presented as infinite or zero.
 - Per-payment rounding can create a small additional-interest difference for a tiny extra payment. Negative savings are preserved and explicitly labeled as additional interest.
-- Valid amount and loan-scope changes refresh results and recommendations immediately. **Reset extra payments** removes the preview and returns to the two exploration choices. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Switching between loan views does not clear it.
+- Valid amount and loan-scope changes refresh results and recommendations immediately. **Reset extra payments** removes the preview and zeroes the two visible tools. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Toggling loan visibility does not clear entered extra amounts.
 
 ## Extra monthly payments
 
@@ -141,3 +141,5 @@ Tests cover the financial engines and UI, plus local storage round-trips, strict
 Actual balance history, export/import, and synchronization remain deferred.
 
 The payoff outlook is the single location for headline metrics. The payment-card area retains the plan description, rationale, reset, and comparison controls without a separate results panel. Incomplete baselines are labeled explicitly; savings are only shown when both projections have complete payoff estimates.
+
+Comparison rows and the two-line chart legend reserve their space before simulation, keeping chart position and height stable as amounts change. Hidden loans are excluded from recommendations and keep their saved data; visibility resets to all included on reload. Recipient labels describe the one-time allocation and the first extra recurring payment, which may move to other loans later.

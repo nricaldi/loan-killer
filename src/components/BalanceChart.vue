@@ -106,7 +106,7 @@ function describe(projection: Projection, label: string, data: { date: string; b
     </div>
     <figcaption>
       <span><i class="legend-line" aria-hidden="true" />{{ label ?? 'Estimated balance · minimum payments only' }}</span>
-      <span v-if="comparison"><i class="legend-line comparison-legend" aria-hidden="true" />{{ comparison.label }}<template v-if="comparison.projection.status === 'paid-off'"> · {{ formatDate(comparison.projection.payoffDate) }}</template></span>
+      <span :class="{ 'legend-placeholder': !comparison }" :aria-hidden="!comparison"><i class="legend-line comparison-legend" aria-hidden="true" />{{ comparison?.label ?? 'With extra payments' }}<template v-if="comparison?.projection.status === 'paid-off'"> · {{ formatDate(comparison.projection.payoffDate) }}</template></span>
     </figcaption>
   </figure>
 </template>
@@ -125,7 +125,8 @@ svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; o
 .endpoint { position: absolute; width: 0.6rem; height: 0.6rem; border-radius: 50%; border: 2px solid var(--text-placeholder); background: var(--surface); transform: translate(-50%, -50%); }
 .comparison-endpoint { border-color: var(--chart-line); background: var(--chart-line); }
 .date-labels { display: flex; justify-content: space-between; gap: var(--space-2); margin: var(--space-4) var(--space-2) 0 4rem; font-size: var(--font-xs); color: var(--text-muted); }
-figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); color: var(--text-muted); font-size: var(--font-xs); }
+figcaption { display: flex; flex-direction: column; flex-wrap: wrap; min-height: 3rem; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); color: var(--text-muted); font-size: var(--font-xs); }
+.legend-placeholder { visibility: hidden; }
 figcaption > span { display: flex; align-items: center; gap: var(--space-2); }
 .legend-line { display: inline-block; width: 1.5rem; border-top: 2px dotted var(--text-placeholder); }
 .comparison-legend { border-top: 3px solid var(--chart-line); }

@@ -14,17 +14,15 @@ import { formatDate, money } from './format'
 
 const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
 const editingId = ref<string | null>(null)
-const visibleLoanId = ref<string | null>(null)
+const hiddenLoanIds = ref<string[]>([])
+const allocations = ref<{ loanId: string; monthlyCents: number; oneTimeCents: number }[]>([])
 const editorOpen = ref(false)
 const addButton = ref<HTMLButtonElement | null>(null)
 let editorTrigger: HTMLElement | null = null
 const lastAction = ref('')
 const portfolioRevision = ref(0)
 const sortedLoans = computed(() => [...loans.value].sort((left, right) => left.name.localeCompare(right.name, 'en', { numeric: true, sensitivity: 'base' })))
-const selectedLoans = computed(() => {
-  const loan = sortedLoans.value.find((loan) => loan.id === visibleLoanId.value)
-  return loan ? [loan] : sortedLoans.value
-})
+const selectedLoans = computed(() => sortedLoans.value.filter(loan => !hiddenLoanIds.value.includes(loan.id)))
 const portfolio = computed(() => projectPortfolio(sortedLoans.value))
 const preview = shallowRef<{ portfolio: PortfolioProjection; label: string } | null>(null)
 const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
@@ -62,7 +60,7 @@ async function saveLoan(loan: Loan, fromExample: boolean) {
   portfolioRevision.value++
   preview.value = null
   lastAction.value = `${isNew ? 'Added' : 'Updated'} ${record.name}.`
-  if (isNew) visibleLoanId.value = null
+
   await closeEditor()
 }
 
@@ -78,10 +76,11 @@ function editLoan(id: string, event: MouseEvent) {
   editorOpen.value = true
 }
 
-function selectLoan(id: string | null) {
-  if (visibleLoanId.value === id) return
+function toggleLoan(id: string) {
   preview.value = null
-  visibleLoanId.value = id
+  allocations.value = []
+  hiddenLoanIds.value = hiddenLoanIds.value.includes(id)
+    ? hiddenLoanIds.value.filter(item => item !== id) : [...hiddenLoanIds.value, id]
 }
 
 function updateMinimum(id: string, cents: number) {
@@ -114,7 +113,7 @@ function removeLoan(id: string) {
   portfolioRevision.value++
   preview.value = null
   if (editingId.value === id) editingId.value = null
-  if (visibleLoanId.value === id) visibleLoanId.value = null
+  hiddenLoanIds.value = hiddenLoanIds.value.filter(item => item !== id)
   lastAction.value = `Removed ${removed?.name ?? 'loan'} from the plan.`
   void nextTick(() => addButton.value?.focus())
 }
@@ -132,7 +131,6 @@ function removeLoan(id: string) {
         </span>
         <span>loan<span class="brand-light">killer</span><span class="brand-period">.</span></span>
       </a>
-      <button ref="addButton" class="primary-button header-add add-button" type="button" @click="addLoan">+ Add loan</button>
     </header>
 
     <LoanModal v-if="editorOpen" :editing="!!editingLoan" @close="closeEditor">
@@ -148,26 +146,30 @@ function removeLoan(id: string) {
     <main id="main">
       <h1 class="sr-only">Loan payoff dashboard</h1>
       <div class="workspace">
-        <div v-if="visiblePortfolio" class="results-area">
-          <LoanOverview :portfolio="visiblePortfolio" :comparison="preview">
+        <div v-if="portfolio" class="results-area">
+          <LoanOverview :portfolio="visiblePortfolio ?? portfolio" :comparison="preview">
             <template #loans>
               <div class="loan-controls">
                 <LoanList
                   v-if="portfolio"
                   :loans="portfolio.loans"
                   :editing-id="editingId"
-                  :visible-loan-id="visibleLoanId"
+                  :hidden-loan-ids="hiddenLoanIds"
+                  :allocations="allocations"
                   @edit="editLoan"
-                  @view="selectLoan"
+                  @toggle="toggleLoan"
                   @payment="updateMinimum"
                   @remove="removeLoan"
-                />
-                <p id="loan-payment-help" class="sr-only">Select a loan to preview payments for it; use All loans to return to the combined plan. Minimum edits save automatically. Extra payments are hypothetical.</p>
+                >
+                  <template #add><button ref="addButton" class="add-button small-add" type="button" @click="addLoan">+ Add loan</button></template>
+                </LoanList>
+                <p id="loan-payment-help" class="sr-only">Use each eye button to hide or include a loan in the estimate. Minimum edits save automatically. Extra payments are hypothetical.</p>
               </div>
             </template>
             <template #journey>
-              <PaymentSimulator :key="portfolioRevision" :loans="selectedLoans" @preview="updatePreview">
-                <LoanTrajectory :portfolio="visiblePortfolio" :comparison="preview" :scope="visibleLoanId ? selectedLoans[0]?.name : 'All loans'" />
+              <PaymentSimulator :key="portfolioRevision" :loans="selectedLoans" @preview="updatePreview" @allocations="allocations = $event">
+                <LoanTrajectory v-if="visiblePortfolio" :portfolio="visiblePortfolio" :comparison="preview" />
+                <p v-else class="hidden-empty" role="status">All loans are hidden. Open an eye above to include a loan.</p>
               </PaymentSimulator>
             </template>
           </LoanOverview>
@@ -176,7 +178,7 @@ function removeLoan(id: string) {
           <p class="eyebrow">YOUR PATH TO ZERO</p>
           <h2 id="empty-heading">There’s a finish line. Let’s find yours.</h2>
           <p>See your total repayment cost, how much goes to interest, and when you could be debt-free.</p>
-          <button class="primary-button" type="button" @click="addLoan">Add your first loan</button>
+          <button ref="addButton" class="primary-button add-button" type="button" @click="addLoan">Add your first loan</button>
           <button class="text-button" type="button" @click="addLoan">Just exploring? Try an example in the loan form</button>
         </section>
       </div>
@@ -208,6 +210,8 @@ function removeLoan(id: string) {
 main { display: flex; flex-direction: column; gap: var(--space-5); padding-block: var(--space-5); }
 .workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .storage-status.needs-attention { order: -1; }
+.small-add { min-height: 36px; padding: 6px 10px; background: transparent; color: var(--text-link); border: 0; font: inherit; font-size: var(--font-sm); font-weight: 600; }
+.hidden-empty { padding: 24px; color: var(--text-secondary); }
 .loan-controls { min-width: 0; }
 .empty-state { padding: var(--space-9) var(--space-6); display: flex; flex-direction: column; align-items: center; text-align: center; }
 .empty-state h2 { font-size: clamp(1.5rem, 3vw, 2rem); }

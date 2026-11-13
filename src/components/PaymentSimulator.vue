@@ -13,11 +13,11 @@ import PaymentRecommendationDetails from './PaymentRecommendationDetails.vue'
 import PaymentPlanSummary from './PaymentPlanSummary.vue'
 
 const props = defineProps<{ loans: readonly LoanRecord[] }>()
-const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string] }>()
+const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string]; allocations: [items: { loanId: string; monthlyCents: number; oneTimeCents: number }[]] }>()
 let resetting = false
 type SavingCard = { id: number; kind: 'monthly' | 'one-time'; amount: string }
-const cards = ref<SavingCard[]>([])
-let nextCardId = 0
+const initialCards = (): SavingCard[] => [{ id: 1, kind: 'one-time', amount: '0' }, { id: 2, kind: 'monthly', amount: '0' }]
+const cards = ref<SavingCard[]>(initialCards())
 function total(kind: SavingCard['kind']) {
   const amounts = cards.value.filter(card => card.kind === kind).map(card => parseMoney(card.amount))
   if (amounts.some(value => value === null)) return 'invalid'
@@ -58,28 +58,31 @@ watch([() => props.loans, amount, monthlyAmount], ([loans], [previousLoans]) => 
   void compare(false)
 })
 watch([result, selected], () => emit('preview', selectedPlan.value?.portfolio ?? null, chartLabel.value))
-onBeforeUnmount(() => emit('preview', null, ''))
+const allocations = computed(() => {
+  const recommendation = activeRecommendation.value
+  if (!recommendation) return []
+  const items = new Map<string, { loanId: string; monthlyCents: number; oneTimeCents: number }>()
+  if (selected.value !== 'one-time') for (const payment of recommendation.firstMonthlyPayments) {
+    items.set(payment.loanId, { loanId: payment.loanId, monthlyCents: payment.amountCents, oneTimeCents: 0 })
+  }
+  if (selected.value !== 'monthly' && recommendation.result.oneTime.appliedCents) {
+    const loanId = recommendation.result.request.loanId
+    const item = items.get(loanId) ?? { loanId, monthlyCents: 0, oneTimeCents: 0 }
+    item.oneTimeCents = recommendation.result.oneTime.appliedCents
+    items.set(loanId, item)
+  }
+  return [...items.values()]
+})
+watch(allocations, value => emit('allocations', value))
+onBeforeUnmount(() => { emit('preview', null, ''); emit('allocations', []) })
 
 function inputId(card: SavingCard) {
   const first = cards.value.find(item => item.kind === card.kind)
   const base = card.kind === 'monthly' ? 'extra-monthly-amount' : 'extra-payment-amount'
   return first?.id === card.id ? base : `${base}-${card.id}`
 }
-async function addCard(kind: SavingCard['kind']) {
-  const card: SavingCard = { id: ++nextCardId, kind, amount: '0' }
-  cards.value.push(card)
-  await nextTick()
-  const input = document.getElementById(inputId(card))
-  input?.focus()
-  input?.closest('.saving-card')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
-}
-async function removeCard(id: number) {
-  cards.value = cards.value.filter(card => card.id !== id)
-  await nextTick()
-  form.value?.querySelector<HTMLButtonElement>('.monthly-choice')?.focus()
-}
-
 async function compare(focusErrors = true) {
+  if (!props.loans.length) { recommendations.value = null; errors.value = {}; return }
   paymentDate.value = today()
   const oneTimeCents = parseMoney(amount.value)
   const extraMonthlyCents = enteredMonthlyCents.value
@@ -112,11 +115,11 @@ async function compare(focusErrors = true) {
 async function clear() {
   resetting = true
   recommendations.value = null
-  cards.value = []
+  cards.value = initialCards()
   errors.value = {}
   await nextTick()
   resetting = false
-  form.value?.querySelector<HTMLButtonElement>('.monthly-choice')?.focus()
+  form.value?.querySelector<HTMLInputElement>('#extra-payment-amount')?.focus()
 }
 </script>
 
@@ -126,24 +129,16 @@ async function clear() {
     <section id="extra-payment" class="simulator" aria-labelledby="extra-payment-heading">
       <div class="explore-heading">
         <h2 id="extra-payment-heading">Find a faster way to pay it off</h2>
-        <div class="explore-actions">
-          <p class="preview-scope">{{ loans.length === 1 ? loans[0]?.name : `All ${loans.length} loans` }}</p>
-        </div>
       </div>
       <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
-        <div class="add-actions">
-          <button class="one-time-choice" type="button" @click="addCard('one-time')">+ Add payment</button>
-          <button class="monthly-choice" type="button" @click="addCard('monthly')">+ Add recurring</button>
-        </div>
         <div v-if="cards.length" class="exploration-options" role="region" aria-label="Extra payments" tabindex="0">
-          <section v-for="(card, index) in cards" :key="card.id" class="saving-card">
+          <section v-for="card in cards" :key="card.id" class="saving-card">
             <div class="card-heading">
               <h3>{{ card.kind === 'monthly' ? 'Recurring' : 'One-time payment' }}</h3>
-              <button type="button" class="remove-card" :aria-label="`Remove ${card.kind === 'monthly' ? 'recurring' : 'one-time'} payment ${index + 1}`" @click="removeCard(card.id)">×</button>
             </div>
             <label class="sr-only" :for="inputId(card)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay today' }}</label>
-            <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card)" v-model="card.amount" v-zero-on-focus type="text" inputmode="decimal" :aria-invalid="parseMoney(card.amount) === null" :aria-describedby="parseMoney(card.amount) === null ? `card-error-${card.id}` : undefined" /></div>
-            <div class="presets" :aria-label="card.kind === 'monthly' ? 'Try an extra monthly amount' : 'Try a one-time amount'"><button v-for="value in (card.kind === 'monthly' ? [25, 50, 100] : [100, 500, 1000])" :key="value" type="button" @click="card.amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
+            <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card)" v-model="card.amount" v-zero-on-focus :disabled="!loans.length" type="text" inputmode="decimal" :aria-invalid="parseMoney(card.amount) === null" :aria-describedby="parseMoney(card.amount) === null ? `card-error-${card.id}` : undefined" /></div>
+            <div class="presets" :aria-label="card.kind === 'monthly' ? 'Try an extra monthly amount' : 'Try a one-time amount'"><button v-for="value in (card.kind === 'monthly' ? [25, 50, 100] : [100, 500, 1000])" :key="value" type="button" :disabled="!loans.length" @click="card.amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
             <p v-if="parseMoney(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
           </section>
         </div>
@@ -175,19 +170,13 @@ async function clear() {
 .chart-area { min-width: 0; }
 .simulator { min-width: 0; }
 .explore-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-4); }
-.explore-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); min-width: 0; }
-.preview-scope { margin: 0; color: var(--text-secondary); font-size: var(--font-sm); overflow-wrap: anywhere; }
-.add-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
-.add-actions button { min-height: 44px; padding: 8px 14px; background: var(--highlight-background); color: var(--highlight-text); border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--font-sm); font-weight: 600; }
-.exploration-options { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; padding: 3px 3px 14px; margin-inline: -3px; margin-bottom: 8px; }
-.saving-card { flex: 0 0 min(14rem, 85%); min-width: 0; padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); scroll-snap-align: start; }
-.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 0; }
+.exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 15rem)); gap: 12px; margin-bottom: 8px; }
+.saving-card { min-width: 0; padding: 12px; border: 0; border-radius: var(--radius-sm); background: var(--surface); scroll-snap-align: start; }
+.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .card-heading h3 { margin: 0; font-size: var(--font-sm); }
-.remove-card { flex: 0 0 32px; height: 32px; border: 0; background: transparent; color: var(--text-secondary); font-size: 24px; }
-.empty-options { color: var(--text-secondary); font-size: var(--font-sm); }
 .saving-card .presets { flex-wrap: nowrap; gap: 6px; }
 .saving-card .presets button { flex: 1; min-height: 32px; padding: 4px; background: transparent; font-size: 12px; }
-@media (pointer: coarse) { .saving-card .presets button { min-height: 44px; } .remove-card { flex-basis: 44px; height: 44px; } }
+@media (pointer: coarse) { .saving-card .presets button { min-height: 44px; } }
 label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); font-weight: 600; }
 input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-2); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; }
 input[aria-invalid='true'] { border-color: var(--danger); }
