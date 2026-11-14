@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { vZeroOnFocus } from '../directives/zeroOnFocus'
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { today } from '../domain/dates'
 import { parseMoney } from '../domain/loanForm'
 import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
 import type { ExtraScenarioId } from '../domain/paymentScenarios'
-import type { LoanRecord, PortfolioProjection } from '../domain/portfolio'
+import { projectPortfolio, type LoanRecord, type PortfolioProjection } from '../domain/portfolio'
 import { recommendPayments, type PaymentRecommendations } from '../domain/paymentRecommendations'
 import { dateDistance, money } from '../format'
+import { goalMonthEnd, monthlyExtraForGoal } from '../domain/payoffGoal'
+import PaymentControls from './PaymentControls.vue'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentRecommendationDetails from './PaymentRecommendationDetails.vue'
 import PaymentPlanSummary from './PaymentPlanSummary.vue'
@@ -28,7 +29,6 @@ const amount = computed(() => total('one-time'))
 const monthlyAmount = computed(() => total('monthly'))
 const paymentDate = ref(today())
 const errors = ref<{ amount?: string; monthly?: string; general?: string }>({})
-const form = ref<HTMLFormElement | null>(null)
 const selected = ref<ExtraScenarioId>('one-time')
 const recommendations = shallowRef<PaymentRecommendations | null>(null)
 const activeRecommendation = computed(() => recommendations.value?.plans[selected.value])
@@ -55,6 +55,7 @@ const chartLabel = computed(() => {
 
 watch([() => props.loans, amount, monthlyAmount], ([loans], [previousLoans]) => {
   if (resetting) return
+  if (loans !== previousLoans || !applyingGoal) cancelGoal()
   if (loans !== previousLoans) recommendations.value = null
   void compare(false)
 })
@@ -77,11 +78,103 @@ const allocations = computed(() => {
 watch(allocations, value => emit('allocations', value))
 onBeforeUnmount(() => { emit('preview', null, ''); emit('allocations', []) })
 
-function inputId(card: SavingCard) {
-  const first = cards.value.find(item => item.kind === card.kind)
-  const base = card.kind === 'monthly' ? 'extra-monthly-amount' : 'extra-payment-amount'
-  return first?.id === card.id ? base : `${base}-${card.id}`
+const goalMonth = ref('')
+const goalBusy = ref(false)
+const goalStatus = ref('')
+let goalTimer: ReturnType<typeof setTimeout> | undefined
+let goalWorker: Worker | undefined
+let goalGeneration = 0
+let applyingGoal = false
+const baselinePortfolio = computed(() => projectPortfolio(props.loans))
+const goalAnchor = computed(() => props.loans.reduce((date, loan) => loan.balanceDate > date ? loan.balanceDate : date, today()))
+function monthDistance(start: string, end: string) {
+  return (Number(end.slice(0, 4)) - Number(start.slice(0, 4))) * 12 + Number(end.slice(5, 7)) - Number(start.slice(5, 7))
 }
+const goalMaxMonths = computed(() => {
+  const baseline = baselinePortfolio.value?.projection
+  return Math.min(1200, Math.max(12, baseline?.status === 'paid-off' ? monthDistance(goalAnchor.value, baseline.payoffDate) : 600))
+})
+const actualPayoff = computed(() => selectedPlan.value?.portfolio.projection ?? baselinePortfolio.value?.projection)
+const displayedGoalMonth = computed(() => goalMonth.value || (actualPayoff.value?.status === 'paid-off' ? actualPayoff.value.payoffDate.slice(0, 7) : ''))
+function cancelGoal(clearMonth = true) {
+  goalGeneration++
+  clearTimeout(goalTimer)
+  goalWorker?.terminate()
+  goalWorker = undefined
+  goalBusy.value = false
+  goalStatus.value = ''
+  if (clearMonth) goalMonth.value = ''
+}
+function updateAmount(id: number, value: string) {
+  cancelGoal()
+  const card = cards.value.find(card => card.id === id)
+  if (card) card.amount = value
+}
+function setGoal(month: string) {
+  cancelGoal()
+  if (!month || !props.loans.length) return
+  try { goalMonthEnd(month) } catch { goalStatus.value = 'Choose a valid payoff month.'; return }
+  if (month < goalAnchor.value.slice(0, 7)) { goalStatus.value = 'Choose this month or later.'; return }
+  goalMonth.value = month
+  const oneTimeCents = parseMoney(amount.value)
+  if (oneTimeCents === null || enteredMonthlyCents.value === null) { goalStatus.value = 'Check the payment amounts first.'; return }
+  if (unavailable.value) { goalStatus.value = unavailable.value; return }
+  const generation = goalGeneration
+  goalBusy.value = true
+  const request = { date: today(), goalMonth: month, oneTimeCents }
+  const loans = props.loans.map(loan => ({ ...loan }))
+  async function finish(message: { result?: ReturnType<typeof monthlyExtraForGoal>; error?: string }) {
+    if (generation !== goalGeneration) return
+    goalWorker?.terminate()
+    goalWorker = undefined
+    goalBusy.value = false
+    if (!message.result) {
+      goalStatus.value = message.error ?? 'This date cannot be reached with the entered payment dates. Try a later month.'
+      return
+    }
+    applyingGoal = true
+    goalMonth.value = message.result.payoffDate.slice(0, 7)
+    const monthly = cards.value.find(card => card.kind === 'monthly')!
+    const unchanged = parseExtraAmount(monthly.amount) === message.result.extraMonthlyCents
+    monthly.amount = (message.result.extraMonthlyCents / 100).toFixed(2)
+    // Even an unchanged amount can select a different goal-compatible allocation.
+    if (unchanged) await compare(false)
+    await nextTick()
+    applyingGoal = false
+  }
+  goalTimer = setTimeout(() => {
+    if (generation !== goalGeneration) return
+    if (typeof Worker === 'undefined') {
+      try { void finish({ result: monthlyExtraForGoal(loans, request) }) }
+      catch (error) { void finish({ error: error instanceof Error ? error.message : 'Could not calculate this goal.' }) }
+      return
+    }
+    try {
+      goalWorker = new Worker(new URL('../workers/payoffGoal.worker.ts', import.meta.url), { type: 'module' })
+      goalWorker.onmessage = event => { void finish(event.data) }
+      goalWorker.onerror = () => { void finish({ error: 'Could not calculate this goal. Try again.' }) }
+      goalWorker.postMessage({ loans, request })
+    } catch {
+      void finish({ error: 'Could not calculate this goal. Try again.' })
+    }
+  }, 120)
+}
+const controlBindings = computed(() => ({
+  cards: cards.value,
+  disabled: !props.loans.length,
+  balanceCents: baselinePortfolio.value ? baselinePortfolio.value.principalCents + baselinePortfolio.value.accruedInterestCents : 0,
+  minimumCents: baselinePortfolio.value?.monthlyPaymentCents ?? 0,
+  goalMonth: displayedGoalMonth.value,
+  goalAnchor: goalAnchor.value,
+  goalMaxMonths: goalMaxMonths.value,
+  goalBusy: goalBusy.value,
+  goalStatus: goalStatus.value,
+  goalDisabled: !props.loans.length || !!unavailable.value,
+  errors: errors.value,
+  hasChanges: hasChanges.value,
+  onAmount: updateAmount, onReset: clear, onGoal: setGoal, onSubmit: () => { void compare() },
+}))
+onBeforeUnmount(() => cancelGoal())
 async function compare(focusErrors = true) {
   if (!props.loans.length) { recommendations.value = null; errors.value = {}; return }
   paymentDate.value = today()
@@ -95,8 +188,8 @@ async function compare(focusErrors = true) {
     if (!focusErrors) return
     await nextTick()
     await nextTick()
-    const firstError = form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
-      ?? form.value?.querySelector<HTMLElement>('[role="alert"]')
+    const firstError = document.querySelector<HTMLElement>('#extra-payment [aria-invalid="true"]')
+      ?? document.querySelector<HTMLElement>('#extra-payment [role="alert"]')
     let details = firstError?.closest('details') ?? null
     while (details) {
       details.open = true
@@ -109,96 +202,47 @@ async function compare(focusErrors = true) {
     recommendations.value = null
     return
   }
-  recommendations.value = recommendPayments(props.loans, { oneTimeCents, extraMonthlyCents, date: paymentDate.value })
+  recommendations.value = recommendPayments(props.loans, { oneTimeCents, extraMonthlyCents, date: paymentDate.value, payoffBy: goalMonth.value ? goalMonthEnd(goalMonth.value) : undefined })
   selected.value = extraMonthlyCents > 0 ? oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time'
 }
 
 async function clear() {
+  cancelGoal()
   resetting = true
   recommendations.value = null
   cards.value = initialCards()
   errors.value = {}
   await nextTick()
   resetting = false
-  form.value?.querySelector<HTMLInputElement>('#extra-payment-amount')?.focus()
+  document.getElementById('extra-payment-amount')?.focus()
 }
 </script>
 
 <template>
   <div class="payment-workspace">
-    <div v-if="$slots.default" class="chart-area"><slot /></div>
-    <section id="extra-payment" class="simulator" aria-labelledby="extra-payment-heading">
-      <div class="explore-heading">
-        <h2 id="extra-payment-heading">Explore payments</h2>
-        <button class="reset-tools" type="button" aria-label="Reset extra payments" @click="clear">Reset</button>
-      </div>
-      <form ref="form" class="scenario-form" novalidate @submit.prevent="compare()">
-        <div v-if="cards.length" class="exploration-options" role="region" aria-label="Extra payments" tabindex="0">
-          <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ active: (parseExtraAmount(card.amount) ?? 0) > 0 }">
-            <div class="card-heading">
-              <h3>{{ card.kind === 'monthly' ? 'Recurring' : 'One-time payment' }}</h3>
-            </div>
-            <label class="sr-only" :for="inputId(card)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay today' }}</label>
-            <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card)" v-model="card.amount" v-zero-on-focus :disabled="!loans.length" type="text" inputmode="decimal" :aria-invalid="parseExtraAmount(card.amount) === null" :aria-describedby="parseExtraAmount(card.amount) === null ? `card-error-${card.id}` : undefined" @blur="card.amount = card.amount.trim() === '' ? '0' : card.amount" /></div>
-            <div class="presets" :aria-label="card.kind === 'monthly' ? 'Try an extra monthly amount' : 'Try a one-time amount'"><button v-for="value in (card.kind === 'monthly' ? [25, 50, 100] : [100, 500, 1000])" :key="value" type="button" :disabled="!loans.length" :aria-pressed="parseExtraAmount(card.amount) === value * 100" @click="card.amount = String(value)">${{ value.toLocaleString('en-US') }}</button></div>
-            <p v-if="parseExtraAmount(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
-          </section>
-        </div>
-        <p v-else class="empty-options">Try an extra payment to see what you could save.</p>
-        <p id="monthly-help" class="sr-only">This is one extra monthly amount across the selected loans, above their minimums. Freed minimums roll forward on their due dates.</p>
-        <p id="extra-date-help" class="sr-only">A hypothetical payment today, applied to unpaid interest before principal. Scheduled minimums continue.</p>
-        <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
-        <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
-        <div v-if="result" class="impact-area">
-          <PaymentPlanSummary :result="result" :selected="selected" details-only hide-reset @clear="clear">
-            <p v-if="activeRecommendation?.firstMonthlyPayments.length" class="monthly-recommendation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>.</p>
-            <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" embedded />
-          </PaymentPlanSummary>
+    <slot :controls="controlBindings"><PaymentControls v-bind="controlBindings" /></slot>
+    <div v-if="result" class="impact-area">
+      <PaymentPlanSummary :result="result" :selected="selected" details-only hide-reset @clear="clear">
+        <p v-if="activeRecommendation?.firstMonthlyPayments.length" class="monthly-recommendation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>.</p>
+        <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" embedded />
+      </PaymentPlanSummary>
 
-          <p v-if="activeRecommendation?.fastestAlternative" class="tradeoff">An alternative finishes {{ dateDistance(activeRecommendation.option.payoffDate!, activeRecommendation.fastestAlternative.payoffDate!) }} sooner for {{ money(activeRecommendation.fastestAlternative.interestCents! - activeRecommendation.option.interestCents!) }} more interest.</p>
-          <a class="chart-link" href="#outlook-heading">See this on the chart ↑</a>
-        </div>
-      </form>
-      <details v-if="result && result.request.oneTimeCents > 0 && result.request.extraMonthlyCents > 0" class="plan-comparison">
-        <summary>Compare payment options</summary>
-        <ScenarioComparison v-if="comparisonResult" :result="comparisonResult" :selected="selected" @select="selected = $event" />
-      </details>
-    </section>
+      <p v-if="activeRecommendation?.fastestAlternative" class="tradeoff">An alternative finishes {{ dateDistance(activeRecommendation.option.payoffDate!, activeRecommendation.fastestAlternative.payoffDate!) }} sooner for {{ money(activeRecommendation.fastestAlternative.interestCents! - activeRecommendation.option.interestCents!) }} more interest.</p>
+      <a class="chart-link" href="#outlook-heading">See this on the chart ↑</a>
+    </div>
+    <details v-if="result && result.request.oneTimeCents > 0 && result.request.extraMonthlyCents > 0" class="plan-comparison">
+      <summary>Compare payment options</summary>
+      <ScenarioComparison v-if="comparisonResult" :result="comparisonResult" :selected="selected" @select="cancelGoal(); selected = $event" />
+    </details>
   </div>
 </template>
 
 <style scoped>
-.payment-workspace { display: grid; gap: var(--space-6); min-width: 0; }
-.chart-area { min-width: 0; }
-.simulator { min-width: 0; }
-.explore-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-4); }
-.exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 8px; }
-.saving-card { min-width: 0; padding: 12px; border: 0; border-radius: var(--radius-sm); background: var(--blue-light); transition: background 160ms ease, box-shadow 160ms ease; }
-.saving-card.active { background: var(--blue-primary); }
-.saving-card:focus-within { box-shadow: inset 0 0 0 2px var(--chart-line); }
-.reset-tools { min-height: 44px; padding: 6px 12px; border: 1px solid var(--blue-border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font: inherit; font-size: 12px; font-weight: 600; }
-.card-heading { min-height: 2.8em; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.card-heading h3 { margin: 0; font-size: var(--font-sm); }
-.saving-card .presets { flex-wrap: nowrap; gap: 6px; }
-.saving-card .presets button { flex: 1; min-height: 32px; padding: 4px; background: var(--surface); font-size: 12px; border-radius: var(--radius-sm); }
-.saving-card .presets button[aria-pressed='true'] { background: var(--highlight-background); color: var(--highlight-text); }
-.saving-card .presets button:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--chart-line); }
-@media (prefers-reduced-motion: reduce) { .saving-card { transition: none; } }
-@media (pointer: coarse) { .saving-card .presets button { min-height: 44px; } }
-label { display: block; margin-bottom: var(--space-2); font-size: var(--font-sm); font-weight: 600; }
-input { width: 100%; min-width: 0; min-height: var(--size-touch-target); padding: var(--space-2); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; font-weight: 650; font-size: 18px; }
-input[aria-invalid='true'] { border-color: var(--danger); }
-.amount-input { position: relative; }
-.amount-input > span { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
-.amount-input input { padding-left: 1.7rem; }
-.presets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.presets button { min-height: var(--size-touch-target); padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-sm); color: var(--text-link); background: var(--blue-light); font-size: var(--font-sm); }
-.budget-note, .date-warning { font-size: var(--font-sm); color: var(--text-secondary); line-height: 1.5; margin: var(--space-3) 0 0; }
-.field-error { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--font-sm); }
+.payment-workspace { min-width: 0; }
+.impact-area { margin-top: var(--space-4); }
 .tradeoff { font-size: var(--font-sm); line-height: 1.5; color: var(--text-secondary); }
-.impact-area { margin-top: var(--space-5); }
 .chart-link { display: inline-block; padding-block: var(--space-3); color: var(--text-link); font-size: var(--font-sm); }
-.plan-comparison { margin-top: var(--space-4); }
+.plan-comparison { margin-top: var(--space-3); }
 summary { cursor: pointer; color: var(--text-link); font-size: var(--font-sm); }
 .plan-comparison > :deep(section) { margin-top: var(--space-4); }
 </style>

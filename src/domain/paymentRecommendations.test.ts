@@ -104,6 +104,17 @@ describe('automatic payment recommendations', () => {
     expect(recommendation.fastestAlternative).toMatchObject({ loanId: 'b', interestCents: 10005, payoffDate: '2032-11-15' })
   })
 
+  it('honors a deadline before minimizing interest among feasible allocations', () => {
+    const loans = [{ ...large, annualRatePercent: 24, monthlyPaymentCents: 20000 }, { ...small, principalCents: 100000, annualRatePercent: 1, monthlyPaymentCents: 1000 }]
+    const request = { oneTimeCents: 10000, extraMonthlyCents: 0, date }
+    const unconstrained = recommendPayments(loans, request).plans['one-time']!
+    const constrained = recommendPayments(loans, { ...request, payoffBy: '2032-11-30' }).plans['one-time']!
+    expect(unconstrained.option.payoffDate).toBe('2033-10-15')
+    expect(constrained.option.payoffDate).toBe('2032-11-15')
+    expect(constrained.option.interestCents!).toBeGreaterThan(unconstrained.option.interestCents!)
+    expect(constrained.payoffBy).toBe('2032-11-30')
+  })
+
   it('orders cost before time without hiding a potentially earlier finish', () => {
     const cheaper = { loanId: 'a', loanName: 'A', strategy: 'highest-rate' as const, interestCents: 100, payoffDate: '2025-05-01' }
     const faster = { ...cheaper, loanId: 'b', interestCents: 200, payoffDate: '2025-04-01' }

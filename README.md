@@ -14,7 +14,7 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 1. Add loans using figures from the same balance date, or try an example in the loan form.
 2. All loans are included by default. Use a loan’s eye button to hide it from the estimate; hidden cards dim and stay editable. Open its eye to include it again. Hiding every loan leaves the list available to restore them.
 3. Review three proportional, individually rounded bars with small gaps: dark blue for amount owed, light blue for future interest, and green for savings against minimum payments. The debt-free date is always labeled at the payoff point on the balance chart, with time saved shown inside the chart. Unpaid plans retain a 50-year balance view without invented payoff totals.
-4. Use the always-visible, equal-width one-time and recurring tools. Enter an amount or try a preset to update metrics and the chart immediately. Recommended recipients receive quiet labels on their loan cards.
+4. Use the linked sliders between the repayment bar and balance chart. **Pay once** and **Extra each month** retain exact amount entry and update the metrics, curve, and recipient labels immediately. **Debt-free by** follows the resulting payoff month; moving it calculates the monthly extra needed while holding the one-time payment fixed.
 5. The gray dotted curve is the minimum-payment baseline; the solid blue curve is the selected extra-payment plan. Zero extra amounts show only the baseline.
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
@@ -75,7 +75,7 @@ Complete payoff estimates rank ahead of incomplete ones. Among complete options,
 - Time changes use actual calendar dates, with calendar years/months/days rather than assuming 30-day months. If another loan takes longer, the overall date may stay unchanged even when the selected loan finishes earlier.
 - If either plan has no complete payoff estimate, full interest and time savings are unavailable. A complete scenario can still be displayed even if the baseline does not pay off within its limit; unknown savings are never presented as infinite or zero.
 - Per-payment rounding can create a small additional-interest difference for a tiny extra payment. Negative savings are preserved and explicitly labeled as additional interest.
-- Valid amount and loan-scope changes refresh results and recommendations immediately. **Reset extra payments** removes the preview and zeroes the two visible tools. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Toggling loan visibility does not clear entered extra amounts.
+- Valid amount and loan-scope changes refresh results and recommendations immediately. **Reset extra payments** removes the preview and zeroes the two money controls and restores the baseline payoff month. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Toggling loan visibility does not clear entered extra amounts.
 
 ## Extra monthly payments
 
@@ -147,3 +147,12 @@ The repayment values and compact legend retain a stable layout before simulation
 The visual repayment breakdown uses starting principal plus accrued interest as amount owed, and future interest as the second segment, so already-accrued interest is counted once. The combined bars represent the minimum-payment total for a cheaper plan. Costlier previews show extra cost rather than a savings segment. Unpaid baselines show no fabricated savings. The chart annotation uses its shared calendar axis, and reduced-motion settings disable transitions.
 
 There is no separate payoff timeline or repeated minimum-payment total above the bars. A compact side-by-side legend sits above the plot without dates appended. The chart labels the current payoff date directly without hover, shows time saved inside the plot without an extra line, and identifies dates beyond the bounded chart without placing a false endpoint.
+
+
+## Linked payoff goals
+
+The three controls form one playground: repayment costs above, sliders in the middle, and the balance curve below. Wide screens place all three sliders in one row; narrow screens keep the money controls side by side with the payoff goal underneath. Amount-slider ranges use the current loan balances/minimums, with a practical $5,000 initial ceiling for the one-time slider and room to expand when a larger exact amount is entered. Exact cent amounts remain available through the money fields.
+
+The goal slider and month picker target the end of the selected calendar month. The solver searches whole-dollar monthly extras against actual schedules, holding the one-time payment fixed. It checks supported allocation methods and one-time targets; the final recommendation must meet the goal before projected interest is minimized. The displayed month settles on the actual achieved payoff month. The goal controls only extra payments, never lowers saved minimums, and does not change the payment date.
+
+Goal searches run in a debounced background worker. The last valid curve remains visible during calculation; changing an amount, changing included loans, resetting, or leaving the screen cancels stale work. Impossible goals leave the current amounts intact and explain that a later month is needed. Reset zeroes the money fields and returns the goal to the baseline date (or no date for unpaid minimums). Loan-card allocation labels fit alongside the monthly input so new recommendations do not shift the chart.

@@ -6,6 +6,7 @@ import LoanModal from './components/LoanModal.vue'
 import LoanOverview from './components/LoanOverview.vue'
 import LoanTrajectory from './components/LoanTrajectory.vue'
 import LoanStorageNotice from './components/LoanStorageNotice.vue'
+import PaymentControls from './components/PaymentControls.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
 import { useLoanStorage } from './composables/useLoanStorage'
 import type { Loan } from './domain/loan'
@@ -167,9 +168,9 @@ function removeLoan(id: string) {
               </div>
             </template>
             <template #journey>
-              <PaymentSimulator :key="portfolioRevision" :loans="selectedLoans" @preview="updatePreview" @allocations="allocations = $event">
-                <LoanTrajectory v-if="visiblePortfolio" :portfolio="visiblePortfolio" :comparison="preview" />
-                <p v-else class="hidden-empty" role="status">All loans are hidden. Open an eye above to include a loan.</p>
+              <PaymentSimulator v-slot="{ controls }" :key="portfolioRevision" :loans="selectedLoans" @preview="updatePreview" @allocations="allocations = $event">
+                <LoanTrajectory v-if="visiblePortfolio" :portfolio="visiblePortfolio" :comparison="preview"><PaymentControls v-bind="controls" /></LoanTrajectory>
+                <div v-else><p class="hidden-empty" role="status">All loans are hidden. Open an eye above to include a loan.</p><PaymentControls v-bind="controls" /></div>
               </PaymentSimulator>
             </template>
           </LoanOverview>

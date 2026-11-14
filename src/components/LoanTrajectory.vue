@@ -51,6 +51,7 @@ const chartComparison = computed(() => props.comparison ? {
       </section>
     </div>
 
+    <slot />
     <BalanceChart :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="baseline.projection" :end-point="baseline.endPoint" label="Minimum payments" :comparison="chartComparison" :payoff-date="currentPaid?.payoffDate" :baseline-payoff-date="paidOffProjection?.payoffDate" />
     <p v-if="horizon" class="horizon-note">Showing the first 50 years. A line ending above zero still has a balance.</p>
   </section>

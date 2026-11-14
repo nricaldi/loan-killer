@@ -15,6 +15,7 @@ export interface PaymentRecommendation {
   alternatives: RecommendedOption[]
   fastestAlternative: RecommendedOption | null
   tied: boolean
+  payoffBy?: string
   firstMonthlyPayments: { loanId: string; loanName: string; amountCents: number }[]
 }
 export interface PaymentRecommendations {
@@ -35,12 +36,16 @@ export function compareRecommendedOptions(left: RecommendedOption, right: Recomm
 
 export function recommendPayments(
   loans: readonly LoanRecord[],
-  request: { oneTimeCents: number; extraMonthlyCents: number; date: string },
+  request: { oneTimeCents: number; extraMonthlyCents: number; date: string; payoffBy?: string },
 ): PaymentRecommendations {
   if (!loans.length) throw new Error('Add a loan before comparing payments.')
   // Keep only winning schedules; comparison rows need amounts/dates, not copies
   // of every target's full payment history.
   const buckets = new Map<ExtraScenarioId, { best: RankedPlan; alternatives: RecommendedOption[] }>()
+  function rank(left: RecommendedOption, right: RecommendedOption) {
+    const meets = (option: RecommendedOption) => !!option.payoffDate && (!request.payoffBy || option.payoffDate <= request.payoffBy)
+    return Number(meets(right)) - Number(meets(left)) || compareRecommendedOptions(left, right)
+  }
   function collect(result: PaymentScenarios, id: ExtraScenarioId) {
     const projection = result.scenarios.find((plan) => plan.id === id)!.portfolio.projection
     const option: RecommendedOption = {
@@ -53,7 +58,7 @@ export function recommendPayments(
     if (!bucket) buckets.set(id, { best: { option, result }, alternatives: [option] })
     else {
       bucket.alternatives.push(option)
-      if (compareRecommendedOptions(option, bucket.best.option) < 0) bucket.best = { option, result }
+      if (rank(option, bucket.best.option) < 0) bucket.best = { option, result }
     }
   }
   const compare = createPaymentScenarioComparer(loans, request)
@@ -74,11 +79,12 @@ export function recommendPayments(
   }
   const plans: PaymentRecommendations['plans'] = {}
   for (const [id, { best, alternatives }] of buckets) {
-    alternatives.sort(compareRecommendedOptions)
+    alternatives.sort(rank)
     const complete = alternatives.filter((option) => option.payoffDate !== null)
     const fastest = [...complete].sort((left, right) => left.payoffDate!.localeCompare(right.payoffDate!) || compareRecommendedOptions(left, right))[0]
     const portfolio = best.result.scenarios.find((plan) => plan.id === id)!.portfolio
     plans[id] = {
+      payoffBy: request.payoffBy && best.option.payoffDate && best.option.payoffDate <= request.payoffBy ? request.payoffBy : undefined,
       result: best.result, option: best.option, alternatives,
       fastestAlternative: fastest && best.option.payoffDate && fastest.payoffDate! < best.option.payoffDate ? fastest : null,
       tied: complete.filter((option) => option.interestCents === best.option.interestCents && option.payoffDate === best.option.payoffDate).length > 1,

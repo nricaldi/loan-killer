@@ -17,6 +17,7 @@ function label(option: RecommendedOption, selected: ExtraScenarioId) {
     <component :is="embedded ? 'div' : 'details'">
       <summary v-if="!embedded">Why this recommendation?</summary>
       <p v-if="recommendation.option.payoffDate === null">None of the compared options has a complete payoff estimate. The chart is a preview, not a lowest-cost recommendation. Try a larger payment.</p>
+      <p v-else-if="recommendation.payoffBy">This plan meets {{ formatDate(recommendation.payoffBy) }} with the lowest projected interest among the compared options that meet that date.</p>
       <p v-else-if="recommendation.alternatives.length === 1">There’s one loan in this view, so your extra payment has only one destination. Payments cover unpaid interest before principal.</p>
       <p v-else-if="recommendation.tied">More than one option ties for the lowest projected interest and the same overall payoff date. The tied options give the same modeled outcome.</p>
       <p v-else>We compared {{ recommendation.alternatives.length }} options using these amounts and payment dates. This has the lowest projected total interest among options with a complete payoff estimate; an earlier overall payoff breaks an interest tie.</p>

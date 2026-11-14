@@ -61,7 +61,7 @@ async function cancelRemoval() {
           </template>
           <div v-for="allocation in allocations.filter(item => item.loanId === loan.id)" :key="allocation.loanId" class="allocation-tags">
             <span v-if="allocation.oneTimeCents">{{ money(allocation.oneTimeCents) }} today</span>
-            <span v-if="allocation.monthlyCents">+{{ money(allocation.monthlyCents) }}/mo next payment</span>
+            <span v-if="allocation.monthlyCents" :title="`First extra monthly allocation: ${money(allocation.monthlyCents)}`">+{{ money(allocation.monthlyCents) }}/mo</span>
           </div>
           <div v-if="pendingRemoval === loan.id" class="remove-confirmation" role="group" :aria-label="`Confirm removal of ${loan.name}`">
             <p>Remove this loan from your plan? This won’t affect your actual loan.</p>
@@ -142,6 +142,7 @@ li {
   min-height: 2.5rem;
 }
 
-.allocation-tags { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; font-size: 12px; color: var(--text-link); }
+.allocation-tags { display: flex; flex-direction: column; gap: 4px; max-width: 9rem; min-width: 0; font-size: 11px; line-height: 1.4; color: var(--text-link); }
+.allocation-tags span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 22rem) { .icon-button { width: 2rem; height: 2rem; } }
 </style>

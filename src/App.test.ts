@@ -506,7 +506,9 @@ describe('guided payoff flow', () => {
     const outlook = wrapper.get('.journey-visual').element
     const choices = wrapper.get('#extra-payment').element
     expect(loans.compareDocumentPosition(outlook) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(outlook.compareDocumentPosition(choices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(outlook.contains(choices)).toBe(true)
+    expect(wrapper.get('.repayment-track').element.compareDocumentPosition(choices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(choices.compareDocumentPosition(wrapper.get('.balance-chart').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
     expect(wrapper.get('[data-testid="remaining-interest"]').text()).toBe('$0.00')
     expect(wrapper.get('[data-testid="total-payments"]').text()).toBe('$1,025.00')
@@ -555,7 +557,7 @@ describe('guided payoff flow', () => {
     const date = wrapper.get('[data-testid="payoff-date"]').text()
     await wrapper.get('#extra-monthly-amount').trigger('focus')
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
-    await wrapper.get('.saving-card:nth-child(2) .presets button').trigger('click')
+    await wrapper.get('[aria-label="Extra monthly payment slider"]').setValue('25')
     expect(wrapper.find('.payment-summary').exists()).toBe(true)
     expect(wrapper.findAll('figure')).toHaveLength(1)
     expect(wrapper.find('.comparison-line').exists()).toBe(true)

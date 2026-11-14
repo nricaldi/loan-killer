@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest'
+import { goalMonthEnd, monthlyExtraForGoal } from './payoffGoal'
+import { recommendPayments } from './paymentRecommendations'
+import type { LoanRecord } from './portfolio'
+
+const loan: LoanRecord = {
+  id: 'a', name: 'Loan A', type: 'unsubsidized', fromExample: false,
+  principalCents: 100000, accruedInterestCents: 2500, annualRatePercent: 6,
+  monthlyPaymentCents: 1000, balanceDate: '2025-01-01', nextPaymentDate: '2025-02-01',
+}
+const date = loan.balanceDate
+
+describe('linked payoff-month goals', () => {
+  it('finds a verified whole-dollar extra while holding a lump sum fixed', () => {
+    const saved = structuredClone(loan)
+    const result = monthlyExtraForGoal([loan], { date, goalMonth: '2026-01', oneTimeCents: 10000 })!
+    expect(result.extraMonthlyCents % 100).toBe(0)
+    expect(result.extraMonthlyCents).toBeGreaterThan(0)
+    expect(result.payoffDate <= '2026-01-31').toBe(true)
+    const smaller = recommendPayments([loan], { date, extraMonthlyCents: result.extraMonthlyCents - 100, oneTimeCents: 10000, payoffBy: '2026-01-31' }).plans.combined!
+    expect(smaller.option.payoffDate === null || smaller.option.payoffDate > '2026-01-31').toBe(true)
+    expect(loan).toEqual(saved)
+  })
+
+  it('solves multiple loans including an unpaid baseline and staggered dates', () => {
+    const loans = [loan, { ...loan, id: 'b', annualRatePercent: 12, principalCents: 50000, monthlyPaymentCents: 0, nextPaymentDate: '2025-02-20' }]
+    const result = monthlyExtraForGoal(loans, { date, goalMonth: '2027-02', oneTimeCents: 5000 })!
+    const plan = recommendPayments(loans, { date, oneTimeCents: 5000, extraMonthlyCents: result.extraMonthlyCents, payoffBy: '2027-02-28' }).plans.combined!
+    expect(plan.option.payoffDate! <= '2027-02-28').toBe(true)
+  })
+
+  it('needs no extra if minimums already meet the goal or the lump sum clears the loan', () => {
+    expect(monthlyExtraForGoal([{ ...loan, annualRatePercent: 0, monthlyPaymentCents: 100000 }], { date, goalMonth: '2026-01', oneTimeCents: 0 })?.extraMonthlyCents).toBe(0)
+    expect(monthlyExtraForGoal([loan], { date, goalMonth: '2025-01', oneTimeCents: 102500 })?.extraMonthlyCents).toBe(0)
+  })
+
+  it('does not fake an early payoff before scheduled payments can begin', () => {
+    expect(monthlyExtraForGoal([{ ...loan, nextPaymentDate: '2028-01-01' }], { date, goalMonth: '2025-02', oneTimeCents: 0 })).toBeNull()
+    expect(monthlyExtraForGoal([loan], { date, goalMonth: '2024-12', oneTimeCents: 0 })).toBeNull()
+    expect(monthlyExtraForGoal([], { date, goalMonth: '2026-01', oneTimeCents: 0 })).toBeNull()
+  })
+
+  it('uses actual month ends and rejects unknown payment history', () => {
+    expect(goalMonthEnd('2028-02')).toBe('2028-02-29')
+    expect(goalMonthEnd('2025-02')).toBe('2025-02-28')
+    expect(() => goalMonthEnd('2025-13')).toThrow()
+    expect(() => monthlyExtraForGoal([loan], { date: '2025-04-01', goalMonth: '2026-01', oneTimeCents: 0 })).toThrow('Update')
+  })
+})

@@ -29,14 +29,14 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('#extra-monthly-amount').exists()).toBe(true)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.find('.plan-comparison').exists()).toBe(false)
-    expect(wrapper.find('input[type="range"]').exists()).toBe(false)
+    expect(wrapper.findAll('input[type="range"]')).toHaveLength(3)
   })
 
   it('opens and focuses the chosen control and supports quick amounts', async () => {
     render()
     wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.focus()
     expect(wrapper.find('#extra-payment-amount').exists()).toBe(true)
-    await wrapper.get('.saving-card:nth-child(2) .presets button').trigger('click')
+    await wrapper.get('[aria-label="Extra monthly payment slider"]').setValue('25')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('25')
     expect(wrapper.get('.payment-summary h3').text()).toBe('With $25.00 extra each month')
   })
@@ -218,7 +218,7 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     await oneTime('100')
     await monthly('50')
-    expect(wrapper.get('.saving-card:nth-child(2) [aria-pressed="true"]').text()).toBe('$50')
+    expect(wrapper.get<HTMLInputElement>('[aria-label="Extra monthly payment slider"]').element.value).toBe('50')
     const recurring = wrapper.get<HTMLInputElement>('#extra-monthly-amount')
     await recurring.setValue('')
     expect(recurring.attributes('aria-invalid')).toBe('false')
@@ -231,6 +231,61 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('.field-error').exists()).toBe(false)
     expect(wrapper.emitted('preview')?.at(-1)?.[0]).toBeNull()
     expect(wrapper.get('.reset-tools').isVisible()).toBe(true)
+  })
+
+  it('solves a payoff month while preserving the one-time payment and cancels pending goals on reset', async () => {
+    render([{ ...loan, principalCents: 100000, accruedInterestCents: 0, annualRatePercent: 6, monthlyPaymentCents: 1000 }])
+    await oneTime('100')
+    await wrapper.get('#payoff-goal-month').setValue('2026-01')
+    expect(wrapper.get('#goal-status').text()).toContain('Calculating')
+    await vi.advanceTimersByTimeAsync(121)
+    expect(Number(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value)).toBeGreaterThan(0)
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('100')
+    const preview = wrapper.emitted('preview')!.at(-1)![0] as { projection: { status: string; payoffDate: string } }
+    expect(preview.projection.status).toBe('paid-off')
+    expect(preview.projection.payoffDate <= '2026-01-31').toBe(true)
+    await wrapper.get('[aria-label="Debt-free date slider"]').setValue('6')
+    await wrapper.get('.reset-tools').trigger('click')
+    await vi.advanceTimersByTimeAsync(200)
+    expect(wrapper.find('.payment-summary').exists()).toBe(false)
+    expect(wrapper.get('#goal-status').text()).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+  })
+
+  it('shows impossible goal feedback without replacing the current amounts', async () => {
+    render([{ ...loan, nextPaymentDate: '2028-01-01' }])
+    await oneTime('1')
+    await wrapper.get('#payoff-goal-month').setValue('2025-02')
+    await vi.advanceTimersByTimeAsync(121)
+    expect(wrapper.get('#goal-status').text()).toContain('Try a later month')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('1')
+  })
+
+  it('ignores a worker reply after reset has canceled the goal', async () => {
+    class GoalWorker {
+      static latest: GoalWorker
+      onmessage?: (event: { data: unknown }) => void
+      onerror?: () => void
+      terminate = vi.fn()
+      postMessage = vi.fn()
+      constructor() { GoalWorker.latest = this }
+    }
+    vi.stubGlobal('Worker', GoalWorker)
+    try {
+      render()
+      await wrapper.get('#payoff-goal-month').setValue('2025-03')
+      await vi.advanceTimersByTimeAsync(121)
+      const worker = GoalWorker.latest
+      expect(worker.postMessage).toHaveBeenCalledOnce()
+      await wrapper.get('.reset-tools').trigger('click')
+      expect(worker.terminate).toHaveBeenCalledOnce()
+      worker.onmessage?.({ data: { result: { extraMonthlyCents: 99900, payoffDate: '2025-03-01' } } })
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('.payment-summary').exists()).toBe(false)
+      expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
+      expect(wrapper.get('#goal-status').text()).toBe('')
+    } finally { vi.unstubAllGlobals() }
   })
 
 })
