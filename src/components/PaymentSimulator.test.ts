@@ -111,7 +111,6 @@ describe('guided payment exploration', () => {
     render()
     await oneTime('-1')
     await wrapper.get('.scenario-form').trigger('submit')
-    expect(document.activeElement).toBe(wrapper.get('#extra-payment-amount').element)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
   })
 
@@ -199,22 +198,23 @@ describe('guided payment exploration', () => {
     expect(wrapper.text()).toContain('last valid comparison')
   })
 
-  it('clears both choices, the preview, and errors and restores focus to exploration', async () => {
+  it('clears the preview when both amounts return to zero', async () => {
     render()
     await oneTime()
     await monthly()
-    await wrapper.get('.reset-tools').trigger('click')
+    await wrapper.get('#extra-payment-amount').setValue('0')
+    await wrapper.get('#extra-monthly-amount').setValue('0')
     expect(wrapper.find('#extra-monthly-amount').exists()).toBe(true)
     expect(wrapper.find('#extra-payment-amount').exists()).toBe(true)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.findAll('.saving-card')).toHaveLength(2)
-    expect(document.activeElement).toBe(wrapper.get('#extra-payment-amount').element)
     expect(wrapper.emitted('preview')?.at(-1)?.[0]).toBeNull()
   })
-  it('always offers reset and treats cleared tool inputs as zero immediately', async () => {
+  it('treats cleared tool inputs as zero immediately', async () => {
     render()
-    expect(wrapper.get('.reset-tools').isVisible()).toBe(true)
-    await wrapper.get('.reset-tools').trigger('click')
+    expect(wrapper.find('.reset-tools').exists()).toBe(false)
+    await wrapper.get('#extra-payment-amount').setValue('0')
+    await wrapper.get('#extra-monthly-amount').setValue('0')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     await oneTime('100')
     await monthly('50')
@@ -230,10 +230,10 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.find('.field-error').exists()).toBe(false)
     expect(wrapper.emitted('preview')?.at(-1)?.[0]).toBeNull()
-    expect(wrapper.get('.reset-tools').isVisible()).toBe(true)
+    expect(wrapper.find('.reset-tools').exists()).toBe(false)
   })
 
-  it('solves a payoff month while preserving the one-time payment and cancels pending goals on reset', async () => {
+  it('solves a payoff month while preserving the one-time payment and cancels pending goals when an amount is edited', async () => {
     render([{ ...loan, principalCents: 100000, accruedInterestCents: 0, annualRatePercent: 6, monthlyPaymentCents: 1000 }])
     await oneTime('100')
     await wrapper.get('#payoff-goal-month').setValue('2026-01')
@@ -245,7 +245,8 @@ describe('guided payment exploration', () => {
     expect(preview.projection.status).toBe('paid-off')
     expect(preview.projection.payoffDate <= '2026-01-31').toBe(true)
     await wrapper.get('[aria-label="Debt-free date slider"]').setValue('6')
-    await wrapper.get('.reset-tools').trigger('click')
+    await wrapper.get('#extra-payment-amount').setValue('0')
+    await wrapper.get('#extra-monthly-amount').setValue('0')
     await vi.advanceTimersByTimeAsync(200)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.get('#goal-status').text()).toBe('')
@@ -262,7 +263,7 @@ describe('guided payment exploration', () => {
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('1')
   })
 
-  it('ignores a worker reply after reset has canceled the goal', async () => {
+  it('ignores a worker reply after editing an amount has canceled the goal', async () => {
     class GoalWorker {
       static latest: GoalWorker
       onmessage?: (event: { data: unknown }) => void
@@ -278,7 +279,8 @@ describe('guided payment exploration', () => {
       await vi.advanceTimersByTimeAsync(121)
       const worker = GoalWorker.latest
       expect(worker.postMessage).toHaveBeenCalledOnce()
-      await wrapper.get('.reset-tools').trigger('click')
+      await wrapper.get('#extra-payment-amount').setValue('0')
+      await wrapper.get('#extra-monthly-amount').setValue('0')
       expect(worker.terminate).toHaveBeenCalledOnce()
       worker.onmessage?.({ data: { result: { extraMonthlyCents: 99900, payoffDate: '2025-03-01' } } })
       await wrapper.vm.$nextTick()

@@ -21,7 +21,6 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   amount: [id: number, value: string]
-  reset: []
   goal: [month: string]
   submit: []
 }>()
@@ -45,7 +44,7 @@ function changeGoal(event: Event) {
 
 <template>
   <section id="extra-payment" class="simulator" aria-labelledby="extra-payment-heading">
-    <div class="explore-heading"><h2 id="extra-payment-heading">Explore payments</h2><button class="reset-tools" type="button" aria-label="Reset extra payments" @click="emit('reset')">Reset</button></div>
+    <div class="explore-heading"><h2 id="extra-payment-heading">Explore payments</h2></div>
     <form class="scenario-form" novalidate @submit.prevent="emit('submit')">
       <div class="exploration-options">
         <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ active: (parseAmount(card.amount) ?? 0) > 0 }">
@@ -59,8 +58,8 @@ function changeGoal(event: Event) {
       <section class="goal-control" :aria-busy="goalBusy">
         <div class="goal-heading"><label for="payoff-goal-month">Debt-free by</label><input id="payoff-goal-month" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @input="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
         <input class="goal-slider" type="range" min="0" :max="goalMaxMonths" step="1" :value="goalValue" :disabled="goalDisabled" aria-label="Debt-free date slider" :aria-valuetext="goalMonth ? formatDate(`${goalMonth}-01`, true) : 'Choose a payoff goal'" aria-describedby="goal-help goal-status" @input="changeGoal" />
-        <div class="range-ends" aria-hidden="true"><span>{{ formatDate(goalAnchor, true) }}</span><span>{{ formatDate(addMonths(goalAnchor, goalMaxMonths), true) }}</span></div>
-        <p id="goal-help">Move the date to calculate the monthly extra needed. Your one-time payment stays fixed.</p>
+
+        <p id="goal-help" class="sr-only">Move the date to calculate the monthly extra needed. Your one-time payment stays fixed.</p>
         <p id="goal-status" class="goal-status" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>
       </section>
       <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
@@ -73,22 +72,21 @@ function changeGoal(event: Event) {
 .simulator { margin: 12px 0 20px; min-width: 0; }
 .explore-heading, .goal-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h2 { font-size: 16px; margin: 0; }
-.reset-tools { min-height: 44px; padding: 6px 12px; border: 1px solid var(--blue-border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font: inherit; font-size: 12px; font-weight: 600; }
 .exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 12px; }
-.saving-card { min-width: 0; padding: 12px; border-radius: var(--radius-sm); background: var(--blue-light); transition: background 160ms ease, box-shadow 160ms ease; }
+.saving-card { min-width: 0; padding: 10px; border-radius: var(--radius-sm); background: var(--blue-light); transition: background 160ms ease, box-shadow 160ms ease; }
 .saving-card.active { background: var(--blue-primary); }
 .saving-card:focus-within { box-shadow: inset 0 0 0 2px var(--chart-line); }
-.card-heading { margin-bottom: 8px; min-height: 2.8em; display: flex; align-items: center; }
-label { font-size: var(--font-sm); font-weight: 650; }
+.card-heading { margin-bottom: 6px; min-height: 20px; display: flex; align-items: center; }
+label { font-size: 12px; font-weight: 650; }
 .amount-input { position: relative; }
 .amount-input > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
 .amount-input input { width: 100%; min-width: 0; min-height: 44px; padding: 8px 8px 8px 26px; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; font-size: 18px; font-weight: 650; }
 input[aria-invalid='true'] { border-color: var(--danger); }
-input[type='range'] { display: block; width: 100%; height: 44px; margin: 4px 0 0; padding: 0; accent-color: var(--chart-line); cursor: pointer; }
+input[type='range'] { display: block; width: 100%; height: 44px; margin: 0; padding: 0; accent-color: var(--chart-line); cursor: pointer; }
 .range-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-secondary); }
-.goal-control { min-width: 0; padding: 12px; background: var(--surface-muted); border-radius: var(--radius-sm); }
+.goal-control { min-width: 0; padding: 10px; background: var(--surface-muted); border-radius: var(--radius-sm); }
 .goal-heading input { width: 10rem; max-width: 62%; min-width: 0; min-height: 44px; padding: 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font: inherit; font-size: 14px; }
-#goal-help, .goal-status, .date-warning { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0 0; }
+.goal-status, .date-warning { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0 0; }
 .goal-status { min-height: 1.5em; }
 .field-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; }
 @media (min-width: 64rem) {

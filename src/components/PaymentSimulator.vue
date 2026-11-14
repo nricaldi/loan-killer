@@ -15,7 +15,6 @@ import PaymentPlanSummary from './PaymentPlanSummary.vue'
 
 const props = defineProps<{ loans: readonly LoanRecord[] }>()
 const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string]; allocations: [items: { loanId: string; monthlyCents: number; oneTimeCents: number }[]] }>()
-let resetting = false
 type SavingCard = { id: number; kind: 'monthly' | 'one-time'; amount: string }
 const initialCards = (): SavingCard[] => [{ id: 1, kind: 'one-time', amount: '0' }, { id: 2, kind: 'monthly', amount: '0' }]
 const cards = ref<SavingCard[]>(initialCards())
@@ -54,7 +53,6 @@ const chartLabel = computed(() => {
 })
 
 watch([() => props.loans, amount, monthlyAmount], ([loans], [previousLoans]) => {
-  if (resetting) return
   if (loans !== previousLoans || !applyingGoal) cancelGoal()
   if (loans !== previousLoans) recommendations.value = null
   void compare(false)
@@ -172,7 +170,7 @@ const controlBindings = computed(() => ({
   goalDisabled: !props.loans.length || !!unavailable.value,
   errors: errors.value,
   hasChanges: hasChanges.value,
-  onAmount: updateAmount, onReset: clear, onGoal: setGoal, onSubmit: () => { void compare() },
+  onAmount: updateAmount, onGoal: setGoal, onSubmit: () => { void compare() },
 }))
 onBeforeUnmount(() => cancelGoal())
 async function compare(focusErrors = true) {
@@ -206,23 +204,13 @@ async function compare(focusErrors = true) {
   selected.value = extraMonthlyCents > 0 ? oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time'
 }
 
-async function clear() {
-  cancelGoal()
-  resetting = true
-  recommendations.value = null
-  cards.value = initialCards()
-  errors.value = {}
-  await nextTick()
-  resetting = false
-  document.getElementById('extra-payment-amount')?.focus()
-}
 </script>
 
 <template>
   <div class="payment-workspace">
     <slot :controls="controlBindings"><PaymentControls v-bind="controlBindings" /></slot>
     <div v-if="result" class="impact-area">
-      <PaymentPlanSummary :result="result" :selected="selected" details-only hide-reset @clear="clear">
+      <PaymentPlanSummary :result="result" :selected="selected" details-only hide-reset>
         <p v-if="activeRecommendation?.firstMonthlyPayments.length" class="monthly-recommendation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>.</p>
         <PaymentRecommendationDetails v-if="activeRecommendation" :recommendation="activeRecommendation" :selected="selected" embedded />
       </PaymentPlanSummary>

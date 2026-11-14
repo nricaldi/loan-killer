@@ -19,7 +19,7 @@ Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures 
 6. With both amounts positive, expand **Compare payment options** to view one-time, monthly, and combined results using the same inputs. Each plan uses its own recommended loan target and monthly allocation method.
 7. Confirmed loans save in this browser. Saved loan edits clear hypothetical scenarios; scope changes preserve the entered extra amounts and recompute them for the selected loans.
 
-Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. The always-visible **Reset** button zeroes both tools and clears the preview. Clearing a tool input immediately counts as zero without a validation error and restores a visible zero on blur. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
+Cards group amounts for one combined plan: all one-time amounts are paid today, and recurring amounts form one extra monthly budget. The app recommends where to apply those totals. Returning both money fields to zero clears the preview. Clearing a tool input immediately counts as zero without a validation error and restores a visible zero on blur. Zero-valued money fields clear on focus without changing the underlying figure and restore zero if left empty.
 
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
@@ -75,7 +75,7 @@ Complete payoff estimates rank ahead of incomplete ones. Among complete options,
 - Time changes use actual calendar dates, with calendar years/months/days rather than assuming 30-day months. If another loan takes longer, the overall date may stay unchanged even when the selected loan finishes earlier.
 - If either plan has no complete payoff estimate, full interest and time savings are unavailable. A complete scenario can still be displayed even if the baseline does not pay off within its limit; unknown savings are never presented as infinite or zero.
 - Per-payment rounding can create a small additional-interest difference for a tiny extra payment. Negative savings are preserved and explicitly labeled as additional interest.
-- Valid amount and loan-scope changes refresh results and recommendations immediately. **Reset extra payments** removes the preview and zeroes the two money controls and restores the baseline payoff month. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Toggling loan visibility does not clear entered extra amounts.
+- Valid amount and loan-scope changes refresh results and recommendations immediately. Returning both money controls to zero removes the preview and restores the baseline payoff month. Adding, updating, or removing a saved loan clears the scenario to prevent stale targets and estimates. Toggling loan visibility does not clear entered extra amounts.
 
 ## Extra monthly payments
 
@@ -140,7 +140,7 @@ Tests cover the financial engines and UI, plus local storage round-trips, strict
 
 Actual balance history, export/import, and synchronization remain deferred.
 
-The payoff outlook is the single location for headline metrics. The payment-card area retains the plan description, rationale, reset, and comparison controls without a separate results panel. Incomplete baselines are labeled explicitly; savings are only shown when both projections have complete payoff estimates.
+The payoff outlook is the single location for headline metrics. The payment-card area retains the plan description, rationale, and comparison controls without a separate results panel. Incomplete baselines are labeled explicitly; savings are only shown when both projections have complete payoff estimates.
 
 The repayment values and compact legend retain a stable layout before simulation, keeping chart position and height stable as amounts change. Hidden loans are excluded from recommendations and keep their saved data; visibility resets to all included on reload. Recipient labels describe the one-time allocation and the first extra recurring payment, which may move to other loans later.
 
@@ -155,4 +155,6 @@ The three controls form one playground: repayment costs above, sliders in the mi
 
 The goal slider and month picker target the end of the selected calendar month. The solver searches whole-dollar monthly extras against actual schedules, holding the one-time payment fixed. It checks supported allocation methods and one-time targets; the final recommendation must meet the goal before projected interest is minimized. The displayed month settles on the actual achieved payoff month. The goal controls only extra payments, never lowers saved minimums, and does not change the payment date.
 
-Goal searches run in a debounced background worker. The last valid curve remains visible during calculation; changing an amount, changing included loans, resetting, or leaving the screen cancels stale work. Impossible goals leave the current amounts intact and explain that a later month is needed. Reset zeroes the money fields and returns the goal to the baseline date (or no date for unpaid minimums). Loan-card allocation labels fit alongside the monthly input so new recommendations do not shift the chart.
+Goal searches run in a debounced background worker. The last valid curve remains visible during calculation; changing an amount, changing included loans or leaving the screen cancels stale work. Impossible goals leave the current amounts intact and explain that a later month is needed. Returning the money fields to zero returns the goal to the baseline date (or no date for unpaid minimums). Loan-card allocation labels fit alongside the monthly input so new recommendations do not shift the chart.
+
+The repayment bar and compact controls sit directly on the page background. Only the balance chart has a white card. Slider labels remain visible; the goal range dates and helper are omitted from the visible layout, while the date-control explanation remains available to assistive technology. Progress and failure feedback still appear when a goal is calculated.

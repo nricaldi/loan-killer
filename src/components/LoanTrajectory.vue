@@ -31,7 +31,7 @@ const chartComparison = computed(() => props.comparison ? {
 </script>
 
 <template>
-  <section class="panel journey-visual" aria-labelledby="outlook-heading">
+  <section class="journey-visual" aria-labelledby="outlook-heading">
     <div class="sr-only">
       <h2 id="outlook-heading" tabindex="-1">Your payoff outlook</h2>
     </div>
@@ -52,13 +52,17 @@ const chartComparison = computed(() => props.comparison ? {
     </div>
 
     <slot />
-    <BalanceChart :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="baseline.projection" :end-point="baseline.endPoint" label="Minimum payments" :comparison="chartComparison" :payoff-date="currentPaid?.payoffDate" :baseline-payoff-date="paidOffProjection?.payoffDate" />
-    <p v-if="horizon" class="horizon-note">Showing the first 50 years. A line ending above zero still has a balance.</p>
+    <div class="panel chart-panel">
+      <BalanceChart :balance-date="portfolio.balanceDate" :initial-balance-cents="balanceCents" :projection="baseline.projection" :end-point="baseline.endPoint" label="Minimum payments" :comparison="chartComparison" :payoff-date="currentPaid?.payoffDate" :baseline-payoff-date="paidOffProjection?.payoffDate" />
+      <p v-if="horizon" class="horizon-note">Showing the first 50 years. A line ending above zero still has a balance.</p>
+    </div>
   </section>
 </template>
 
 <style scoped>
-.journey-visual { min-width: 0; padding: var(--space-4); }
+.journey-visual { min-width: 0; }
+.chart-panel { min-width: 0; padding: var(--space-4); }
+.chart-panel :deep(.balance-chart) { margin: 0; }
 .visual-outlook { min-width: 0; }
 h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
 .metric-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 3rem; }
@@ -80,5 +84,4 @@ h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
 .segment-labels b { display: block; margin-top: 5px; font-size: var(--font-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-height: 2.8em; line-height: 1.4; }
 @media (prefers-reduced-motion: reduce) { .repayment-track > span { transition: none; } }
 .horizon-note { color: var(--text-muted); font-size: var(--font-sm); margin: var(--space-3) 0 0; }
-@media (max-width: 35rem) { .journey-visual { padding: var(--space-4); } }
 </style>
