@@ -259,6 +259,8 @@ describe('guided payment exploration', () => {
     await wrapper.get('#payoff-goal-month').setValue('2025-02')
     await vi.advanceTimersByTimeAsync(121)
     expect(wrapper.get('#goal-status').text()).toContain('Try a later month')
+    expect(wrapper.get('#goal-status').classes()).toContain('sr-only')
+    expect(wrapper.get('.goal-feedback summary').attributes('aria-label')).toBe('Goal calculation details')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('1')
   })

@@ -56,11 +56,11 @@ function changeGoal(event: Event) {
         </section>
       </div>
       <section class="goal-control" :aria-busy="goalBusy">
-        <div class="goal-heading"><label for="payoff-goal-month">Debt-free by</label><input id="payoff-goal-month" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @input="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
+        <div class="goal-heading"><div class="goal-label"><label for="payoff-goal-month">Debt-free by</label><div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div></div><input id="payoff-goal-month" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @input="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
         <input class="goal-slider" type="range" min="0" :max="goalMaxMonths" step="1" :value="goalValue" :disabled="goalDisabled" aria-label="Debt-free date slider" :aria-valuetext="goalMonth ? formatDate(`${goalMonth}-01`, true) : 'Choose a payoff goal'" aria-describedby="goal-help goal-status" @input="changeGoal" />
 
         <p id="goal-help" class="sr-only">Move the date to calculate the monthly extra needed. Your one-time payment stays fixed.</p>
-        <p id="goal-status" class="goal-status" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>
+        <p id="goal-status" class="sr-only" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>
       </section>
       <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
       <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
@@ -69,12 +69,12 @@ function changeGoal(event: Event) {
 </template>
 
 <style scoped>
-.simulator { margin: 12px 0 20px; min-width: 0; }
+.simulator { margin: 12px 0; min-width: 0; }
 .explore-heading, .goal-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h2 { font-size: 16px; margin: 0; }
 .exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 12px; }
-.saving-card { min-width: 0; padding: 10px; border-radius: var(--radius-sm); background: var(--blue-light); transition: background 160ms ease, box-shadow 160ms ease; }
-.saving-card.active { background: var(--blue-primary); }
+.saving-card { min-width: 0; padding: 10px; border-radius: var(--radius-sm); background: var(--blue-primary); transition: background 160ms ease, box-shadow 160ms ease; }
+.saving-card.active { background: var(--blue-border); }
 .saving-card:focus-within { box-shadow: inset 0 0 0 2px var(--chart-line); }
 .card-heading { margin-bottom: 6px; min-height: 20px; display: flex; align-items: center; }
 label { font-size: 12px; font-weight: 650; }
@@ -84,10 +84,18 @@ label { font-size: 12px; font-weight: 650; }
 input[aria-invalid='true'] { border-color: var(--danger); }
 input[type='range'] { display: block; width: 100%; height: 44px; margin: 0; padding: 0; accent-color: var(--chart-line); cursor: pointer; }
 .range-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-secondary); }
-.goal-control { min-width: 0; padding: 10px; background: var(--surface-muted); border-radius: var(--radius-sm); }
+.goal-control { min-width: 0; padding: 10px; background: var(--blue-primary); border-radius: var(--radius-sm); }
 .goal-heading input { width: 10rem; max-width: 62%; min-width: 0; min-height: 44px; padding: 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font: inherit; font-size: 14px; }
-.goal-status, .date-warning { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0 0; }
-.goal-status { min-height: 1.5em; }
+.date-warning { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0 0; }
+.goal-label { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.goal-feedback-slot { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: 0 0 32px; }
+.goal-feedback { position: relative; }
+.goal-feedback summary { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--surface); color: var(--danger); font-weight: 700; cursor: pointer; list-style: none; }
+.goal-feedback summary::-webkit-details-marker { display: none; }
+.goal-feedback p { position: absolute; z-index: 5; top: 100%; left: -6rem; width: min(18rem, calc(100vw - 4rem)); margin: 6px 0 0; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-secondary); box-shadow: var(--shadow-modal); font-size: 12px; line-height: 1.5; }
+.goal-spinner { width: 14px; height: 14px; border: 2px solid var(--blue-border); border-top-color: var(--chart-line); border-radius: 50%; animation: goal-spin 800ms linear infinite; }
+@keyframes goal-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .goal-spinner { animation: none; } }
 .field-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; }
 @media (min-width: 64rem) {
   .scenario-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

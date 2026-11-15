@@ -146,7 +146,7 @@ The repayment values and compact legend retain a stable layout before simulation
 
 The visual repayment breakdown uses starting principal plus accrued interest as amount owed, and future interest as the second segment, so already-accrued interest is counted once. The combined bars represent the minimum-payment total for a cheaper plan. Costlier previews show extra cost rather than a savings segment. Unpaid baselines show no fabricated savings. The chart annotation uses its shared calendar axis, and reduced-motion settings disable transitions.
 
-There is no separate payoff timeline or repeated minimum-payment total above the bars. A compact side-by-side legend sits above the plot without dates appended. The chart labels the current payoff date directly without hover, shows time saved inside the plot without an extra line, and identifies dates beyond the bounded chart without placing a false endpoint.
+There is no separate payoff timeline or repeated minimum-payment total above the bars. The chart is titled **Balance over time**, with a compact side-by-side legend below the plot and no appended dates. The chart labels the current payoff date directly without hover, shows time saved inside the plot without an extra line, and identifies dates beyond the bounded chart without placing a false endpoint.
 
 
 ## Linked payoff goals
@@ -157,4 +157,4 @@ The goal slider and month picker target the end of the selected calendar month. 
 
 Goal searches run in a debounced background worker. The last valid curve remains visible during calculation; changing an amount, changing included loans or leaving the screen cancels stale work. Impossible goals leave the current amounts intact and explain that a later month is needed. Returning the money fields to zero returns the goal to the baseline date (or no date for unpaid minimums). Loan-card allocation labels fit alongside the monthly input so new recommendations do not shift the chart.
 
-The repayment bar and compact controls sit directly on the page background. Only the balance chart has a white card. Slider labels remain visible; the goal range dates and helper are omitted from the visible layout, while the date-control explanation remains available to assistive technology. Progress and failure feedback still appear when a goal is calculated.
+The repayment bar and compact controls sit directly on the page background. Only the balance chart has a white card. Slider labels remain visible; the goal range dates and helper are omitted from the visible layout, while the date-control explanation remains available to assistive technology. Goal feedback sits beside **Debt-free by**: a spinner during calculation and a touch/keyboard-accessible details control for failures. Messages open over the page instead of reserving an empty row or moving the chart. All slider cards use a stronger blue surface.

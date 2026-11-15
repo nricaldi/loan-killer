@@ -82,10 +82,7 @@ function describe(projection: Projection, label: string, data: { date: string; b
 
 <template>
   <figure class="balance-chart" :class="{ unpaid: projection.status !== 'paid-off' }">
-    <figcaption>
-      <span><i class="legend-line" aria-hidden="true" />Minimums</span>
-      <span :class="{ 'legend-inactive': !comparison }" :title="comparison?.label"><i class="legend-line comparison-legend" aria-hidden="true" />Your plan</span>
-    </figcaption>
+    <h3 class="chart-heading">Balance over time</h3>
     <div class="chart-body">
       <div class="y-labels" aria-hidden="true">
         <span v-for="tick in ticks" :key="tick.fraction">{{ tick.label }}</span>
@@ -126,11 +123,16 @@ function describe(projection: Projection, label: string, data: { date: string; b
       <span v-if="midpoint && projection.schedule.length > 3" class="midpoint-label">{{ formatDate(midpoint.date, true) }}</span>
       <span v-if="endDate !== balanceDate">{{ formatDate(endDate, true) }}</span>
     </div>
+    <figcaption>
+      <span><i class="legend-line" aria-hidden="true" />Minimums</span>
+      <span :class="{ 'legend-inactive': !comparison }" :title="comparison?.label"><i class="legend-line comparison-legend" aria-hidden="true" />Your plan</span>
+    </figcaption>
   </figure>
 </template>
 
 <style scoped>
 .balance-chart { margin: var(--space-4) 0 0; }
+.chart-heading { margin: 0 0 20px; font-size: var(--font-sm); font-weight: 650; }
 .chart-body { display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: var(--space-3); height: 14rem; padding-right: var(--space-2); }
 .y-labels { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-muted); font-size: var(--font-xs); line-height: 1; margin-block: -0.375rem; }
 .plot { position: relative; min-width: 0; min-height: 0; }
@@ -148,7 +150,7 @@ svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; o
 .endpoint { position: absolute; width: 0.6rem; height: 0.6rem; border-radius: 50%; border: 2px solid var(--text-placeholder); background: var(--surface); transform: translate(-50%, -50%); }
 .comparison-endpoint { border-color: var(--chart-line); background: var(--chart-line); }
 .date-labels { display: flex; justify-content: space-between; gap: var(--space-2); margin: var(--space-4) var(--space-2) 0 4rem; font-size: var(--font-xs); color: var(--text-muted); }
-figcaption { display: flex; align-items: center; gap: 16px; margin: 0 0 18px; color: var(--text-muted); font-size: 12px; }
+figcaption { display: flex; align-items: center; gap: 16px; margin: 12px 0 0; color: var(--text-muted); font-size: 12px; }
 .legend-inactive { opacity: 0.45; }
 figcaption > span { display: flex; align-items: center; gap: var(--space-2); }
 .legend-line { display: inline-block; width: 1.5rem; border-top: 2px dotted var(--text-placeholder); }
