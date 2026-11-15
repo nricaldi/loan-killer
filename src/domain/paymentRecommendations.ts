@@ -1,6 +1,6 @@
 import { createPaymentScenarioComparer, selectPaymentStrategy, type ExtraScenarioId, type PaymentScenarios } from './paymentScenarios'
 import type { LoanRecord } from './portfolio'
-import type { RepaymentStrategy } from './recurringPayments'
+import type { createRecurringPaymentCalendar, RepaymentStrategy } from './recurringPayments'
 
 export interface RecommendedOption {
   loanId: string
@@ -37,6 +37,7 @@ export function compareRecommendedOptions(left: RecommendedOption, right: Recomm
 export function recommendPayments(
   loans: readonly LoanRecord[],
   request: { oneTimeCents: number; extraMonthlyCents: number; date: string; payoffBy?: string; rollFreedMinimums?: boolean },
+  calendar?: ReturnType<typeof createRecurringPaymentCalendar>,
 ): PaymentRecommendations {
   if (!loans.length) throw new Error('Add a loan before comparing payments.')
   // Keep only winning schedules; comparison rows need amounts/dates, not copies
@@ -61,7 +62,7 @@ export function recommendPayments(
       if (rank(option, bucket.best.option) < 0) bucket.best = { option, result }
     }
   }
-  const compare = createPaymentScenarioComparer(loans, request)
+  const compare = createPaymentScenarioComparer(loans, { ...request, calendar })
   const targets = [...loans].sort((left, right) => left.id.localeCompare(right.id))
   for (const [index, loan] of targets.entries()) {
     // A monthly-only allocation has no lump-sum target to vary.

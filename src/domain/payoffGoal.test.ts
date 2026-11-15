@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { goalMonthEnd, monthlyExtraForGoal } from './payoffGoal'
+import { goalMonthEnd, monthlyExtraForGoal, payoffGoalSearch } from './payoffGoal'
 import { recommendPayments } from './paymentRecommendations'
 import type { LoanRecord } from './portfolio'
 
@@ -27,6 +27,7 @@ describe('linked payoff-month goals', () => {
     const result = monthlyExtraForGoal(loans, { date, goalMonth: '2027-02', oneTimeCents: 5000 })!
     const plan = recommendPayments(loans, { date, oneTimeCents: 5000, extraMonthlyCents: result.extraMonthlyCents, payoffBy: '2027-02-28', rollFreedMinimums: false }).plans.combined!
     expect(plan.option.payoffDate! <= '2027-02-28').toBe(true)
+    expect(result.payoffDate).toBe(plan.option.payoffDate)
   })
 
   it('needs no extra if minimums already meet the goal or the lump sum clears the loan', () => {
@@ -69,6 +70,29 @@ describe('linked payoff-month goals', () => {
     expect(result.oneTimeCents).toBe(155460)
     expect(monthlyExtraForGoal(records, { date: '2025-01-15', goalMonth: '2027-01', oneTimeCents: result.oneTimeCents! })?.oneTimeCents).toBe(result.oneTimeCents)
     expect(records).toEqual(saved)
+  })
+
+  it('uses a nearby payment to reduce search evaluations without changing the cent-accurate answer', () => {
+    const records = [
+      { ...loan, principalCents: 754100, accruedInterestCents: 7400, annualRatePercent: 6.3, monthlyPaymentCents: 5000, balanceDate: '2026-11-11', nextPaymentDate: '2026-12-11' },
+      { ...loan, id: 'b', principalCents: 259800, accruedInterestCents: 0, annualRatePercent: 4.5, monthlyPaymentCents: 6000, balanceDate: '2026-11-11', nextPaymentDate: '2026-12-11' },
+    ]
+    const request = { date: '2026-11-15', oneTimeCents: 0, goalMonth: '2051-01' }
+    const hint = monthlyExtraForGoal(records, request)!.extraMonthlyCents
+    for (const goalMonth of ['2050-12', '2051-02']) {
+      function search(extraMonthlyHintCents?: number) {
+        const generator = payoffGoalSearch(records, { ...request, goalMonth, extraMonthlyHintCents })
+        let evaluations = 0
+        let step = generator.next()
+        while (!step.done) { evaluations++; step = generator.next() }
+        return { result: step.value, evaluations }
+      }
+      const cold = search()
+      const warm = search(hint)
+      expect(warm.result).toEqual(cold.result)
+      expect(warm.evaluations).toBeLessThan(cold.evaluations)
+      expect(search(Number.NaN).result).toEqual(cold.result)
+    }
   })
 
 })

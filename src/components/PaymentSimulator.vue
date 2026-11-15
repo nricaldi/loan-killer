@@ -103,8 +103,7 @@ const displayedGoalMonth = computed(() => goalMonth.value || (actualPayoff.value
 function cancelGoal(clearMonth = true) {
   goalGeneration++
   clearTimeout(goalTimer)
-  goalWorker?.terminate()
-  goalWorker = undefined
+  if (goalBusy.value) { goalWorker?.terminate(); goalWorker = undefined }
   goalBusy.value = false
   goalStatus.value = ''
   if (clearMonth) goalMonth.value = ''
@@ -126,12 +125,15 @@ function setGoal(month: string) {
   if (unavailable.value) { goalStatus.value = unavailable.value; return }
   const generation = goalGeneration
   goalBusy.value = true
-  const request = { date: today(), goalMonth: month, oneTimeCents }
+  const currentPayoff = actualPayoff.value
+  const nearby = currentPayoff?.status === 'paid-off' && Math.abs(monthDistance(currentPayoff.payoffDate, `${month}-01`)) <= 2
+  const request = { date: today(), goalMonth: month, oneTimeCents,
+    extraMonthlyHintCents: nearby ? enteredMonthlyCents.value ?? undefined : undefined,
+  }
   const loans = props.loans.map(loan => ({ ...loan }))
   async function finish(message: { result?: ReturnType<typeof monthlyExtraForGoal>; error?: string }) {
     if (generation !== goalGeneration) return
-    goalWorker?.terminate()
-    goalWorker = undefined
+    // A completed worker can handle the next settled date without startup cost.
     goalBusy.value = false
     if (!message.result) {
       goalMonth.value = ''
@@ -175,12 +177,18 @@ function setGoal(month: string) {
     if (generation !== goalGeneration) return
     if (typeof Worker === 'undefined') { void useFallback(); return }
     try {
-      goalWorker = new Worker(new URL('../workers/payoffGoal.worker.ts', import.meta.url), { type: 'module' })
-      goalWorker.onmessage = event => { void finish(event.data) }
-      goalWorker.onerror = event => { event.preventDefault(); void useFallback() }
-      goalWorker.postMessage({ loans, request })
+      const worker = goalWorker ??= new Worker(new URL('../workers/payoffGoal.worker.ts', import.meta.url), { type: 'module' })
+      worker.onmessage = event => { void finish(event.data) }
+      worker.onerror = event => {
+        event.preventDefault()
+        // An idle worker can fail after its request generation has been canceled.
+        // Discard it even then, so a future goal never reuses a dead worker.
+        if (goalWorker === worker) { worker.terminate(); goalWorker = undefined }
+        void useFallback()
+      }
+      worker.postMessage({ loans, request })
     } catch { void useFallback() }
-  }, 120)
+  }, 0)
 }
 const controlBindings = computed(() => ({
   cards: cards.value,
@@ -197,7 +205,7 @@ const controlBindings = computed(() => ({
   hasChanges: hasChanges.value,
   onAmount: updateAmount, onGoal: setGoal, onSubmit: () => { void compare() },
 }))
-onBeforeUnmount(() => cancelGoal())
+onBeforeUnmount(() => { cancelGoal(); goalWorker?.terminate(); goalWorker = undefined })
 async function compare(focusErrors = true) {
   if (!props.loans.length) { recommendations.value = null; errors.value = {}; return }
   paymentDate.value = today()

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { projectPortfolio, type LoanRecord } from './portfolio'
 import { projectLoan } from './loan'
 import { comparePaymentScenarios } from './paymentScenarios'
-import { projectRecurringPayments, recurringStartDate } from './recurringPayments'
+import { createRecurringPaymentCalendar, createRecurringPaymentProjector, projectRecurringPayments, recurringStartDate } from './recurringPayments'
 
 const loan: LoanRecord = {
   id: 'loan-a',
@@ -25,6 +25,20 @@ const other: LoanRecord = {
 }
 
 describe('extra monthly budget', () => {
+  it('keeps balances and event maps isolated when goal candidates share one calendar', () => {
+    const records = [{ ...loan, annualRatePercent: 6 }, { ...other, annualRatePercent: 9 }]
+    const saved = structuredClone(records)
+    const calendar = createRecurringPaymentCalendar(records)
+    const payment = { loanId: other.id, amountCents: 5000, date: '2025-01-15' }
+    for (const extra of [1000, 10000, 1000]) {
+      for (const strategy of ['highest-rate', 'smallest-balance'] as const) {
+        const shared = createRecurringPaymentProjector(records, extra, false, calendar)(payment, strategy)
+        expect(shared).toEqual(projectRecurringPayments(records, extra, payment, strategy, false))
+      }
+    }
+    expect(records).toEqual(saved)
+  })
+
   it('pays off a zero-minimum loan using monthly extras and still accounts for daily interest', () => {
     const input = { ...loan, monthlyPaymentCents: 0, annualRatePercent: 12 }
     const result = projectRecurringPayments([input], 10_000)?.projection

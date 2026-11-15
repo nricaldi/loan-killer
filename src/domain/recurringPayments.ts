@@ -57,12 +57,17 @@ function monthlyEvents(loans: readonly LoanRecord[]): Map<string, DueDate> {
   return events
 }
 
-// One immutable loan snapshot/calendar can serve all target and strategy
-// comparisons. Each run still gets fresh ledgers and its own event map.
-export function createRecurringPaymentProjector(loans: readonly LoanRecord[], extraMonthlyCents: number, rollFreedMinimums = true) {
-  const snapshot = loans.map((loan) => ({ ...loan }))
+// A goal search can share this immutable calendar across its payment candidates.
+// Every projection clones the event map and creates fresh ledgers.
+export function createRecurringPaymentCalendar(loans: readonly LoanRecord[]) {
+  const snapshot = loans.map(loan => ({ ...loan }))
   let calendar: Map<string, DueDate> | undefined
-  const getCalendar = () => calendar ??= monthlyEvents(snapshot)
+  return () => calendar ??= monthlyEvents(snapshot)
+}
+
+export function createRecurringPaymentProjector(loans: readonly LoanRecord[], extraMonthlyCents: number, rollFreedMinimums = true, calendar?: ReturnType<typeof createRecurringPaymentCalendar>) {
+  const snapshot = loans.map((loan) => ({ ...loan }))
+  const getCalendar = calendar ?? createRecurringPaymentCalendar(snapshot)
   return (extraPayment?: TargetedOneTimePayment, strategy: RepaymentStrategy = 'highest-rate') =>
     projectWithCalendar(snapshot, extraMonthlyCents, extraPayment, strategy, getCalendar, rollFreedMinimums)
 }

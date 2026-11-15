@@ -29,7 +29,7 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('#extra-monthly-amount').exists()).toBe(true)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.find('.plan-comparison').exists()).toBe(false)
-    expect(wrapper.findAll('[role="slider"]')).toHaveLength(2)
+    expect(wrapper.findAll('[role="slider"]')).toHaveLength(3)
     expect(wrapper.find('input[type="range"]').exists()).toBe(false)
   })
 
@@ -291,6 +291,45 @@ describe('guided payment exploration', () => {
       expect(wrapper.find('.payment-summary').exists()).toBe(false)
       expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
       expect(wrapper.get('#goal-status').text()).toBe('')
+    } finally { vi.unstubAllGlobals() }
+  })
+
+  it('reuses a completed worker and immediately previews a new month while its result is pending', async () => {
+    class GoalWorker {
+      static instances: GoalWorker[] = []
+      onmessage?: (event: { data: unknown }) => void
+      onerror?: (event: { preventDefault: () => void }) => void
+      terminate = vi.fn()
+      postMessage = vi.fn()
+      constructor() { GoalWorker.instances.push(this) }
+    }
+    vi.stubGlobal('Worker', GoalWorker)
+    try {
+      render()
+      await wrapper.get('#payoff-goal-month').setValue('2025-04')
+      await vi.runAllTimersAsync()
+      const worker = GoalWorker.instances[0]!
+      worker.onmessage?.({ data: { result: { extraMonthlyCents: 10000, payoffDate: '2025-04-01' } } })
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      await wrapper.get('[aria-label="Pay off one month earlier"]').trigger('click')
+      expect(wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value).toBe('2025-03')
+      await vi.runAllTimersAsync()
+      expect(GoalWorker.instances).toHaveLength(1)
+      expect(worker.postMessage).toHaveBeenCalledTimes(2)
+      expect(worker.postMessage.mock.calls[1]![0].request.extraMonthlyHintCents).toBe(10000)
+      expect(worker.terminate).not.toHaveBeenCalled()
+      worker.onmessage?.({ data: { result: { extraMonthlyCents: 25000, payoffDate: '2025-03-01' } } })
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.get('#goal-status').text()).toBe('')
+      expect(wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value).toBe('2025-03')
+      await monthly('0') // Changes the generation while retaining the idle worker.
+      worker.onerror?.({ preventDefault: vi.fn() })
+      expect(worker.terminate).toHaveBeenCalledOnce()
+      await wrapper.get('#payoff-goal-month').setValue('2025-04')
+      await vi.runAllTimersAsync()
+      expect(GoalWorker.instances).toHaveLength(2)
     } finally { vi.unstubAllGlobals() }
   })
 

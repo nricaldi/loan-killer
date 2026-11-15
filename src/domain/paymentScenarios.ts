@@ -1,7 +1,7 @@
 import { daysBetween } from './dates'
 import { compareOneTimePayment, oneTimePaymentAvailability, type OneTimePaymentComparison, type PayoffSavings } from './oneTimePayment'
 import type { LoanRecord, PortfolioProjection } from './portfolio'
-import { createRecurringPaymentProjector, recurringStartDate, strategyNames, validateRepaymentStrategy, type RepaymentStrategy } from './recurringPayments'
+import { createRecurringPaymentCalendar, createRecurringPaymentProjector, recurringStartDate, strategyNames, validateRepaymentStrategy, type RepaymentStrategy } from './recurringPayments'
 
 export type ScenarioId = 'minimum' | 'one-time' | 'monthly' | 'combined'
 export type ExtraScenarioId = Exclude<ScenarioId, 'minimum'>
@@ -44,11 +44,11 @@ export function comparePaymentScenarios(loans: readonly LoanRecord[], request: P
 
 export function createPaymentScenarioComparer(
   loans: readonly LoanRecord[],
-  shared: { date: string; extraMonthlyCents: number; rollFreedMinimums?: boolean },
+  shared: { date: string; extraMonthlyCents: number; rollFreedMinimums?: boolean; calendar?: ReturnType<typeof createRecurringPaymentCalendar> },
 ) {
   const snapshot = loans.map((loan) => ({ ...loan }))
-  const captured = { ...shared }
-  const project = createRecurringPaymentProjector(snapshot, captured.extraMonthlyCents, captured.rollFreedMinimums)
+  const { calendar, ...captured } = { ...shared }
+  const project = createRecurringPaymentProjector(snapshot, captured.extraMonthlyCents, captured.rollFreedMinimums, calendar)
   const monthlyCache = new Map<RepaymentStrategy, PortfolioProjection>()
   return (input: { loanId: string; oneTimeCents: number; strategy?: RepaymentStrategy }): PaymentScenarios => {
     const request = { ...input, ...captured }
