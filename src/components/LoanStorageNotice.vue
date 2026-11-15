@@ -69,10 +69,10 @@ strong { font-weight: 600; }
 .storage-details { color: var(--text-muted); }
 .storage-details summary { color: var(--text-link); font-size: var(--font-xs); line-height: 1.8; cursor: pointer; }
 .storage-details p { margin-top: var(--space-2); }
-.storage-warning { padding: var(--space-4); background: var(--blue-light); border: 1px solid var(--danger); border-radius: var(--radius-sm); }
+.storage-warning { padding: var(--space-4); background: var(--surface-muted); border: 1px solid var(--danger); border-radius: var(--radius-sm); }
 .storage-warning .storage-details { margin-top: var(--space-2); }
 .storage-error { color: var(--danger); }
 .storage-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
-button { background: var(--surface); color: var(--text-link); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); min-height: 2.75rem; font-size: var(--font-xs); line-height: 1.6; }
+button { background: var(--surface); color: var(--text-link); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); min-height: 2.75rem; font-size: var(--font-xs); line-height: 1.6; }
 .replacement-confirmation { margin-top: var(--space-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-3); background: var(--surface); }
 </style>

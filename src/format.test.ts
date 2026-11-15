@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateDistance } from './format'
+import { chartMoney, dateDistance } from './format'
 
 describe('calendar date distance', () => {
   it.each([
@@ -16,5 +16,11 @@ describe('calendar date distance', () => {
 
   it('does not silently format invalid calendar dates', () => {
     expect(() => dateDistance('2025-02-29', '2025-03-01')).toThrow()
+  })
+})
+
+describe('compact chart currency', () => {
+  it.each([[99900, '$999'], [100000, '$1k'], [100000000, '$1m'], [2000000000, '$20m'], [100000000000, '$1b']])('formats %s cents as %s', (cents, text) => {
+    expect(chartMoney(cents as number)).toBe(text)
   })
 })

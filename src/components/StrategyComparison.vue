@@ -74,16 +74,16 @@ h3, h4 { margin: 0; font-size: var(--font-md); font-weight: 600; line-height: 1.
 .section-note { margin: var(--space-3) 0 0; }
 .strategy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-5); }
 .strategy-card { padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 0; }
-.active-strategy { background: var(--blue-light); border-color: var(--chart-line); }
+.active-strategy { background: var(--surface-muted); border-color: var(--chart-line); }
 .strategy-alias { margin: var(--space-2) 0 var(--space-4); }
 dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin: 0; }
 dt { color: var(--text-muted); font-size: var(--font-xs); line-height: 1.7; }
 dd { margin: var(--space-1) 0 0; font-size: var(--font-sm); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.6; overflow-wrap: anywhere; }
 .first-loans { display: block; color: var(--text-secondary); font-size: var(--font-xs); font-weight: 400; }
-button { border: 1px solid var(--blue-border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font-size: var(--font-xs); min-height: 2.75rem; padding: var(--space-2) var(--space-3); line-height: 1.7; }
+button { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font-size: var(--font-xs); min-height: 2.75rem; padding: var(--space-2) var(--space-3); line-height: 1.7; }
 .strategy-card > button { width: 100%; margin-top: var(--space-5); }
-button[aria-pressed='true'] { background: var(--blue-primary); font-weight: 600; }
-.comparison-note { background: var(--blue-light); color: var(--text-secondary); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); margin: var(--space-4) 0 0; padding: var(--space-3) var(--space-4); }
+button[aria-pressed='true'] { background: var(--surface-muted); font-weight: 600; }
+.comparison-note { background: var(--surface-muted); color: var(--text-secondary); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); margin: var(--space-4) 0 0; padding: var(--space-3) var(--space-4); }
 .comparison-note p { margin: 0; }
 .comparison-note p + p { margin-top: var(--space-2); }
 .comparison-links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }

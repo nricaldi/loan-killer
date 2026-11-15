@@ -38,11 +38,57 @@ export function recurringStartDate(loans: readonly LoanRecord[]): string | null 
   return loans.reduce<string | null>((first, loan) => first === null || loan.nextPaymentDate < first ? loan.nextPaymentDate : first, null)
 }
 
+function monthlyEvents(loans: readonly LoanRecord[]): Map<string, DueDate> {
+  const events = new Map<string, DueDate>()
+  const start = recurringStartDate(loans)
+  if (!start) return events
+  function eventOn(date: string): DueDate {
+    let event = events.get(date)
+    if (!event) {
+      event = { loans: [], extraMonthly: false }
+      events.set(date, event)
+    }
+    return event
+  }
+  for (let month = 0; month < 1_200; month++) {
+    eventOn(addMonths(start, month)).extraMonthly = true
+    loans.forEach((loan, index) => eventOn(addMonths(loan.nextPaymentDate, month)).loans.push(index))
+  }
+  return events
+}
+
+// A goal search can share this immutable calendar across its payment candidates.
+// Every projection clones the event map and creates fresh ledgers.
+export function createRecurringPaymentCalendar(loans: readonly LoanRecord[]) {
+  const snapshot = loans.map(loan => ({ ...loan }))
+  let calendar: Map<string, DueDate> | undefined
+  return () => calendar ??= monthlyEvents(snapshot)
+}
+
+export function createRecurringPaymentProjector(loans: readonly LoanRecord[], extraMonthlyCents: number, rollFreedMinimums = true, calendar?: ReturnType<typeof createRecurringPaymentCalendar>) {
+  const snapshot = loans.map((loan) => ({ ...loan }))
+  const getCalendar = calendar ?? createRecurringPaymentCalendar(snapshot)
+  return (extraPayment?: TargetedOneTimePayment, strategy: RepaymentStrategy = 'highest-rate') =>
+    projectWithCalendar(snapshot, extraMonthlyCents, extraPayment, strategy, getCalendar, rollFreedMinimums)
+}
+
 export function projectRecurringPayments(
   loans: readonly LoanRecord[],
   extraMonthlyCents: number,
   extraPayment?: TargetedOneTimePayment,
   strategy: RepaymentStrategy = 'highest-rate',
+  rollFreedMinimums = true,
+): PortfolioProjection | null {
+  return projectWithCalendar(loans, extraMonthlyCents, extraPayment, strategy, undefined, rollFreedMinimums)
+}
+
+function projectWithCalendar(
+  loans: readonly LoanRecord[],
+  extraMonthlyCents: number,
+  extraPayment?: TargetedOneTimePayment,
+  strategy: RepaymentStrategy = 'highest-rate',
+  calendar?: () => Map<string, DueDate>,
+  rollFreedMinimums = true,
 ): PortfolioProjection | null {
   validateRepaymentStrategy(strategy)
   if (!Number.isSafeInteger(extraMonthlyCents) || extraMonthlyCents < 0 || extraMonthlyCents > 1_000_000_000) {
@@ -61,22 +107,10 @@ export function projectRecurringPayments(
     }
   }
 
-  const firstExtraDate = recurringStartDate(loans)
-  if (!firstExtraDate) return null
-  const events = new Map<string, DueDate>()
-  function eventOn(date: string): DueDate {
-    let event = events.get(date)
-    if (!event) {
-      event = { loans: [], extraMonthly: false }
-      events.set(date, event)
-    }
-    return event
+  const events = calendar ? new Map(calendar()) : monthlyEvents(loans)
+  if (extraPayment && extraPayment.amountCents > 0 && !events.has(extraPayment.date)) {
+    events.set(extraPayment.date, { loans: [], extraMonthly: false })
   }
-  for (let month = 0; month < 1_200; month++) {
-    eventOn(addMonths(firstExtraDate, month)).extraMonthly = true
-    loans.forEach((loan, index) => eventOn(addMonths(loan.nextPaymentDate, month)).loans.push(index))
-  }
-  if (extraPayment && extraPayment.amountCents > 0) eventOn(extraPayment.date)
 
   const ledgers: LoanLedger[] = loans.map((loan) => ({
     loan,
@@ -104,7 +138,7 @@ export function projectRecurringPayments(
       const ledger = ledgers[index]
       if (!ledger) throw new Error('Missing loan ledger.')
       const used = pay(ledger, date, ledger.loan.monthlyPaymentCents, 'scheduled')
-      extraBudget += ledger.loan.monthlyPaymentCents - used
+      if (rollFreedMinimums) extraBudget += ledger.loan.monthlyPaymentCents - used
     }
     // Snowball priorities use today's balances after minimums, not the initial loan sizes.
     const priority = ledgers

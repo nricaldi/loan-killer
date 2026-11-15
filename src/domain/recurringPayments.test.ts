@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { projectPortfolio, type LoanRecord } from './portfolio'
 import { projectLoan } from './loan'
 import { comparePaymentScenarios } from './paymentScenarios'
-import { projectRecurringPayments, recurringStartDate } from './recurringPayments'
+import { createRecurringPaymentCalendar, createRecurringPaymentProjector, projectRecurringPayments, recurringStartDate } from './recurringPayments'
 
 const loan: LoanRecord = {
   id: 'loan-a',
@@ -25,6 +25,20 @@ const other: LoanRecord = {
 }
 
 describe('extra monthly budget', () => {
+  it('keeps balances and event maps isolated when goal candidates share one calendar', () => {
+    const records = [{ ...loan, annualRatePercent: 6 }, { ...other, annualRatePercent: 9 }]
+    const saved = structuredClone(records)
+    const calendar = createRecurringPaymentCalendar(records)
+    const payment = { loanId: other.id, amountCents: 5000, date: '2025-01-15' }
+    for (const extra of [1000, 10000, 1000]) {
+      for (const strategy of ['highest-rate', 'smallest-balance'] as const) {
+        const shared = createRecurringPaymentProjector(records, extra, false, calendar)(payment, strategy)
+        expect(shared).toEqual(projectRecurringPayments(records, extra, payment, strategy, false))
+      }
+    }
+    expect(records).toEqual(saved)
+  })
+
   it('pays off a zero-minimum loan using monthly extras and still accounts for daily interest', () => {
     const input = { ...loan, monthlyPaymentCents: 0, annualRatePercent: 12 }
     const result = projectRecurringPayments([input], 10_000)?.projection
@@ -227,5 +241,18 @@ describe('four-scenario comparison', () => {
   it('never assumes historical payments or applies today’s payment to future snapshots', () => {
     expect(() => comparePaymentScenarios([loan], { ...request, date: '2025-02-02' })).toThrow('in the past')
     expect(() => comparePaymentScenarios([loan], { ...request, date: '2024-12-31' })).toThrow('in the future')
+  })
+})
+
+
+describe('explicit no-rollover payment plans', () => {
+  it('adds only the entered extra after a loan finishes, without silently reusing its minimum', () => {
+    const records = [{ ...loan, principalCents: 10000, monthlyPaymentCents: 1000 }, { ...loan, id: 'paid-first', principalCents: 1000, monthlyPaymentCents: 1000 }]
+    const fixed = projectRecurringPayments(records, 100, undefined, 'highest-rate', false)!
+    const rolling = projectRecurringPayments(records, 100)!
+    const extraOn = (portfolio: typeof fixed) => portfolio.loans.flatMap(item => item.projection.schedule).filter(payment => payment.date === '2025-03-01' && payment.kind === 'monthly-extra').reduce((sum, payment) => sum + payment.paymentCents, 0)
+    expect(extraOn(fixed)).toBe(100)
+    expect(extraOn(rolling)).toBe(1100)
+    expect(records.map(record => record.monthlyPaymentCents)).toEqual([1000, 1000])
   })
 })
