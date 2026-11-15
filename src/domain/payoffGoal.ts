@@ -17,41 +17,55 @@ export function goalMonthEnd(month: string): string {
   return next.toISOString().slice(0, 10)
 }
 
-// Search whole-dollar monthly extras against real schedules. The goal constrains
-// the recommendation, so a cheaper but later alternative cannot miss the date.
-export function monthlyExtraForGoal(loans: readonly LoanRecord[], request: PayoffGoalRequest) {
+// Yield after each schedule evaluation so a worker failure can use the same
+// search cooperatively on the main thread, without one long blocking task.
+export function* payoffGoalSearch(loans: readonly LoanRecord[], request: PayoffGoalRequest): Generator<void, { extraMonthlyCents: number; payoffDate: string } | null> {
   const deadline = goalMonthEnd(request.goalMonth)
   if (!loans.length || deadline < request.date) return null
   const unavailable = oneTimePaymentAvailability(loans, request.date)
   if (unavailable) throw new Error(unavailable)
   const cache = new Map<number, string | null>()
-  function payoff(dollars: number): string | null {
-    if (cache.has(dollars)) return cache.get(dollars)!
+  function payoff(cents: number): string | null {
+    if (cache.has(cents)) return cache.get(cents)!
     let date: string | null
-    if (dollars === 0 && request.oneTimeCents === 0) {
+    if (cents === 0 && request.oneTimeCents === 0) {
       const projection = projectPortfolio(loans)!.projection
       date = projection.status === 'paid-off' ? projection.payoffDate : null
     } else {
-      const plans = recommendPayments(loans, { date: request.date, oneTimeCents: request.oneTimeCents, extraMonthlyCents: dollars * 100, payoffBy: deadline }).plans
-      date = plans[dollars > 0 ? request.oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time']?.option.payoffDate ?? null
+      const plans = recommendPayments(loans, { date: request.date, oneTimeCents: request.oneTimeCents, extraMonthlyCents: cents, payoffBy: deadline, rollFreedMinimums: false }).plans
+      date = plans[cents > 0 ? request.oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time']?.option.payoffDate ?? null
     }
-    cache.set(dollars, date)
+    cache.set(cents, date)
     return date
   }
-  const meets = (dollars: number) => { const date = payoff(dollars); return date !== null && date <= deadline }
-  if (meets(0)) return { extraMonthlyCents: 0, payoffDate: payoff(0)! }
+  const meets = (cents: number) => { const date = payoff(cents); return date !== null && date <= deadline }
+  const zeroMeets = meets(0)
+  yield
+  if (zeroMeets) return { extraMonthlyCents: 0, payoffDate: payoff(0)! }
   let low = 0
-  let high = 100
-  const limit = 10_000_000
-  while (!meets(high)) {
+  let high = 10000
+  const limit = 1_000_000_000
+  while (true) {
+    const highMeets = meets(high)
+    yield
+    if (highMeets) break
     if (high === limit) return null
     low = high
     high = Math.min(limit, high * 2)
   }
   while (high - low > 1) {
     const middle = Math.floor((low + high) / 2)
-    if (meets(middle)) high = middle
+    const middleMeets = meets(middle)
+    yield
+    if (middleMeets) high = middle
     else low = middle
   }
-  return { extraMonthlyCents: high * 100, payoffDate: payoff(high)! }
+  return { extraMonthlyCents: high, payoffDate: payoff(high)! }
+}
+
+export function monthlyExtraForGoal(loans: readonly LoanRecord[], request: PayoffGoalRequest) {
+  const search = payoffGoalSearch(loans, request)
+  let step = search.next()
+  while (!step.done) step = search.next()
+  return step.value
 }

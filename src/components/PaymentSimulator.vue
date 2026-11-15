@@ -7,7 +7,7 @@ import type { ExtraScenarioId } from '../domain/paymentScenarios'
 import { projectPortfolio, type LoanRecord, type PortfolioProjection } from '../domain/portfolio'
 import { recommendPayments, type PaymentRecommendations } from '../domain/paymentRecommendations'
 import { dateDistance, money } from '../format'
-import { goalMonthEnd, monthlyExtraForGoal } from '../domain/payoffGoal'
+import { goalMonthEnd, monthlyExtraForGoal, payoffGoalSearch } from '../domain/payoffGoal'
 import PaymentControls from './PaymentControls.vue'
 import ScenarioComparison from './ScenarioComparison.vue'
 import PaymentRecommendationDetails from './PaymentRecommendationDetails.vue'
@@ -113,7 +113,6 @@ function setGoal(month: string) {
   if (!month || !props.loans.length) return
   try { goalMonthEnd(month) } catch { goalStatus.value = 'Choose a valid payoff month.'; return }
   if (month < goalAnchor.value.slice(0, 7)) { goalStatus.value = 'Choose this month or later.'; return }
-  goalMonth.value = month
   const oneTimeCents = parseMoney(amount.value)
   if (oneTimeCents === null || enteredMonthlyCents.value === null) { goalStatus.value = 'Check the payment amounts first.'; return }
   if (unavailable.value) { goalStatus.value = unavailable.value; return }
@@ -127,6 +126,7 @@ function setGoal(month: string) {
     goalWorker = undefined
     goalBusy.value = false
     if (!message.result) {
+      goalMonth.value = ''
       goalStatus.value = message.error ?? 'This date cannot be reached with the entered payment dates. Try a later month.'
       return
     }
@@ -140,21 +140,33 @@ function setGoal(month: string) {
     await nextTick()
     applyingGoal = false
   }
+  let fallbackStarted = false
+  async function useFallback() {
+    if (generation !== goalGeneration || fallbackStarted) return
+    fallbackStarted = true
+    goalWorker?.terminate()
+    goalWorker = undefined
+    try {
+      const search = payoffGoalSearch(loans, request)
+      while (generation === goalGeneration) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+        if (generation !== goalGeneration) return
+        const step = search.next()
+        if (step.done) { await finish({ result: step.value }); return }
+      }
+    } catch (error) {
+      await finish({ error: error instanceof Error ? error.message : 'Could not calculate this goal. Try again.' })
+    }
+  }
   goalTimer = setTimeout(() => {
     if (generation !== goalGeneration) return
-    if (typeof Worker === 'undefined') {
-      try { void finish({ result: monthlyExtraForGoal(loans, request) }) }
-      catch (error) { void finish({ error: error instanceof Error ? error.message : 'Could not calculate this goal.' }) }
-      return
-    }
+    if (typeof Worker === 'undefined') { void useFallback(); return }
     try {
       goalWorker = new Worker(new URL('../workers/payoffGoal.worker.ts', import.meta.url), { type: 'module' })
       goalWorker.onmessage = event => { void finish(event.data) }
-      goalWorker.onerror = () => { void finish({ error: 'Could not calculate this goal. Try again.' }) }
+      goalWorker.onerror = event => { event.preventDefault(); void useFallback() }
       goalWorker.postMessage({ loans, request })
-    } catch {
-      void finish({ error: 'Could not calculate this goal. Try again.' })
-    }
+    } catch { void useFallback() }
   }, 120)
 }
 const controlBindings = computed(() => ({
@@ -200,7 +212,7 @@ async function compare(focusErrors = true) {
     recommendations.value = null
     return
   }
-  recommendations.value = recommendPayments(props.loans, { oneTimeCents, extraMonthlyCents, date: paymentDate.value, payoffBy: goalMonth.value ? goalMonthEnd(goalMonth.value) : undefined })
+  recommendations.value = recommendPayments(props.loans, { oneTimeCents, extraMonthlyCents, date: paymentDate.value, payoffBy: goalMonth.value ? goalMonthEnd(goalMonth.value) : undefined, rollFreedMinimums: false })
   selected.value = extraMonthlyCents > 0 ? oneTimeCents > 0 ? 'combined' : 'monthly' : 'one-time'
 }
 

@@ -229,3 +229,16 @@ describe('four-scenario comparison', () => {
     expect(() => comparePaymentScenarios([loan], { ...request, date: '2024-12-31' })).toThrow('in the future')
   })
 })
+
+
+describe('explicit no-rollover payment plans', () => {
+  it('adds only the entered extra after a loan finishes, without silently reusing its minimum', () => {
+    const records = [{ ...loan, principalCents: 10000, monthlyPaymentCents: 1000 }, { ...loan, id: 'paid-first', principalCents: 1000, monthlyPaymentCents: 1000 }]
+    const fixed = projectRecurringPayments(records, 100, undefined, 'highest-rate', false)!
+    const rolling = projectRecurringPayments(records, 100)!
+    const extraOn = (portfolio: typeof fixed) => portfolio.loans.flatMap(item => item.projection.schedule).filter(payment => payment.date === '2025-03-01' && payment.kind === 'monthly-extra').reduce((sum, payment) => sum + payment.paymentCents, 0)
+    expect(extraOn(fixed)).toBe(100)
+    expect(extraOn(rolling)).toBe(1100)
+    expect(records.map(record => record.monthlyPaymentCents)).toEqual([1000, 1000])
+  })
+})

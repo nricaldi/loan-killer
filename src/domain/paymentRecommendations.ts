@@ -36,7 +36,7 @@ export function compareRecommendedOptions(left: RecommendedOption, right: Recomm
 
 export function recommendPayments(
   loans: readonly LoanRecord[],
-  request: { oneTimeCents: number; extraMonthlyCents: number; date: string; payoffBy?: string },
+  request: { oneTimeCents: number; extraMonthlyCents: number; date: string; payoffBy?: string; rollFreedMinimums?: boolean },
 ): PaymentRecommendations {
   if (!loans.length) throw new Error('Add a loan before comparing payments.')
   // Keep only winning schedules; comparison rows need amounts/dates, not copies

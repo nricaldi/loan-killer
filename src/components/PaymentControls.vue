@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { vZeroOnFocus } from '../directives/zeroOnFocus'
 import { parseMoney } from '../domain/loanForm'
 import { addMonths } from '../domain/dates'
@@ -31,11 +31,19 @@ function rangeMax(card: typeof props.cards[number]) {
     : Math.max(500, Math.ceil(Math.max(props.minimumCents * 2, props.balanceCents / 24) / 5000) * 50)
   return Math.min(10_000_000, Math.max(100, suggested, Math.ceil((parseAmount(card.amount) ?? 0) / 100)))
 }
+const monthInput = ref<HTMLInputElement | null>(null)
+const goalInput = ref<HTMLInputElement | null>(null)
 const goalValue = computed(() => {
   if (!props.goalMonth) return Math.min(120, props.goalMaxMonths)
   const [year, month] = props.goalMonth.split('-').map(Number)
   const [startYear, startMonth] = props.goalAnchor.split('-').map(Number)
   return Math.max(0, Math.min(props.goalMaxMonths, (year! - startYear!) * 12 + month! - startMonth!))
+})
+watch([() => props.goalBusy, () => props.goalStatus, () => props.goalMonth], async () => {
+  if (props.goalBusy) return
+  await nextTick()
+  if (monthInput.value) monthInput.value.value = props.goalMonth
+  if (goalInput.value) goalInput.value.value = String(goalValue.value)
 })
 function changeGoal(event: Event) {
   emit('goal', addMonths(props.goalAnchor, Number((event.target as HTMLInputElement).value)).slice(0, 7))
@@ -50,14 +58,14 @@ function changeGoal(event: Event) {
         <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ active: (parseAmount(card.amount) ?? 0) > 0 }">
           <div class="card-heading"><label :for="inputId(card.kind)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay once' }}</label></div>
           <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card.kind)" v-zero-on-focus :value="card.amount" :disabled="disabled" type="text" inputmode="decimal" :aria-invalid="parseAmount(card.amount) === null" :aria-describedby="parseAmount(card.amount) === null ? `card-error-${card.id}` : undefined" @input="emit('amount', card.id, ($event.target as HTMLInputElement).value)" @blur="card.amount.trim() === '' && emit('amount', card.id, '0')" /></div>
-          <input class="money-slider" type="range" min="0" :max="rangeMax(card)" step="1" :value="Math.min(rangeMax(card), (parseAmount(card.amount) ?? 0) / 100)" :disabled="disabled" :aria-label="card.kind === 'monthly' ? 'Extra monthly payment slider' : 'One-time payment slider'" :aria-valuetext="money(parseAmount(card.amount) ?? 0)" @input="emit('amount', card.id, String(($event.target as HTMLInputElement).value))" />
+          <input class="money-slider" type="range" min="0" :max="rangeMax(card)" step="0.01" :value="Math.min(rangeMax(card), (parseAmount(card.amount) ?? 0) / 100)" :disabled="disabled" :aria-label="card.kind === 'monthly' ? 'Extra monthly payment slider' : 'One-time payment slider'" :aria-valuetext="money(parseAmount(card.amount) ?? 0)" @input="emit('amount', card.id, String(($event.target as HTMLInputElement).value))" />
           <div class="range-ends" aria-hidden="true"><span>$0</span><span>{{ `$${rangeMax(card).toLocaleString('en-US')}` }}</span></div>
           <p v-if="parseAmount(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
         </section>
       </div>
       <section class="goal-control" :aria-busy="goalBusy">
-        <div class="goal-heading"><div class="goal-label"><label for="payoff-goal-month">Debt-free by</label><div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div></div><input id="payoff-goal-month" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @input="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
-        <input class="goal-slider" type="range" min="0" :max="goalMaxMonths" step="1" :value="goalValue" :disabled="goalDisabled" aria-label="Debt-free date slider" :aria-valuetext="goalMonth ? formatDate(`${goalMonth}-01`, true) : 'Choose a payoff goal'" aria-describedby="goal-help goal-status" @input="changeGoal" />
+        <div class="goal-heading"><div class="goal-label"><label for="payoff-goal-month">Debt-free by</label><div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div></div><input id="payoff-goal-month" ref="monthInput" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @change="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
+        <input ref="goalInput" class="goal-slider" type="range" min="0" :max="goalMaxMonths" step="1" :value="goalValue" :disabled="goalDisabled" aria-label="Debt-free date slider" :aria-valuetext="goalMonth ? formatDate(`${goalMonth}-01`, true) : 'Choose a payoff goal'" aria-describedby="goal-help goal-status" @input="changeGoal" />
 
         <p id="goal-help" class="sr-only">Move the date to calculate the monthly extra needed. Your one-time payment stays fixed.</p>
         <p id="goal-status" class="sr-only" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>

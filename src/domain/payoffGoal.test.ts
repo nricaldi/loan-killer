@@ -11,13 +11,13 @@ const loan: LoanRecord = {
 const date = loan.balanceDate
 
 describe('linked payoff-month goals', () => {
-  it('finds a verified whole-dollar extra while holding a lump sum fixed', () => {
+  it('finds a verified cent-accurate extra while holding a lump sum fixed', () => {
     const saved = structuredClone(loan)
     const result = monthlyExtraForGoal([loan], { date, goalMonth: '2026-01', oneTimeCents: 10000 })!
-    expect(result.extraMonthlyCents % 100).toBe(0)
+    expect(Number.isSafeInteger(result.extraMonthlyCents)).toBe(true)
     expect(result.extraMonthlyCents).toBeGreaterThan(0)
     expect(result.payoffDate <= '2026-01-31').toBe(true)
-    const smaller = recommendPayments([loan], { date, extraMonthlyCents: result.extraMonthlyCents - 100, oneTimeCents: 10000, payoffBy: '2026-01-31' }).plans.combined!
+    const smaller = recommendPayments([loan], { date, extraMonthlyCents: result.extraMonthlyCents - 1, oneTimeCents: 10000, payoffBy: '2026-01-31', rollFreedMinimums: false }).plans.combined!
     expect(smaller.option.payoffDate === null || smaller.option.payoffDate > '2026-01-31').toBe(true)
     expect(loan).toEqual(saved)
   })
@@ -25,7 +25,7 @@ describe('linked payoff-month goals', () => {
   it('solves multiple loans including an unpaid baseline and staggered dates', () => {
     const loans = [loan, { ...loan, id: 'b', annualRatePercent: 12, principalCents: 50000, monthlyPaymentCents: 0, nextPaymentDate: '2025-02-20' }]
     const result = monthlyExtraForGoal(loans, { date, goalMonth: '2027-02', oneTimeCents: 5000 })!
-    const plan = recommendPayments(loans, { date, oneTimeCents: 5000, extraMonthlyCents: result.extraMonthlyCents, payoffBy: '2027-02-28' }).plans.combined!
+    const plan = recommendPayments(loans, { date, oneTimeCents: 5000, extraMonthlyCents: result.extraMonthlyCents, payoffBy: '2027-02-28', rollFreedMinimums: false }).plans.combined!
     expect(plan.option.payoffDate! <= '2027-02-28').toBe(true)
   })
 
@@ -46,4 +46,18 @@ describe('linked payoff-month goals', () => {
     expect(() => goalMonthEnd('2025-13')).toThrow()
     expect(() => monthlyExtraForGoal([loan], { date: '2025-04-01', goalMonth: '2026-01', oneTimeCents: 0 })).toThrow('Update')
   })
+  it('reaches dates between the screenshot baseline and the old full-rollover result', () => {
+    const records = [
+      { ...loan, principalCents: 754100, accruedInterestCents: 7400, annualRatePercent: 6.3, monthlyPaymentCents: 5000, balanceDate: '2026-11-11', nextPaymentDate: '2026-12-11' },
+      { ...loan, id: 'b', principalCents: 259800, accruedInterestCents: 0, annualRatePercent: 4.5, monthlyPaymentCents: 6000, balanceDate: '2026-11-11', nextPaymentDate: '2026-12-11' },
+    ]
+    for (const goalMonth of ['2051-01', '2045-06', '2040-03', '2030-10']) {
+      const request = { date: '2026-11-15', oneTimeCents: 0, goalMonth }
+      const result = monthlyExtraForGoal(records, request)!
+      expect(result.payoffDate.slice(0, 7)).toBe(goalMonth)
+      const plan = recommendPayments(records, { date: request.date, oneTimeCents: 0, extraMonthlyCents: result.extraMonthlyCents, rollFreedMinimums: false, payoffBy: goalMonthEnd(goalMonth) }).plans.monthly!
+      expect(plan.option.payoffDate).toBe(result.payoffDate)
+    }
+  })
+
 })

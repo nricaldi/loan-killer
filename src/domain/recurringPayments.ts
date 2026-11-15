@@ -59,12 +59,12 @@ function monthlyEvents(loans: readonly LoanRecord[]): Map<string, DueDate> {
 
 // One immutable loan snapshot/calendar can serve all target and strategy
 // comparisons. Each run still gets fresh ledgers and its own event map.
-export function createRecurringPaymentProjector(loans: readonly LoanRecord[], extraMonthlyCents: number) {
+export function createRecurringPaymentProjector(loans: readonly LoanRecord[], extraMonthlyCents: number, rollFreedMinimums = true) {
   const snapshot = loans.map((loan) => ({ ...loan }))
   let calendar: Map<string, DueDate> | undefined
   const getCalendar = () => calendar ??= monthlyEvents(snapshot)
   return (extraPayment?: TargetedOneTimePayment, strategy: RepaymentStrategy = 'highest-rate') =>
-    projectWithCalendar(snapshot, extraMonthlyCents, extraPayment, strategy, getCalendar)
+    projectWithCalendar(snapshot, extraMonthlyCents, extraPayment, strategy, getCalendar, rollFreedMinimums)
 }
 
 export function projectRecurringPayments(
@@ -72,8 +72,9 @@ export function projectRecurringPayments(
   extraMonthlyCents: number,
   extraPayment?: TargetedOneTimePayment,
   strategy: RepaymentStrategy = 'highest-rate',
+  rollFreedMinimums = true,
 ): PortfolioProjection | null {
-  return projectWithCalendar(loans, extraMonthlyCents, extraPayment, strategy)
+  return projectWithCalendar(loans, extraMonthlyCents, extraPayment, strategy, undefined, rollFreedMinimums)
 }
 
 function projectWithCalendar(
@@ -82,6 +83,7 @@ function projectWithCalendar(
   extraPayment?: TargetedOneTimePayment,
   strategy: RepaymentStrategy = 'highest-rate',
   calendar?: () => Map<string, DueDate>,
+  rollFreedMinimums = true,
 ): PortfolioProjection | null {
   validateRepaymentStrategy(strategy)
   if (!Number.isSafeInteger(extraMonthlyCents) || extraMonthlyCents < 0 || extraMonthlyCents > 1_000_000_000) {
@@ -131,7 +133,7 @@ function projectWithCalendar(
       const ledger = ledgers[index]
       if (!ledger) throw new Error('Missing loan ledger.')
       const used = pay(ledger, date, ledger.loan.monthlyPaymentCents, 'scheduled')
-      extraBudget += ledger.loan.monthlyPaymentCents - used
+      if (rollFreedMinimums) extraBudget += ledger.loan.monthlyPaymentCents - used
     }
     // Snowball priorities use today's balances after minimums, not the initial loan sizes.
     const priority = ledgers

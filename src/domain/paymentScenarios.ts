@@ -18,6 +18,7 @@ export interface PaymentScenarioRequest {
   oneTimeCents: number
   extraMonthlyCents: number
   date: string
+  rollFreedMinimums?: boolean
   strategy?: RepaymentStrategy
 }
 
@@ -38,16 +39,16 @@ export interface PaymentScenarios {
 }
 
 export function comparePaymentScenarios(loans: readonly LoanRecord[], request: PaymentScenarioRequest): PaymentScenarios {
-  return createPaymentScenarioComparer(loans, { date: request.date, extraMonthlyCents: request.extraMonthlyCents })(request)
+  return createPaymentScenarioComparer(loans, { date: request.date, extraMonthlyCents: request.extraMonthlyCents, rollFreedMinimums: request.rollFreedMinimums })(request)
 }
 
 export function createPaymentScenarioComparer(
   loans: readonly LoanRecord[],
-  shared: { date: string; extraMonthlyCents: number },
+  shared: { date: string; extraMonthlyCents: number; rollFreedMinimums?: boolean },
 ) {
   const snapshot = loans.map((loan) => ({ ...loan }))
   const captured = { ...shared }
-  const project = createRecurringPaymentProjector(snapshot, captured.extraMonthlyCents)
+  const project = createRecurringPaymentProjector(snapshot, captured.extraMonthlyCents, captured.rollFreedMinimums)
   const monthlyCache = new Map<RepaymentStrategy, PortfolioProjection>()
   return (input: { loanId: string; oneTimeCents: number; strategy?: RepaymentStrategy }): PaymentScenarios => {
     const request = { ...input, ...captured }

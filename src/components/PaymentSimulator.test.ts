@@ -238,7 +238,7 @@ describe('guided payment exploration', () => {
     await oneTime('100')
     await wrapper.get('#payoff-goal-month').setValue('2026-01')
     expect(wrapper.get('#goal-status').text()).toContain('Calculating')
-    await vi.advanceTimersByTimeAsync(121)
+    await vi.runAllTimersAsync()
     expect(Number(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value)).toBeGreaterThan(0)
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('100')
     const preview = wrapper.emitted('preview')!.at(-1)![0] as { projection: { status: string; payoffDate: string } }
@@ -257,12 +257,13 @@ describe('guided payment exploration', () => {
     render([{ ...loan, nextPaymentDate: '2028-01-01' }])
     await oneTime('1')
     await wrapper.get('#payoff-goal-month').setValue('2025-02')
-    await vi.advanceTimersByTimeAsync(121)
+    await vi.runAllTimersAsync()
     expect(wrapper.get('#goal-status').text()).toContain('Try a later month')
     expect(wrapper.get('#goal-status').classes()).toContain('sr-only')
     expect(wrapper.get('.goal-feedback summary').attributes('aria-label')).toBe('Goal calculation details')
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
     expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('1')
+    expect(wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value).not.toBe('2025-02')
   })
 
   it('ignores a worker reply after editing an amount has canceled the goal', async () => {
@@ -278,7 +279,7 @@ describe('guided payment exploration', () => {
     try {
       render()
       await wrapper.get('#payoff-goal-month').setValue('2025-03')
-      await vi.advanceTimersByTimeAsync(121)
+      await vi.runAllTimersAsync()
       const worker = GoalWorker.latest
       expect(worker.postMessage).toHaveBeenCalledOnce()
       await wrapper.get('#extra-payment-amount').setValue('0')
@@ -289,6 +290,42 @@ describe('guided payment exploration', () => {
       expect(wrapper.find('.payment-summary').exists()).toBe(false)
       expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0')
       expect(wrapper.get('#goal-status').text()).toBe('')
+    } finally { vi.unstubAllGlobals() }
+  })
+
+  it('calculates a goal locally if workers cannot start', async () => {
+    vi.stubGlobal('Worker', class { constructor() { throw new Error('Workers unavailable') } })
+    try {
+      render([{ ...loan, monthlyPaymentCents: 1000 }])
+      await wrapper.get('#payoff-goal-month').setValue('2026-01')
+      await vi.runAllTimersAsync()
+      expect(wrapper.get('#goal-status').text()).toBe('')
+      expect(Number(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value)).toBeGreaterThan(0)
+      const preview = wrapper.emitted('preview')!.at(-1)![0] as { projection: { payoffDate: string } }
+      expect(preview.projection.payoffDate <= '2026-01-31').toBe(true)
+    } finally { vi.unstubAllGlobals() }
+  })
+
+  it('retries a worker loading error locally and restores the date after an invalid goal', async () => {
+    class BrokenWorker {
+      onerror?: (event: { preventDefault: () => void }) => void
+      terminate = vi.fn()
+      postMessage() { setTimeout(() => this.onerror?.({ preventDefault: vi.fn() }), 0) }
+    }
+    vi.stubGlobal('Worker', BrokenWorker)
+    try {
+      render([{ ...loan, monthlyPaymentCents: 1000 }])
+      const initial = wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value
+      const initialSlider = wrapper.get<HTMLInputElement>('.goal-slider').element.value
+      await wrapper.get('#payoff-goal-month').setValue('2024-12')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value).toBe(initial)
+      expect(wrapper.get<HTMLInputElement>('.goal-slider').element.value).toBe(initialSlider)
+      await wrapper.get('#payoff-goal-month').setValue('2026-01')
+      await vi.runAllTimersAsync()
+      expect(wrapper.get('#goal-status').text()).toBe('')
+      expect(wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value <= '2026-01').toBe(true)
+      expect(Number(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value)).toBeGreaterThan(0)
     } finally { vi.unstubAllGlobals() }
   })
 

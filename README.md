@@ -31,7 +31,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Per-loan inclusion toggles across totals, chart, and payment tools; all loans start included.
 - A baseline cost and payoff outlook followed by guided extra-payment options.
 - Live one-time, monthly, and combined previews with measured interest/time savings and a single shared balance chart.
-- Automatic allocation recommendations, optional explanations/comparisons, and freed-minimum rollover.
+- Automatic allocation recommendations, optional explanations/comparisons, and explicit monthly-extra budgeting.
 - Compact loan cards with always-visible monthly payment editing and actionable low-payment suggestions.
 - A unified impact summary, bounded unpaid curves, overpayment handling, and unavailable-estimate states.
 - Responsive layouts, keyboard focus, and reduced-motion support.
@@ -80,19 +80,19 @@ Complete payoff estimates rank ahead of incomplete ones. Among complete options,
 ## Extra monthly payments
 
 - The monthly amount is **one additional budget across the plan**, not an extra payment for every loan. It begins on the earliest entered next-payment date and recurs on that original day, clamped for shorter months (January 31 → February 28 → March 31).
-- Every loan still gets its minimum on its own entered due dates, unless already paid off. On a shared payment date the order is: one-time payment, all minimums due that day, then the extra/rollover pool.
-- Extra and freed budget follows the chosen strategy, covering interest before principal. A paid-off target passes the remainder to the next active loan on the same day.
-- A positive monthly increase enables rollover: the original minimum for a paid-off loan becomes available on each of that loan’s original monthly due dates. The unused portion of a final minimum also becomes available that same day. Minimums due on other dates are not spent early or skipped.
-- This maintains the starting minimum-payment budget plus the extra monthly amount as loans finish. Available cash follows the entered due dates; initial and final partial cycles can spend less. All actual payments are capped at amounts owed, with no unused final budget counted as spending or carried forward after all loans are paid off.
+- Every loan still gets its minimum on its own entered due dates, unless already paid off. On a shared payment date the order is: one-time payment, all minimums due that day, then the extra pool.
+- The entered extra budget follows the chosen strategy, covering interest before principal. A paid-off target passes the remainder to the next active loan on the same day.
+- The playground and date solver **do not automatically reuse paid-off loans’ minimums**. The extra amount stays exactly what was entered; once a loan finishes, its minimum stops. This avoids changing the repayment policy when moving from $0 extra to a small positive amount.
+- The low-level engine retains its rollover mode for explicit model comparisons (`rollFreedMinimums`); omitting that option preserves its existing default. The UI and goal solver explicitly pass `false`. All actual payments are capped at amounts owed.
 - **Minimum-only and one-time-only plans do not roll over payments.** With $0 extra monthly, the monthly plan exactly matches the baseline and the combined plan exactly matches one-time only; zero does not silently enable a rollover-only strategy.
-- The recommended one-time target receives the lump sum. Monthly payments still follow the recommended allocation method. Unused one-time overpayment is never redirected, including in the combined plan; recycling future minimums is a separate part of the monthly budget.
+- The recommended one-time target receives the lump sum. Monthly payments still follow the recommended allocation method. Unused one-time overpayment is never redirected, including in the combined plan; freed minimums are not silently added to the playground budget.
 - The comparison includes all applied payments in every total, not just the future scheduled minimums. A plan that never pays off within the model’s limit has no complete interest or payment total. Savings require both it and the baseline to have a complete payoff estimate.
 - Monthly/combined schedules are capped at 1,200 original monthly due slots per loan and 1,200 monthly-extra slots. If unpaid, they report the projection limit rather than infer an interest-coverage classification from irregular extra-payment rows.
 - These remain fixed-rate, simple-interest estimates, not servicer transactions.
 
 ## Strategies and projected milestones
 
-- **Highest rate first (avalanche)** directs extra monthly and freed minimum-payment money to the active loan with the highest nominal fixed rate. This is the engine default, but the recommendation compares both methods.
+- **Highest rate first (avalanche)** directs extra monthly money to the active loan with the highest nominal fixed rate. This is the engine default, but the recommendation compares both methods.
 - **Smallest balance first (snowball)** directs it to the active loan with the smallest current total balance, including unpaid interest and interest accrued through that payment date. Priorities are re-evaluated after all minimums due that day; they are not frozen to original loan sizes. A lump sum may also change the next target.
 - Equal-priority loans use stable loan IDs to break ties. Reordering the displayed loan records does not change the result.
 - Both approaches use the same budget, scheduled due dates, rollover policy, fixed one-time target, and applied lump sum. Strategy only changes monthly and combined plans with positive extra monthly money. Zero monthly extra still means no rollover and no strategy-dependent change to the baseline.
@@ -109,7 +109,7 @@ Complete payoff estimates rank ahead of incomplete ones. Among complete options,
 - Simple interest accrues on principal using `principal × annual rate × actual days / 365`, rounded to cents at each payment. Unpaid interest does not itself accrue interest or automatically become principal.
 - Payments cover unpaid accrued interest before principal. The final payment is capped at the balance owed.
 - The monthly payment remains fixed until payoff. Due dates stay anchored to the initial next-payment day, clamped for shorter months (January 31 → February 28 → March 31).
-- Minimum-only and one-time-only loans are simulated independently. Their combined monthly minimum falls as loans are paid off. Monthly/combined plans allocate a shared extra budget and roll freed minimums forward as described above.
+- Minimum-only and one-time-only loans are simulated independently. Their combined monthly minimum falls as loans are paid off. Monthly/combined playground plans allocate only the shared extra budget; scheduled minimums stop as loans are paid off.
 - Overall payoff is the last loan’s payoff date. Combined remaining interest and future payments are sums of complete individual projections, not an estimate based on an averaged rate. The displayed principal-weighted rate is informational only; if no principal remains, no combined rate is shown.
 - Combined schedules group actual payment dates. Between a loan’s due dates, its displayed balance includes simple interest since its previous payment or the common balance date, rounded consistently with the individual calculation.
 - **Remaining interest** includes unpaid interest at the balance date plus newly projected interest. **Total future payments** includes both principal and all remaining interest. Neither includes previously paid amounts.
@@ -153,8 +153,10 @@ There is no separate payoff timeline or repeated minimum-payment total above the
 
 The three controls form one playground: repayment costs above, sliders in the middle, and the balance curve below. Wide screens place all three sliders in one row; narrow screens keep the money controls side by side with the payoff goal underneath. Amount-slider ranges use the current loan balances/minimums, with a practical $5,000 initial ceiling for the one-time slider and room to expand when a larger exact amount is entered. Exact cent amounts remain available through the money fields.
 
-The goal slider and month picker target the end of the selected calendar month. The solver searches whole-dollar monthly extras against actual schedules, holding the one-time payment fixed. It checks supported allocation methods and one-time targets; the final recommendation must meet the goal before projected interest is minimized. The displayed month settles on the actual achieved payoff month. The goal controls only extra payments, never lowers saved minimums, and does not change the payment date.
+The goal slider and month picker target the end of the selected calendar month. The solver searches cent-accurate monthly extras against actual schedules, holding the one-time payment fixed. It checks supported allocation methods and one-time targets; the final recommendation must meet the goal before projected interest is minimized. The displayed month commits only after a successful calculation. A failed request restores the actual current month and slider position. The goal controls only extra payments, never lowers saved minimums, and does not change the payment date.
 
-Goal searches run in a debounced background worker. The last valid curve remains visible during calculation; changing an amount, changing included loans or leaving the screen cancels stale work. Impossible goals leave the current amounts intact and explain that a later month is needed. Returning the money fields to zero returns the goal to the baseline date (or no date for unpaid minimums). Loan-card allocation labels fit alongside the monthly input so new recommendations do not shift the chart.
+Goal searches run in a debounced background worker. If workers cannot load, the same search yields between schedule evaluations on the main thread; input changes still cancel it. The last valid curve remains visible during calculation; changing an amount, changing included loans or leaving the screen cancels stale work. Impossible goals leave the current amounts intact and explain that a later month is needed. Returning the money fields to zero returns the goal to the baseline date (or no date for unpaid minimums). Loan-card allocation labels fit alongside the monthly input so new recommendations do not shift the chart.
 
 The repayment bar and compact controls sit directly on the page background. Only the balance chart has a white card. Slider labels remain visible; the goal range dates and helper are omitted from the visible layout, while the date-control explanation remains available to assistive technology. Goal feedback sits beside **Debt-free by**: a spinner during calculation and a touch/keyboard-accessible details control for failures. Messages open over the page instead of reserving an empty row or moving the chart. All slider cards use a stronger blue surface.
+
+Regression checks reproduce the reported July 2052 baseline using the pictured balances/rates: $1 extra no longer activates a second rollover policy, and January 2051, June 2045, and March 2040 are each reachable with cent-accurate extras. The goal changes the planned extra above saved minimums; it never rewrites those minimums or fabricates an achieved date.
