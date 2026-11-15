@@ -56,12 +56,6 @@ async function chooseGoal(month: string) {
   <section id="extra-payment" class="simulator" aria-labelledby="extra-payment-heading">
     <div class="explore-heading"><h2 id="extra-payment-heading">Explore payments</h2></div>
     <form class="scenario-form" novalidate @submit.prevent="emit('submit')">
-      <div class="exploration-options">
-        <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ excluded: !card.enabled }">
-          <button class="payment-toggle" type="button" role="switch" :aria-label="card.kind === 'monthly' ? 'Include extra monthly payment' : 'Include one-time payment'" :aria-checked="card.enabled" :disabled="disabled" @click="toggle(card.id)"><span /></button>
-          <MoneyRuler :id="inputId(card.kind)" ref="rulers" :label="card.kind === 'monthly' ? 'Extra each month' : 'Pay once'" :value="card.amount" :disabled="disabled || !card.enabled" @change="changeAmount(card.id, $event)" />
-        </section>
-      </div>
       <section class="goal-control" :aria-busy="goalBusy">
         <DateRuler ref="dateRuler" :month="goalMonth" :anchor="goalAnchor" :max-months="goalMaxMonths" :busy="goalBusy" :status="goalStatus" :disabled="goalDisabled" @engage="stopMoney" @goal="chooseGoal">
           <div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div>
@@ -70,6 +64,12 @@ async function chooseGoal(month: string) {
         <p id="goal-help" class="sr-only">Swipe the date in one-month steps or choose a month to calculate the monthly extra needed once the date settles. This month uses a full one-time payoff and no monthly extra; other goals keep your one-time payment fixed.</p>
         <p id="goal-status" class="sr-only" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>
       </section>
+      <div class="exploration-options">
+        <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ excluded: !card.enabled }">
+          <button class="payment-toggle" type="button" role="switch" :aria-label="card.kind === 'monthly' ? 'Include extra monthly payment' : 'Include one-time payment'" :aria-checked="card.enabled" :disabled="disabled" @click="toggle(card.id)"><span /></button>
+          <MoneyRuler :id="inputId(card.kind)" ref="rulers" :label="card.kind === 'monthly' ? 'Extra each month' : 'Pay once'" :value="card.amount" :disabled="disabled || !card.enabled" @change="changeAmount(card.id, $event)" />
+        </section>
+      </div>
       <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
       <p v-if="hasChanges" class="date-warning" role="status">Invalid inputs aren’t applied; the chart and results still show your last valid comparison.</p>
     </form>
