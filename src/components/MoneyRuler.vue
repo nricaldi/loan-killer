@@ -46,4 +46,6 @@ label { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
 .amount-value input[aria-invalid='true'] { color: var(--danger); }
 
 .field-error { margin: 4px 0 0; color: var(--danger); font-size: 12px; }
+@media (any-pointer: coarse) { .value-navigation { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }
+.value-navigation button { width: 44px; height: 44px; min-height: 44px; } }
 </style>

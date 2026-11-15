@@ -67,11 +67,11 @@ function updatePayment(event: Event) {
 .loan-chip.hidden { opacity: 0.5; }
 .loan-chip.hidden:focus-within, .loan-chip.hidden:hover { opacity: 0.8; }
 .chip-name { grid-column: 1; grid-row: 1; min-width: 0; min-height: var(--size-touch-target); padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; }
-.loan-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-sm); font-weight: 600; color: var(--text-link); }
+.loan-name { display: block; white-space: normal; overflow-wrap: anywhere; font-size: var(--font-sm); font-weight: 600; color: var(--text-link); }
 .chip-facts { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--space-2); margin-top: var(--space-1); }
 .chip-balance strong { font-size: var(--font-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
 .chip-rate { font-size: var(--font-xs); color: var(--text-secondary); }
-.chip-payment { grid-column: 1; grid-row: 2; width: min(8rem, 100%); min-width: 0; margin-top: 8px; }
+.chip-payment { grid-column: 1; grid-row: 2; width: min(8rem, 100%); min-width: 0; margin-top: 4px; }
 label { display: block; font-size: var(--font-xs); color: var(--text-secondary); margin-bottom: var(--space-1); }
 .payment-input { position: relative; }
 .payment-input span { position: absolute; left: var(--space-2); top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: var(--font-xs); pointer-events: none; }
@@ -84,4 +84,9 @@ input.payment-warning, input[aria-invalid='true'] { border-color: var(--danger);
 .minimum-warning { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--space-2); color: var(--danger); font-size: var(--font-xs); }
 .suggest-payment { min-height: 2rem; padding: var(--space-1) 0; border: 0; background: transparent; color: var(--text-link); font-size: var(--font-xs); text-decoration: underline; text-underline-offset: 0.2em; }
 .field-error { margin: 0; color: var(--danger); font-size: var(--font-xs); line-height: 1.5; }
+@media (max-width: 37.5rem) {
+  .chip-name { grid-column: 1 / -1; }
+  .loan-chip :slotted(.loan-actions) { grid-row: 2; }
+  .loan-chip :slotted(.allocation-tags) { grid-column: 1 / -1; grid-row: 3; max-width: 100%; }
+}
 </style>

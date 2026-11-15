@@ -116,4 +116,6 @@ label { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
 .month-navigation button:hover:not(:disabled) { background: var(--border); }
 .date-ruler :deep(.number-strip.compact) { position: absolute; inset: 0; height: 100%; }
 @media (max-width: 599px) { .date-ruler { flex-wrap: wrap; justify-content: center; gap: 0; } .date-label { flex: 0 0 100%; } .month-navigation { max-width: 100%; } }
+@media (any-pointer: coarse) { .month-navigation button { width: 44px; height: 44px; min-height: 44px; flex-basis: 44px; }
+.month-window { max-width: calc(100% - 88px); } }
 </style>

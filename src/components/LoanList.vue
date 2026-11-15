@@ -144,5 +144,5 @@ li {
 
 .allocation-tags { display: flex; flex-direction: column; gap: 4px; max-width: 9rem; min-width: 0; font-size: 11px; line-height: 1.4; color: var(--text-link); }
 .allocation-tags span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 22rem) { .icon-button { width: 2rem; height: 2rem; } }
+
 </style>

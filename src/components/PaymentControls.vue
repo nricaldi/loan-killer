@@ -111,4 +111,5 @@ h2 { font-size: 16px; margin: 0; }
 }
 .scenario-form > .field-error, .scenario-form > .date-warning { grid-column: 1 / -1; }
 @media (prefers-reduced-motion: reduce) { .payment-toggle span { transition: none; } }
+@media (any-pointer: coarse) { .payment-toggle { height: 44px; top: 0; } .saving-card :deep(label) { display: flex; align-items: center; justify-content: center; min-height: 32px; } }
 </style>

@@ -134,9 +134,9 @@ function describe(projection: Projection, label: string, data: { date: string; b
 
 <style scoped>
 .balance-chart { margin: var(--space-4) 0 0; }
-.chart-heading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 12px; height: 44px; margin: 0 0 16px; }
+.chart-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-height: 44px; margin: 0 0 16px; }
 .chart-heading h3 { margin: 0; font-size: var(--font-sm); font-weight: 650; }
-.time-benefit { justify-self: end; padding: 6px 10px; border-radius: 20px; background: var(--savings-surface); color: var(--savings-text); font-size: 12px; line-height: 1.3; font-weight: 650; text-align: right; }
+.time-benefit { margin-left: auto; max-width: 100%; padding: 6px 10px; border-radius: 20px; background: var(--savings-surface); color: var(--savings-text); font-size: 12px; line-height: 1.3; font-weight: 650; text-align: right; }
 .time-benefit.neutral { background: var(--surface-muted); color: var(--text-secondary); }
 .time-benefit.later { color: var(--danger); background: var(--surface-muted); }
 .chart-body { display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: var(--space-3); height: 14rem; padding-right: var(--space-2); }

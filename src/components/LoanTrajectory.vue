@@ -43,10 +43,10 @@ const chartComparison = computed(() => props.comparison ? {
         <div class="repayment-track" :class="{ incomplete: !currentPaid }" role="img" :aria-label="currentPaid ? `Amount owed ${money(balanceCents)} including ${money(portfolio.accruedInterestCents)} accrued interest, future interest ${money(newInterestCents)}${interestSaved !== null ? `, ${money(Math.abs(interestSaved))} ${interestSaved >= 0 ? 'saved' : 'more to repay'} compared with minimums (${money(paidOffProjection!.totalPaymentsCents)} total)` : '. Baseline savings unavailable'}` : 'No complete repayment estimate. Try increasing the monthly payment.'">
           <template v-if="currentPaid"><span class="debt-segment" :style="{ width: `${debtPercent}%` }" /><span class="interest-segment" :class="{ empty: !newInterestCents }" :style="{ width: `${interestPercent}%` }" /><span class="saved-segment" :class="{ empty: !savedPercent }" :style="{ width: `${savedPercent}%` }" /></template>
         </div>
-        <div class="segment-labels">
+        <div class="segment-labels" :style="{ '--metric-width': `${Math.max(money(balanceCents).length, money(newInterestCents).length, money(Math.abs(interestSaved ?? 0)).length) + 2}ch` }">
           <div><span><i class="debt-key" />Amount owed</span><b data-testid="starting-balance">{{ money(balanceCents) }}</b></div>
           <div><span><i class="interest-key" />Future interest</span><b v-if="currentPaid" data-testid="remaining-interest">{{ money(newInterestCents) }}</b><b v-else>Not available</b></div>
-          <div :class="{ 'extra-cost': interestSaved !== null && interestSaved < 0 }"><span><i class="saved-key" />{{ interestSaved !== null && interestSaved < 0 ? 'Extra cost' : 'Saved' }}</span><b v-if="interestSaved !== null" data-testid="plan-interest-saved">{{ money(Math.abs(interestSaved)) }}<span class="sr-only"> {{ interestSaved >= 0 ? 'saved' : 'more interest' }}</span></b><b v-else>Not available</b></div>
+          <div :class="{ 'extra-cost': interestSaved !== null && interestSaved < 0, unavailable: interestSaved === null }"><span><i class="saved-key" />{{ interestSaved !== null && interestSaved < 0 ? 'Extra cost' : 'Saved' }}</span><b v-if="interestSaved !== null" data-testid="plan-interest-saved">{{ money(Math.abs(interestSaved)) }}<span class="sr-only"> {{ interestSaved >= 0 ? 'saved' : 'more interest' }}</span></b><b v-else>Not available</b></div>
         </div>
       </section>
     </div>
@@ -77,11 +77,14 @@ h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
 .segment-labels > :last-child b { color: var(--savings-text); }
 .segment-labels > .extra-cost b { color: var(--danger); }
 .extra-cost .saved-key { background: var(--danger); }
-.segment-labels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.segment-labels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8rem, var(--metric-width))), 1fr)); gap: 10px; margin-top: 12px; }
 .segment-labels > div { min-width: 0; }
 .segment-labels span { font-size: 12px; color: var(--text-secondary); }
 .segment-labels i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
-.segment-labels b { display: block; margin-top: 5px; font-size: var(--font-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-height: 2.8em; line-height: 1.4; }
+.segment-labels b { display: block; margin-top: 5px; font-size: var(--font-sm); font-variant-numeric: tabular-nums; overflow-wrap: normal; min-height: 2.8em; line-height: 1.4; }
+.segment-labels b[data-testid] { white-space: nowrap; }
+.segment-labels > .unavailable b { color: var(--text-secondary); }
+.unavailable .saved-key { background: var(--text-placeholder); }
 @media (prefers-reduced-motion: reduce) { .repayment-track > span { transition: none; } }
 .horizon-note { color: var(--text-muted); font-size: var(--font-sm); margin: var(--space-3) 0 0; }
 </style>
