@@ -86,7 +86,7 @@ h2 { font-size: 16px; margin: 0; }
 .goal-control { grid-column: 1 / -1; padding: 6px 12px; }
 .excluded :deep(.money-ruler) { opacity: .5; }
 .payment-toggle { position: absolute; z-index: 1; right: 8px; top: 2px; display: flex; align-items: center; width: 44px; height: 36px; padding: 9px 6px; border: 0; background: transparent; cursor: pointer; }
-.payment-toggle::before { content: ''; position: absolute; width: 32px; height: 18px; border-radius: 10px; background: var(--border-strong); }
+.payment-toggle::before { content: ''; position: absolute; width: 32px; height: 18px; border-radius: 10px; background: #858585; }
 .payment-toggle[aria-checked='true']::before { background: var(--text); }
 .payment-toggle span { position: relative; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); transform: translateX(3px); transition: transform 120ms ease; }
 .payment-toggle[aria-checked='true'] span { transform: translateX(17px); }

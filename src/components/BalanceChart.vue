@@ -157,7 +157,7 @@ svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; o
 .comparison-endpoint { border-color: var(--chart-line); background: var(--chart-line); }
 .date-labels { display: flex; justify-content: space-between; gap: var(--space-2); margin: var(--space-4) var(--space-2) 0 4rem; font-size: var(--font-xs); color: var(--text-muted); }
 figcaption { display: flex; align-items: center; gap: 16px; margin: 12px 0 0; color: var(--text-muted); font-size: 12px; }
-.legend-inactive { opacity: 0.45; }
+.legend-inactive .legend-line { opacity: 0.45; border-top-style: dashed; }
 figcaption > span { display: flex; align-items: center; gap: var(--space-2); }
 .legend-line { display: inline-block; width: 1.5rem; border-top: 2px dotted var(--text-placeholder); }
 .comparison-legend { border-top: 3px solid var(--chart-line); }
