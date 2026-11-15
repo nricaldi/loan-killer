@@ -41,14 +41,14 @@ function updatePayment(event: Event) {
 </script>
 
 <template>
-  <div class="loan-chip" :class="{ hidden }" :data-chip-id="loan.id">
+  <div class="loan-chip" :class="{ hidden, 'has-large-payment': amount.length >= 8 }" :data-chip-id="loan.id">
     <div class="chip-name" :title="loan.name">
       <span class="loan-name">{{ loan.name }}</span>
       <span class="chip-facts"><span class="chip-balance"><strong>{{ money(loan.principalCents + loan.accruedInterestCents) }}</strong></span><span class="chip-rate">{{ loan.annualRatePercent }}%</span></span>
       <span v-if="loan.fromExample" class="sr-only">From example</span>
     </div>
     <slot name="actions" />
-    <div class="chip-payment">
+    <div class="chip-payment" :class="{ 'large-payment': amount.length >= 8 }">
       <label class="sr-only" :for="`${id}-payment`">Min. / month</label>
       <div class="payment-input"><span aria-hidden="true">$</span><input :id="`${id}-payment`" v-zero-on-focus :value="amount" type="text" inputmode="decimal" :aria-label="`Monthly minimum for ${loan.name}`" :class="{ 'payment-warning': minimumWarning }" :aria-invalid="invalid" :aria-describedby="invalid ? `${id}-error` : minimumWarning ? `${id}-warning` : 'loan-payment-help'" @input="updatePayment" /><span class="per-month" aria-hidden="true">/mo</span></div>
     </div>
@@ -84,9 +84,13 @@ input.payment-warning, input[aria-invalid='true'] { border-color: var(--danger);
 .minimum-warning { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--space-2); color: var(--danger); font-size: var(--font-xs); }
 .suggest-payment { min-height: 2rem; padding: var(--space-1) 0; border: 0; background: transparent; color: var(--text-link); font-size: var(--font-xs); text-decoration: underline; text-underline-offset: 0.2em; }
 .field-error { margin: 0; color: var(--danger); font-size: var(--font-xs); line-height: 1.5; }
+.chip-payment.large-payment { grid-column: 1 / -1; grid-row: 2; width: min(16rem, 100%); }
+.has-large-payment :slotted(.allocation-tags) { grid-column: 1 / -1; grid-row: 3; max-width: 100%; }
 @media (max-width: 37.5rem) {
+  .chip-payment.large-payment { grid-row: 3; }
   .chip-name { grid-column: 1 / -1; }
   .loan-chip :slotted(.loan-actions) { grid-row: 2; }
   .loan-chip :slotted(.allocation-tags) { grid-column: 1 / -1; grid-row: 3; max-width: 100%; }
+  .has-large-payment :slotted(.allocation-tags) { grid-row: 4; }
 }
 </style>

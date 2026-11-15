@@ -50,6 +50,17 @@ describe('payment number ruler', () => {
     expect(wrapper.emitted('change')).toHaveLength(2)
   })
 
+  it('groups the idle presentation while keeping exact raw editing and unchanged cents', async () => {
+    const wrapper = render('1000000.25')
+    expect(wrapper.get('.idle-number').text()).toBe('1,000,000.25')
+    await wrapper.get('input').trigger('focus')
+    expect(wrapper.find('.idle-number').exists()).toBe(false)
+    expect(wrapper.get('input').element.value).toBe('1000000.25')
+    await wrapper.get('input').trigger('blur')
+    expect(wrapper.get('.idle-number').text()).toBe('1,000,000.25')
+    expect(wrapper.emitted('change')).toBeUndefined()
+  })
+
   it('accepts exact cents and clears to zero without a validation error', async () => {
     const wrapper = render()
     await wrapper.get('input').setValue('123.45')

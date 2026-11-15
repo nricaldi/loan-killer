@@ -7,11 +7,9 @@ export function money(cents: number): string {
   return currency.format(cents / 100)
 }
 
+const axisCurrency = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 export function chartMoney(cents: number): string {
-  if (cents >= 100_000) {
-    return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(cents / 100_000)}k`
-  }
-  return compactCurrency.format(cents / 100)
+  return cents >= 100_000 ? `$${axisCurrency.format(cents / 100).toLowerCase()}` : compactCurrency.format(cents / 100)
 }
 
 export function formatDate(value: string, monthOnly = false): string {

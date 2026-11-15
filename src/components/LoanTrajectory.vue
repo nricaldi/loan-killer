@@ -81,7 +81,7 @@ h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
 .segment-labels > div { min-width: 0; }
 .segment-labels span { font-size: 12px; color: var(--text-secondary); }
 .segment-labels i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
-.segment-labels b { display: block; margin-top: 5px; font-size: var(--font-sm); font-variant-numeric: tabular-nums; overflow-wrap: normal; min-height: 2.8em; line-height: 1.4; }
+.segment-labels b { display: block; margin-top: 5px; font-size: var(--font-sm); font-variant-numeric: tabular-nums; overflow-wrap: normal; min-height: 1.4em; line-height: 1.4; }
 .segment-labels b[data-testid] { white-space: nowrap; }
 .segment-labels > .unavailable b { color: var(--text-secondary); }
 .unavailable .saved-key { background: var(--text-placeholder); }
