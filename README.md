@@ -166,3 +166,5 @@ Current-month goals use a dedicated portfolio-wide payoff: principal, existing a
 Payment-card switches include or exclude each extra amount independently without deleting it. Excluded tools dim and keep their value; re-enabling restores it. Totals, the chart, allocations and payoff date reflect only enabled extras. The date is an outcome/goal control and has no inclusion switch; choosing a new date re-enables the monthly extra needed for that goal. Money −/+ buttons move between whole $5 notches.
 
 Money values use dedicated button columns and adaptive type sizing so supported exact amounts fit without clipping, with softly filled decrement/increment controls. The date retains its thin card: full month names slide continuously into and out of the value window beneath the arrow controls, without ticks. Clicking the date still opens exact native month editing.
+
+UI review outcomes, validation and coverage limits: [UI audit](UI-AUDIT.md).

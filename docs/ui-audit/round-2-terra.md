@@ -1,0 +1,30 @@
+# Loan Killer independent UI audit — 6110e54
+
+Overall: **7.5/10**. A cohesive and calm interface with clear financial hierarchy and improved narrow-screen behavior. The remaining issues are concentrated in extreme-value readability and mobile vertical efficiency. Scores are independent judgments, not a calculated average.
+
+| Exact category | Score | Evidence |
+|---|---:|---|
+| Visual hierarchy and scannability | 8 | Loan list, total, scenario controls and chart follow a clear progression; six long-name mobile cards push the outcome far down. |
+| Typography | 7 | Amounts and names are legible in ordinary states; extreme chart axis labels and a maximum-value input expose crowding. |
+| Spacing and alignment | 7 | Consistent card edges and grid; the chart axis and plot collide for very large supported balances. |
+| Density and breathing room | 7 | Comfortable controls and a notably thin date card; repeated mobile cards and metric row height create avoidable scrolling. |
+| Component consistency | 8 | Neutral surfaces, restrained semantic red/green and consistent controls; separate date and money cards retain the intended structure. |
+| Responsive and accessible interaction | 7 | No document overflow in measured scenarios; 44px coarse-pointer buttons and full names observed. Native touch, assistive technology and comprehensive keyboard behavior remain untested. |
+
+## Prioritized remaining findings
+
+1. **Medium: very large supported figures crowd the chart and payment field.** At 320px with one loan at $10,000,000 principal plus $10,000,000 accrued interest, the chart shows `$20,000k` touching its first plotted marker, and the $10,000,000 minimum payment field visually shows `10000000` without its cents. The total `$20,067,076.41` and individual metric values remain intact and correctly associated; the metric grid becomes three rows. Give the chart axis an adaptive width based on its longest formatted tick, or use a readable million-scale formatter such as `$20m`; preserve a minimum plot width. Allow the payment input more width or format its unfocused value with grouping and two decimals, retaining exact editable precision. Tradeoff: a wider input or axis uses horizontal space; switch layout at narrow widths rather than shrink text or touch targets. See `terra-round2-large-320.png`.
+2. **Low: six long-name mobile cards delay the results.** At 320px the list occupies roughly 660px before totals, and the 375px active case is a long scroll to the chart. Preserve full names, 44px targets and visible eye actions. Recover a few pixels from repeated card gaps or padding, and remove the reserved excess height below single-line metric values (`LoanTrajectory.vue`, `.segment-labels b` has `min-height: 2.8em`) where it is not needed; check unavailable and multi-line states. Tradeoff: savings are incremental, and aggressive compression would impair readability. See `terra-round2-six-320.png` and `terra-round2-active-375.png`.
+3. **Low: long chart badge is visually secondary but can take a separate header line at 320px.** The active 3y 10mo badge wraps below the title at 320px and fits alongside it at 375px; both remain readable. This is acceptable, but if reclaiming vertical space is a priority, allow the badge to occupy remaining space only when it fits, and preserve the existing wrap fallback. Do not reduce text size or truncate the time benefit. An extreme multi-decade badge was not independently generated, so its fit is unverified.
+
+The unpaid baseline correctly shows no complete estimate and a bounded 50-year projection; the normal scenario's baseline and plan share the same horizontal date extent in the observed chart. This is a visual inspection, not a mathematical proof. Zero savings is labeled `$0.00`, rather than implying positive savings. The intended neutral surfaces, red future interest, green actual savings, compact cards with eyes, tick-free date card above two separate $5 ruler cards, ± controls and switches are present. Avoid adding helper copy or nested cards.
+
+## Comparison with round 1 (consulted after independent assessment)
+
+- **Resolved in observed states:** currency metrics no longer split digits; six 80-character similarly prefixed names wrap and retain their distinguishing final character; chart title stays on one line without a badge; coarse-pointer measured buttons are at least 44 × 44 CSS pixels.
+- **Still relevant:** mobile results remain below a long six-card list; optimize modestly without compromising names or targets. Extreme currency/axis crowding above is a newly observed limit.
+- The previous report's 32–36px target finding concerned ordinary pointer sizes too; this audit measured the explicitly requested coarse-pointer configuration, so does not claim all fine-pointer targets are 44px.
+
+## Method and limits
+
+Verified HEAD `6110e547c8edf8617e702bc23743e07042514b76`. In isolated headless Chromium contexts with `hasTouch`, captured 320, 375, 768 and 1280 CSS pixels at 850px height: empty, one and six loans, add/edit dialogs, active $500 one-time plus $100/month, hidden loan and excluded one-time payment, unpaid baseline, and large supported totals. Names are 80 characters with identical prefixes and distinct suffixes. Clicked switches and eye, opened and dismissed dialogs. Measured coarse-pointer icon, switch and ±/date buttons, amount inputs and month window in the excluded state: no document overflow, no pairwise overlap among selected rectangles, and measured buttons at least 44 × 44 at each width. Date swipe handling deliberately covers the date card behind its controls, so simple rectangle exclusion cannot prove gesture routing; money swipe strips were not included in that pairwise selector. Swipe/drag, momentum, full keyboard traversal, screen readers, contrast, extreme badge, and native devices were not exercised. Contexts were closed. Host fonts and synthetic data may differ from real devices. Full captures and measurements use the `terra-round2-` prefix; script: `/tmp/loan-killer-audit/terra-round2-audit.cjs`.
