@@ -29,14 +29,15 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('#extra-monthly-amount').exists()).toBe(true)
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
     expect(wrapper.find('.plan-comparison').exists()).toBe(false)
-    expect(wrapper.findAll('input[type="range"]')).toHaveLength(3)
+    expect(wrapper.findAll('[role="slider"]')).toHaveLength(2)
+    expect(wrapper.find('input[type="range"]').exists()).toBe(false)
   })
 
   it('opens and focuses the chosen control and supports quick amounts', async () => {
     render()
     wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.focus()
     expect(wrapper.find('#extra-payment-amount').exists()).toBe(true)
-    await wrapper.get('[aria-label="Extra monthly payment slider"]').setValue('25')
+    for (let step = 0; step < 5; step++) await wrapper.get('[aria-label="Extra each month ruler"]').trigger('keydown', { key: 'ArrowRight' })
     expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('25')
     expect(wrapper.get('.payment-summary h3').text()).toBe('With $25.00 extra each month')
   })
@@ -218,7 +219,7 @@ describe('guided payment exploration', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     await oneTime('100')
     await monthly('50')
-    expect(wrapper.get<HTMLInputElement>('[aria-label="Extra monthly payment slider"]').element.value).toBe('50')
+    expect(wrapper.get('[aria-label="Extra each month ruler"]').attributes('aria-valuenow')).toBe('50')
     const recurring = wrapper.get<HTMLInputElement>('#extra-monthly-amount')
     await recurring.setValue('')
     expect(recurring.attributes('aria-invalid')).toBe('false')
@@ -244,7 +245,7 @@ describe('guided payment exploration', () => {
     const preview = wrapper.emitted('preview')!.at(-1)![0] as { projection: { status: string; payoffDate: string } }
     expect(preview.projection.status).toBe('paid-off')
     expect(preview.projection.payoffDate <= '2026-01-31').toBe(true)
-    await wrapper.get('[aria-label="Debt-free date slider"]').setValue('6')
+    await wrapper.get('[aria-label="Pay off one month earlier"]').trigger('click')
     await wrapper.get('#extra-payment-amount').setValue('0')
     await wrapper.get('#extra-monthly-amount').setValue('0')
     await vi.advanceTimersByTimeAsync(200)
@@ -316,11 +317,9 @@ describe('guided payment exploration', () => {
     try {
       render([{ ...loan, monthlyPaymentCents: 1000 }])
       const initial = wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value
-      const initialSlider = wrapper.get<HTMLInputElement>('.goal-slider').element.value
       await wrapper.get('#payoff-goal-month').setValue('2024-12')
       await wrapper.vm.$nextTick()
       expect(wrapper.get<HTMLInputElement>('#payoff-goal-month').element.value).toBe(initial)
-      expect(wrapper.get<HTMLInputElement>('.goal-slider').element.value).toBe(initialSlider)
       await wrapper.get('#payoff-goal-month').setValue('2026-01')
       await vi.runAllTimersAsync()
       expect(wrapper.get('#goal-status').text()).toBe('')

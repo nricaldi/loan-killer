@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { vZeroOnFocus } from '../directives/zeroOnFocus'
+import MoneyRuler from './MoneyRuler.vue'
 import { parseMoney } from '../domain/loanForm'
 import { addMonths } from '../domain/dates'
-import { formatDate, money } from '../format'
 
 const props = defineProps<{
   cards: { id: number; kind: 'monthly' | 'one-time'; amount: string }[]
@@ -26,28 +25,19 @@ const emit = defineEmits<{
 }>()
 const parseAmount = (value: string) => value.trim() === '' ? 0 : parseMoney(value)
 const inputId = (kind: 'monthly' | 'one-time') => kind === 'monthly' ? 'extra-monthly-amount' : 'extra-payment-amount'
-function rangeMax(card: typeof props.cards[number]) {
-  const suggested = card.kind === 'one-time' ? Math.min(5000, Math.ceil(props.balanceCents / 10000) * 100)
-    : Math.max(500, Math.ceil(Math.max(props.minimumCents * 2, props.balanceCents / 24) / 5000) * 50)
-  return Math.min(10_000_000, Math.max(100, suggested, Math.ceil((parseAmount(card.amount) ?? 0) / 100)))
-}
 const monthInput = ref<HTMLInputElement | null>(null)
-const goalInput = ref<HTMLInputElement | null>(null)
-const goalValue = computed(() => {
-  if (!props.goalMonth) return Math.min(120, props.goalMaxMonths)
-  const [year, month] = props.goalMonth.split('-').map(Number)
-  const [startYear, startMonth] = props.goalAnchor.split('-').map(Number)
-  return Math.max(0, Math.min(props.goalMaxMonths, (year! - startYear!) * 12 + month! - startMonth!))
-})
+const earliestMonth = computed(() => props.goalAnchor.slice(0, 7))
+const latestMonth = computed(() => addMonths(props.goalAnchor, props.goalMaxMonths).slice(0, 7))
+function stepGoal(direction: number) {
+  if (props.goalDisabled || props.goalBusy || !props.goalMonth) return
+  const next = addMonths(`${props.goalMonth}-01`, direction).slice(0, 7)
+  if (next >= earliestMonth.value && next <= latestMonth.value) emit('goal', next)
+}
 watch([() => props.goalBusy, () => props.goalStatus, () => props.goalMonth], async () => {
   if (props.goalBusy) return
   await nextTick()
   if (monthInput.value) monthInput.value.value = props.goalMonth
-  if (goalInput.value) goalInput.value.value = String(goalValue.value)
 })
-function changeGoal(event: Event) {
-  emit('goal', addMonths(props.goalAnchor, Number((event.target as HTMLInputElement).value)).slice(0, 7))
-}
 </script>
 
 <template>
@@ -56,18 +46,13 @@ function changeGoal(event: Event) {
     <form class="scenario-form" novalidate @submit.prevent="emit('submit')">
       <div class="exploration-options">
         <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ active: (parseAmount(card.amount) ?? 0) > 0 }">
-          <div class="card-heading"><label :for="inputId(card.kind)">{{ card.kind === 'monthly' ? 'Extra each month' : 'Pay once' }}</label></div>
-          <div class="amount-input"><span aria-hidden="true">$</span><input :id="inputId(card.kind)" v-zero-on-focus :value="card.amount" :disabled="disabled" type="text" inputmode="decimal" :aria-invalid="parseAmount(card.amount) === null" :aria-describedby="parseAmount(card.amount) === null ? `card-error-${card.id}` : undefined" @input="emit('amount', card.id, ($event.target as HTMLInputElement).value)" @blur="card.amount.trim() === '' && emit('amount', card.id, '0')" /></div>
-          <input class="money-slider" type="range" min="0" :max="rangeMax(card)" step="0.01" :value="Math.min(rangeMax(card), (parseAmount(card.amount) ?? 0) / 100)" :disabled="disabled" :aria-label="card.kind === 'monthly' ? 'Extra monthly payment slider' : 'One-time payment slider'" :aria-valuetext="money(parseAmount(card.amount) ?? 0)" @input="emit('amount', card.id, String(($event.target as HTMLInputElement).value))" />
-          <div class="range-ends" aria-hidden="true"><span>$0</span><span>{{ `$${rangeMax(card).toLocaleString('en-US')}` }}</span></div>
-          <p v-if="parseAmount(card.amount) === null" :id="`card-error-${card.id}`" class="field-error">Enter a valid amount with up to two decimal places.</p>
+          <MoneyRuler :id="inputId(card.kind)" :label="card.kind === 'monthly' ? 'Extra each month' : 'Pay once'" :value="card.amount" :disabled="disabled" @change="emit('amount', card.id, $event)" />
         </section>
       </div>
       <section class="goal-control" :aria-busy="goalBusy">
-        <div class="goal-heading"><div class="goal-label"><label for="payoff-goal-month">Debt-free by</label><div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div></div><input id="payoff-goal-month" ref="monthInput" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @change="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
-        <input ref="goalInput" class="goal-slider" type="range" min="0" :max="goalMaxMonths" step="1" :value="goalValue" :disabled="goalDisabled" aria-label="Debt-free date slider" :aria-valuetext="goalMonth ? formatDate(`${goalMonth}-01`, true) : 'Choose a payoff goal'" aria-describedby="goal-help goal-status" @input="changeGoal" />
+        <div class="goal-heading"><div class="goal-label"><label for="payoff-goal-month">Debt-free by</label><div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div></div><div class="month-navigation"><button type="button" aria-label="Pay off one month earlier" :disabled="goalDisabled || goalBusy || !goalMonth || goalMonth <= earliestMonth" @click="stepGoal(-1)">‹</button><input id="payoff-goal-month" ref="monthInput" type="month" :value="goalMonth" :min="earliestMonth" :max="latestMonth" :disabled="goalDisabled" aria-describedby="goal-help goal-status" @change="emit('goal', ($event.target as HTMLInputElement).value)" /><button type="button" aria-label="Pay off one month later" :disabled="goalDisabled || goalBusy || !goalMonth || goalMonth >= latestMonth" @click="stepGoal(1)">›</button></div></div>
 
-        <p id="goal-help" class="sr-only">Move the date to calculate the monthly extra needed. This month uses a full one-time payoff and no monthly extra; other goals keep your one-time payment fixed.</p>
+        <p id="goal-help" class="sr-only">Change the date to calculate the monthly extra needed. This month uses a full one-time payoff and no monthly extra; other goals keep your one-time payment fixed.</p>
         <p id="goal-status" class="sr-only" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>
       </section>
       <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
@@ -84,16 +69,13 @@ h2 { font-size: 16px; margin: 0; }
 .exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
 .saving-card { min-width: 0; }
 .saving-card:first-child { padding-right: 12px; border-right: 1px solid var(--border); }
-.card-heading { margin-bottom: 6px; min-height: 20px; display: flex; align-items: center; }
-label { font-size: 12px; font-weight: 650; }
-.amount-input { position: relative; }
-.amount-input > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
-.amount-input input { width: 100%; min-width: 0; min-height: 44px; padding: 8px 8px 8px 26px; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: inherit; font-size: 18px; font-weight: 650; }
-input[aria-invalid='true'] { border-color: var(--danger); }
-input[type='range'] { display: block; width: 100%; height: 44px; margin: 0; padding: 0; accent-color: var(--chart-line); cursor: pointer; }
-.range-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-secondary); }
-.goal-control { min-width: 0; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.goal-heading input { width: 10rem; max-width: 62%; min-width: 0; min-height: 44px; padding: 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font: inherit; font-size: 14px; }
+.goal-control { min-width: 0; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+.goal-heading { flex-wrap: wrap; gap: 4px; }
+.goal-label label { font-size: 12px; font-weight: 650; }
+.month-navigation { display: flex; align-items: center; min-width: 0; }
+.month-navigation button { width: 32px; min-height: 44px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); font-size: 22px; }
+.month-navigation button:disabled { opacity: .3; cursor: default; }
+.month-navigation input { width: 10rem; min-width: 0; min-height: 44px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 650; }
 .date-warning { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0 0; }
 .goal-label { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .goal-feedback-slot { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: 0 0 32px; }
@@ -105,10 +87,15 @@ input[type='range'] { display: block; width: 100%; height: 44px; margin: 0; padd
 @keyframes goal-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .goal-spinner { animation: none; } }
 .field-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; }
+@media (max-width: 39.99rem) {
+  .exploration-options { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .saving-card:first-child { padding-right: 0; border-right: 0; }
+  .saving-card + .saving-card { border-top: 1px solid var(--border); padding-top: 10px; }
+}
 @media (min-width: 64rem) {
   .scenario-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .exploration-options { display: contents; }
-  .goal-control { margin-top: 0; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--border); }
+  .goal-control { display: flex; flex-direction: column; justify-content: center; margin-top: 0; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--border); }
   .scenario-form > .field-error, .scenario-form > .date-warning { grid-column: 1 / -1; }
 }
 </style>

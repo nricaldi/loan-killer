@@ -557,7 +557,7 @@ describe('guided payoff flow', () => {
     const date = wrapper.get('[data-testid="payoff-date"]').text()
     await wrapper.get('#extra-monthly-amount').trigger('focus')
     expect(wrapper.find('.payment-summary').exists()).toBe(false)
-    await wrapper.get('[aria-label="Extra monthly payment slider"]').setValue('25')
+    for (let step = 0; step < 5; step++) await wrapper.get('[aria-label="Extra each month ruler"]').trigger('keydown', { key: 'ArrowRight' })
     expect(wrapper.find('.payment-summary').exists()).toBe(true)
     expect(wrapper.findAll('figure')).toHaveLength(1)
     expect(wrapper.find('.comparison-line').exists()).toBe(true)
