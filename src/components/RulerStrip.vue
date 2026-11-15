@@ -200,7 +200,7 @@ onMounted(() => {
   window.addEventListener('blur', stop)
   document.addEventListener('visibilitychange', stop)
 })
-defineExpose({ stop, cancel, nudge, selected, moving, start, move, finish, cancelGesture })
+defineExpose({ stop, cancel, nudge, selected, moving, position, start, move, finish, cancelGesture })
 onBeforeUnmount(() => {
   cancelMotion()
   releaseCapture()
