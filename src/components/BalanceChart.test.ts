@@ -43,7 +43,8 @@ describe('payoff comparison chart', () => {
     expect(wrapper.get('.payoff-label').attributes('style')).toContain('75%')
     expect(wrapper.find('.time-saved-range').exists()).toBe(false)
     expect(wrapper.get('desc').text()).toContain('May 1, 2025')
-    expect(wrapper.get('[data-testid="plan-time-saved"]').text()).toBe('1 month sooner')
+    expect(wrapper.get('.chart-heading [data-testid="plan-time-saved"]').text()).toBe('1 month sooner')
+    expect(wrapper.find('.chart-heading .time-benefit').exists()).toBe(true)
     wrapper.unmount()
   })
 

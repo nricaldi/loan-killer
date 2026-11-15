@@ -60,4 +60,15 @@ describe('linked payoff-month goals', () => {
     }
   })
 
+  it('solves the current month by paying every loan today, with accrued interest and no monthly extra', () => {
+    const records = [loan, { ...loan, id: 'b', principalCents: 50000, annualRatePercent: 12, nextPaymentDate: '2025-02-20' }]
+    const saved = structuredClone(records)
+    const result = monthlyExtraForGoal(records, { date: '2025-01-15', goalMonth: '2025-01', oneTimeCents: 0 })!
+    expect(result.extraMonthlyCents).toBe(0)
+    expect(result.payoffDate).toBe('2025-01-15')
+    expect(result.oneTimeCents).toBe(155460)
+    expect(monthlyExtraForGoal(records, { date: '2025-01-15', goalMonth: '2027-01', oneTimeCents: result.oneTimeCents! })?.oneTimeCents).toBe(result.oneTimeCents)
+    expect(records).toEqual(saved)
+  })
+
 })

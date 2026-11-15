@@ -73,6 +73,9 @@ const timeBenefit = computed(() => {
   if (payoff.value === baselinePayoff.value) return 'Same payoff date'
   return `${dateDistance(payoff.value, baselinePayoff.value)} ${payoff.value < baselinePayoff.value ? 'sooner' : 'later'}`
 })
+const timeBenefitLabel = computed(() => timeBenefit.value.length > 24
+  ? timeBenefit.value.replace(/(\d+) years?/g, '$1y').replace(/(\d+) months?/g, '$1mo').replace(/(\d+) days?/g, '$1d').replaceAll(',', '')
+  : timeBenefit.value)
 function describe(projection: Projection, label: string, data: { date: string; balanceCents: number }[]) {
   if (projection.status === 'paid-off') return `${label} reaches zero on ${formatDate(projection.payoffDate)}.`
   const last = data.at(-1)
@@ -82,7 +85,7 @@ function describe(projection: Projection, label: string, data: { date: string; b
 
 <template>
   <figure class="balance-chart" :class="{ unpaid: projection.status !== 'paid-off' }">
-    <h3 class="chart-heading">Balance over time</h3>
+    <div class="chart-heading"><h3>Balance over time</h3><span v-if="timeBenefit" class="time-benefit" :title="timeBenefit" :aria-label="timeBenefit" :class="{ neutral: payoff === baselinePayoff, later: payoff && baselinePayoff && payoff > baselinePayoff }" data-testid="plan-time-saved">{{ timeBenefitLabel }}</span></div>
     <div class="chart-body">
       <div class="y-labels" aria-hidden="true">
         <span v-for="tick in ticks" :key="tick.fraction">{{ tick.label }}</span>
@@ -112,8 +115,7 @@ function describe(projection: Projection, label: string, data: { date: string; b
         <span v-if="comparisonCoordinates.at(-1)" class="endpoint comparison-endpoint" aria-hidden="true" :style="{ left: `${(comparisonCoordinates.at(-1)?.x ?? 0) / width * 100}%`, top: `${(comparisonCoordinates.at(-1)?.y ?? 0) / height * 100}%` }" />
         <div class="payoff-result" aria-live="polite">
           <p v-if="payoff && !payoffInView">Debt-free <strong data-testid="payoff-date">{{ formatDate(payoff) }}</strong> · beyond this chart</p>
-          <p v-if="timeBenefit" data-testid="plan-time-saved">{{ timeBenefit }}</p>
-          <p v-else-if="!payoff">No payoff date yet</p>
+          <p v-if="!payoff">No payoff date yet</p>
         </div>
         <div v-if="payoffInView" class="payoff-label" :style="{ '--payoff-position': `${payoffPercent}%` }"><span class="sr-only">Debt-free date: </span><strong data-testid="payoff-date">{{ formatDate(payoff!) }}</strong></div>
       </div>
@@ -132,7 +134,11 @@ function describe(projection: Projection, label: string, data: { date: string; b
 
 <style scoped>
 .balance-chart { margin: var(--space-4) 0 0; }
-.chart-heading { margin: 0 0 20px; font-size: var(--font-sm); font-weight: 650; }
+.chart-heading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 12px; height: 44px; margin: 0 0 16px; }
+.chart-heading h3 { margin: 0; font-size: var(--font-sm); font-weight: 650; }
+.time-benefit { justify-self: end; padding: 6px 10px; border-radius: 20px; background: var(--savings-surface); color: var(--savings-text); font-size: 12px; line-height: 1.3; font-weight: 650; text-align: right; }
+.time-benefit.neutral { background: var(--surface-muted); color: var(--text-secondary); }
+.time-benefit.later { color: var(--danger); background: var(--surface-muted); }
 .chart-body { display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: var(--space-3); height: 14rem; padding-right: var(--space-2); }
 .y-labels { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-muted); font-size: var(--font-xs); line-height: 1; margin-block: -0.375rem; }
 .plot { position: relative; min-width: 0; min-height: 0; }

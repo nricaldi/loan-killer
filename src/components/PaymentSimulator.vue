@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { today } from '../domain/dates'
 import { parseMoney } from '../domain/loanForm'
+import { payoffToday } from '../domain/payoffToday'
 import { oneTimePaymentAvailability } from '../domain/oneTimePayment'
 import type { ExtraScenarioId } from '../domain/paymentScenarios'
 import { projectPortfolio, type LoanRecord, type PortfolioProjection } from '../domain/portfolio'
@@ -30,6 +31,8 @@ const paymentDate = ref(today())
 const errors = ref<{ amount?: string; monthly?: string; general?: string }>({})
 const selected = ref<ExtraScenarioId>('one-time')
 const recommendations = shallowRef<PaymentRecommendations | null>(null)
+const fullPayoffMode = ref(false)
+const fullPayoff = shallowRef<(ReturnType<typeof payoffToday> & { requestedOneTimeCents: number; requestedMonthlyCents: number }) | null>(null)
 const activeRecommendation = computed(() => recommendations.value?.plans[selected.value])
 const result = computed(() => activeRecommendation.value?.result ?? null)
 const comparisonResult = computed(() => result.value ? {
@@ -41,7 +44,9 @@ const comparisonResult = computed(() => result.value ? {
 } : null)
 const unavailable = computed(() => oneTimePaymentAvailability(props.loans, paymentDate.value))
 const enteredMonthlyCents = computed(() => parseMoney(monthlyAmount.value))
-const hasChanges = computed(() => result.value !== null && (
+const hasChanges = computed(() => fullPayoff.value
+  ? parseMoney(amount.value) !== fullPayoff.value.requestedOneTimeCents || enteredMonthlyCents.value !== fullPayoff.value.requestedMonthlyCents
+  : result.value !== null && (
   parseMoney(amount.value) !== result.value.request.oneTimeCents
   || enteredMonthlyCents.value !== result.value.request.extraMonthlyCents
 ))
@@ -54,11 +59,12 @@ const chartLabel = computed(() => {
 
 watch([() => props.loans, amount, monthlyAmount], ([loans], [previousLoans]) => {
   if (loans !== previousLoans || !applyingGoal) cancelGoal()
-  if (loans !== previousLoans) recommendations.value = null
+  if (loans !== previousLoans) { recommendations.value = null; fullPayoffMode.value = false; fullPayoff.value = null }
   void compare(false)
 })
-watch([result, selected], () => emit('preview', selectedPlan.value?.portfolio ?? null, chartLabel.value))
+watch([result, selected, fullPayoff], () => emit('preview', fullPayoff.value?.portfolio ?? selectedPlan.value?.portfolio ?? null, fullPayoff.value ? 'With full payoff today' : chartLabel.value))
 const allocations = computed(() => {
+  if (fullPayoff.value) return fullPayoff.value.allocations.map(item => ({ loanId: item.loanId, oneTimeCents: item.amountCents, monthlyCents: 0 }))
   const recommendation = activeRecommendation.value
   if (!recommendation) return []
   const items = new Map<string, { loanId: string; monthlyCents: number; oneTimeCents: number }>()
@@ -92,7 +98,7 @@ const goalMaxMonths = computed(() => {
   const baseline = baselinePortfolio.value?.projection
   return Math.min(1200, Math.max(12, baseline?.status === 'paid-off' ? monthDistance(goalAnchor.value, baseline.payoffDate) : 600))
 })
-const actualPayoff = computed(() => selectedPlan.value?.portfolio.projection ?? baselinePortfolio.value?.projection)
+const actualPayoff = computed(() => fullPayoff.value?.portfolio.projection ?? selectedPlan.value?.portfolio.projection ?? baselinePortfolio.value?.projection)
 const displayedGoalMonth = computed(() => goalMonth.value || (actualPayoff.value?.status === 'paid-off' ? actualPayoff.value.payoffDate.slice(0, 7) : ''))
 function cancelGoal(clearMonth = true) {
   goalGeneration++
@@ -106,7 +112,9 @@ function cancelGoal(clearMonth = true) {
 function updateAmount(id: number, value: string) {
   cancelGoal()
   const card = cards.value.find(card => card.id === id)
-  if (card) card.amount = value
+  if (card) {
+    card.amount = value
+  }
 }
 function setGoal(month: string) {
   cancelGoal()
@@ -130,13 +138,18 @@ function setGoal(month: string) {
       goalStatus.value = message.error ?? 'This date cannot be reached with the entered payment dates. Try a later month.'
       return
     }
+    if (request.date !== today()) { setGoal(month); return }
     applyingGoal = true
+    fullPayoffMode.value = message.result.oneTimeCents !== undefined
+    const lump = cards.value.find(card => card.kind === 'one-time')!
+    const lumpUnchanged = message.result.oneTimeCents === undefined || parseExtraAmount(lump.amount) === message.result.oneTimeCents
+    if (message.result.oneTimeCents !== undefined) lump.amount = (message.result.oneTimeCents / 100).toFixed(2)
     goalMonth.value = message.result.payoffDate.slice(0, 7)
     const monthly = cards.value.find(card => card.kind === 'monthly')!
     const unchanged = parseExtraAmount(monthly.amount) === message.result.extraMonthlyCents
     monthly.amount = (message.result.extraMonthlyCents / 100).toFixed(2)
     // Even an unchanged amount can select a different goal-compatible allocation.
-    if (unchanged) await compare(false)
+    if (unchanged && lumpUnchanged) await compare(false)
     await nextTick()
     applyingGoal = false
   }
@@ -208,6 +221,17 @@ async function compare(focusErrors = true) {
     firstError?.focus()
     return
   }
+  if (fullPayoffMode.value) {
+    const quote = payoffToday(props.loans, paymentDate.value)
+    if (oneTimeCents >= quote.totalCents) {
+      fullPayoff.value = { ...quote, requestedOneTimeCents: oneTimeCents, requestedMonthlyCents: extraMonthlyCents }
+      recommendations.value = null
+      selected.value = 'one-time'
+      return
+    }
+    fullPayoffMode.value = false
+  }
+  fullPayoff.value = null
   if (oneTimeCents === 0 && extraMonthlyCents === 0) {
     recommendations.value = null
     return
@@ -221,6 +245,12 @@ async function compare(focusErrors = true) {
 <template>
   <div class="payment-workspace">
     <slot :controls="controlBindings"><PaymentControls v-bind="controlBindings" /></slot>
+    <section v-if="fullPayoff" class="payment-summary impact-area" aria-live="polite">
+      <h3 class="full-payoff-heading">Pay <strong>{{ money(fullPayoff.totalCents) }}</strong> across {{ loans.length === 1 ? 'your loan' : 'all included loans' }} today</h3>
+      <p v-if="fullPayoff.requestedOneTimeCents > fullPayoff.totalCents" class="full-payoff-note">{{ money(fullPayoff.requestedOneTimeCents - fullPayoff.totalCents) }} unused.</p>
+      <p v-if="fullPayoff.requestedMonthlyCents > 0" class="full-payoff-note">No recurring payments are needed after this payoff.</p>
+      <details class="full-payoff-details"><summary>Payment allocation</summary><p v-for="item in fullPayoff.allocations" :key="item.loanId">{{ item.loanName }}: <strong>{{ money(item.amountCents) }}</strong></p></details>
+    </section>
     <div v-if="result" class="impact-area">
       <PaymentPlanSummary :result="result" :selected="selected" details-only hide-reset>
         <p v-if="activeRecommendation?.firstMonthlyPayments.length" class="monthly-recommendation">First extra payment: <span v-for="(payment, index) in activeRecommendation.firstMonthlyPayments" :key="payment.loanId">{{ index ? '; ' : '' }}<strong>{{ money(payment.amountCents) }} to {{ payment.loanName }}</strong></span>.</p>
@@ -239,6 +269,9 @@ async function compare(focusErrors = true) {
 
 <style scoped>
 .payment-workspace { min-width: 0; }
+.full-payoff-heading { font-size: var(--font-sm); font-weight: 400; color: var(--text-secondary); }
+.full-payoff-heading strong { color: var(--text); }
+.full-payoff-note, .full-payoff-details p { font-size: var(--font-sm); color: var(--text-secondary); }
 .impact-area { margin-top: var(--space-4); }
 .tradeoff { font-size: var(--font-sm); line-height: 1.5; color: var(--text-secondary); }
 .chart-link { display: inline-block; padding-block: var(--space-3); color: var(--text-link); font-size: var(--font-sm); }

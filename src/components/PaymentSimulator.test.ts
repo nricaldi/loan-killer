@@ -329,4 +329,30 @@ describe('guided payment exploration', () => {
     } finally { vi.unstubAllGlobals() }
   })
 
+  it('fills a portfolio-wide one-time payoff and zero monthly extra for the current month', async () => {
+    render([loan, other])
+    const saved = structuredClone([loan, other])
+    await monthly('100')
+    await wrapper.get('#payoff-goal-month').setValue('2025-01')
+    await vi.runAllTimersAsync()
+    expect(wrapper.get('#goal-status').text()).toBe('')
+    expect(wrapper.get<HTMLInputElement>('#extra-payment-amount').element.value).toBe('1525.00')
+    expect(wrapper.get<HTMLInputElement>('#extra-monthly-amount').element.value).toBe('0.00')
+    const preview = wrapper.emitted('preview')!.at(-1)![0] as { projection: { status: string; payoffDate: string; totalPaymentsCents: number } }
+    expect(preview.projection).toMatchObject({ status: 'paid-off', payoffDate: '2025-01-01', totalPaymentsCents: 152500 })
+    expect(wrapper.emitted('allocations')!.at(-1)![0]).toEqual([{ loanId: loan.id, oneTimeCents: 102500, monthlyCents: 0 }, { loanId: other.id, oneTimeCents: 50000, monthlyCents: 0 }])
+    expect(wrapper.get('.payment-summary').text()).toContain('all included loans today')
+    expect(wrapper.find('.payment-summary').text()).not.toContain('unused')
+    expect([loan, other]).toEqual(saved)
+    await wrapper.get('#extra-payment-amount').setValue('bad')
+    expect(wrapper.emitted('preview')!.at(-1)![0]).toEqual(preview)
+    expect(wrapper.get('.date-warning').text()).toContain('last valid comparison')
+    await wrapper.get('#extra-payment-amount').setValue('1600')
+    expect(wrapper.get('.payment-summary').text()).toContain('$75.00 unused')
+    await monthly('1')
+    expect(wrapper.get('.payment-summary').text()).toContain('No recurring payments are needed')
+    await wrapper.get('#extra-payment-amount').setValue('100')
+    expect(wrapper.get('.payment-summary').text()).not.toContain('all included loans today')
+  })
+
 })

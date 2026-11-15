@@ -1,5 +1,6 @@
 import { addMonths, parseDate } from './dates'
 import { oneTimePaymentAvailability } from './oneTimePayment'
+import { payoffToday } from './payoffToday'
 import { recommendPayments } from './paymentRecommendations'
 import { projectPortfolio, type LoanRecord } from './portfolio'
 
@@ -19,11 +20,21 @@ export function goalMonthEnd(month: string): string {
 
 // Yield after each schedule evaluation so a worker failure can use the same
 // search cooperatively on the main thread, without one long blocking task.
-export function* payoffGoalSearch(loans: readonly LoanRecord[], request: PayoffGoalRequest): Generator<void, { extraMonthlyCents: number; payoffDate: string } | null> {
+export function* payoffGoalSearch(loans: readonly LoanRecord[], request: PayoffGoalRequest): Generator<void, { extraMonthlyCents: number; payoffDate: string; oneTimeCents?: number } | null> {
   const deadline = goalMonthEnd(request.goalMonth)
   if (!loans.length || deadline < request.date) return null
   const unavailable = oneTimePaymentAvailability(loans, request.date)
   if (unavailable) throw new Error(unavailable)
+  if (request.goalMonth === request.date.slice(0, 7)) {
+    const quote = payoffToday(loans, request.date)
+    return { extraMonthlyCents: 0, payoffDate: request.date, oneTimeCents: quote.totalCents }
+  }
+  if (request.oneTimeCents > 0) {
+    try {
+      const quote = payoffToday(loans, request.date)
+      if (request.oneTimeCents >= quote.totalCents) return { extraMonthlyCents: 0, payoffDate: request.date, oneTimeCents: request.oneTimeCents }
+    } catch { /* A later goal may still fit the monthly limit when a full lump sum does not. */ }
+  }
   const cache = new Map<number, string | null>()
   function payoff(cents: number): string | null {
     if (cache.has(cents)) return cache.get(cents)!

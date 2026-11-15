@@ -67,7 +67,7 @@ function changeGoal(event: Event) {
         <div class="goal-heading"><div class="goal-label"><label for="payoff-goal-month">Debt-free by</label><div class="goal-feedback-slot"><span v-if="goalBusy" class="goal-spinner" aria-hidden="true" /><details v-else-if="goalStatus" :key="goalStatus" class="goal-feedback" @keydown.esc="($event.currentTarget as HTMLDetailsElement).open = false"><summary aria-label="Goal calculation details" :title="goalStatus">!</summary><p>{{ goalStatus }}</p></details></div></div><input id="payoff-goal-month" ref="monthInput" type="month" :value="goalMonth" :min="goalAnchor.slice(0, 7)" :max="addMonths(goalAnchor, goalMaxMonths).slice(0, 7)" :disabled="goalDisabled" @change="emit('goal', ($event.target as HTMLInputElement).value)" /></div>
         <input ref="goalInput" class="goal-slider" type="range" min="0" :max="goalMaxMonths" step="1" :value="goalValue" :disabled="goalDisabled" aria-label="Debt-free date slider" :aria-valuetext="goalMonth ? formatDate(`${goalMonth}-01`, true) : 'Choose a payoff goal'" aria-describedby="goal-help goal-status" @input="changeGoal" />
 
-        <p id="goal-help" class="sr-only">Move the date to calculate the monthly extra needed. Your one-time payment stays fixed.</p>
+        <p id="goal-help" class="sr-only">Move the date to calculate the monthly extra needed. This month uses a full one-time payoff and no monthly extra; other goals keep your one-time payment fixed.</p>
         <p id="goal-status" class="sr-only" role="status">{{ goalBusy ? 'Calculating monthly extra…' : goalStatus }}</p>
       </section>
       <p v-if="Object.keys(errors).length" class="field-error" role="alert" tabindex="-1">{{ errors.general ?? 'Check the highlighted fields.' }}</p>
