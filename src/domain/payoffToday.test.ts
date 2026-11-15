@@ -22,8 +22,8 @@ describe('full payoff today', () => {
     const quote = payoffToday([{ ...loan, principalCents: 0 }, { ...loan, id: 'b', annualRatePercent: 0 }], '2025-01-15')
     expect(quote.totalCents).toBe(105000)
   })
-  it('rejects incompatible balance snapshots instead of combining them', () => {
-    expect(() => payoffToday([loan, { ...loan, id: 'b', balanceDate: '2025-01-02' }], '2025-01-15')).toThrow('same balance date')
+  it('accepts independently dated balance snapshots', () => {
+    expect(payoffToday([loan, { ...loan, id: 'b', balanceDate: '2025-01-02' }], '2025-01-15').portfolio.projection.status).toBe('paid-off')
   })
 
 })

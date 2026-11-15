@@ -11,7 +11,7 @@ npm run dev
 
 Use Node.js 22.13+ or 24+ (a current LTS release is recommended). Enter figures from your servicer, or select **Try an example**.
 
-1. Add loans using figures from the same balance date, or try an example in the loan form.
+1. Enter current loan balances, or try an example in the loan form. Forecasts always start today, including when returning to saved loans. Past payment dates advance to the next monthly occurrence without changing the saved monetary amounts. Payment timing is optional.
 2. All loans are included by default. Use a loan’s eye button to hide it from the estimate; hidden cards dim and stay editable. Open its eye to include it again. Hiding every loan leaves the list available to restore them.
 3. Review three proportional, individually rounded bars with small gaps: charcoal for amount owed, red for future interest, and green for savings against minimum payments. The debt-free date is always labeled at the payoff point on the balance chart, with time saved shown in the chart header. Unpaid plans retain a 50-year balance view without invented payoff totals.
 4. Use the linked payment controls in separate rounded, borderless white cards between the repayment bar and balance chart. **Pay once** and **Extra each month** use number rulers: swipe left to increase or right to decrease on a whole-$5 scale, or tap the borderless amount for exact cent entry. A fast swipe coasts and settles onto a notch; touch again to stop it. Arrow keys on a ruler and up/down in an amount field move to the next whole $5 notch, while left/right in a field remains caret navigation. Values, metrics, curves, and recipient labels update immediately. **Debt-free by** uses the same momentum ruler in one-month steps, with exact month entry and earlier/later arrows. Its selected month previews immediately; one calculation runs after the ruler settles and calculates the monthly extra needed while holding the one-time payment fixed except for a current-month full-payoff goal.
@@ -23,7 +23,7 @@ Cards group amounts for one combined plan: all one-time amounts are paid today, 
 
 The dashboard intentionally omits payment-by-payment inspection, schedules, the total-paid chart, and the former bottom detail panels. Calculation assumptions and engine behavior are documented below. Storage failures still surface with recovery actions.
 
-All balances must come from the **same date**. After adding the first loan, the date is shared and read-only on additional loans. You can change the date while editing the only remaining loan. This avoids combining snapshots from different dates or guessing which payments you already made.
+The dashboard treats the entered amounts as current working balances and starts every forecast today. Returning users can update monetary values without editing dates. Optional payment timing controls retain future due dates and roll past dates forward by whole months.
 
 ## Features
 
@@ -49,7 +49,7 @@ All balances must come from the **same date**. After adding the first loan, the 
 - Before ordinary saves, the app checks that the saved copy still matches what this tab last loaded or saved. A changed copy produces a warning instead of being overwritten automatically. There is no live tab synchronization or merging; avoid simultaneous edits across tabs. Reloading uses the saved copy and discards any unsaved changes in the current tab.
 - Storage is scoped to the exact browser profile and origin: protocol, hostname, and port. `localhost:5173`, `127.0.0.1:5173`, and `127.0.0.1:4173` have separate saved copies. Moving to a different address or device does not transfer loans.
 - Anyone using the same browser profile can access the data. The app does not encrypt its JSON copy. Clearing site data, storage eviction, or closing a private-browsing session can remove it. This is convenience storage, not a backup.
-- Balances and dates are restored exactly as entered, not advanced to today. The app does not know which real payments happened. Check your figures and next-payment dates when returning; overdue next-payment dates still block new what-if calculations until updated.
+- Saved monetary amounts are restored exactly as entered. Forecast dates advance to today automatically on load, focus, visibility changes, and while the dashboard stays open. No historical payments or interest transactions are inferred.
 - Export/import, backups, accounts, and cloud synchronization are intentionally **not** part of this feature.
 
 Low-payment warnings offer a **10-year plan** amount, rounded up to a whole dollar and verified against the actual cent-rounded payment schedule to pay off within ten calendar years of the entered balance date. This is a suggested payoff goal, not a servicer-required minimum. Clicking it applies the payment in a loan card immediately; the loan editor still requires **Update loan**. If the entered dates make a ten-year payoff impossible, the suggestion is labeled **Try** instead. No number is offered without a complete modeled payoff.
@@ -111,7 +111,7 @@ Complete payoff estimates rank ahead of incomplete ones. Among complete options,
 - The monthly payment remains fixed until payoff. Due dates stay anchored to the initial next-payment day, clamped for shorter months (January 31 → February 28 → March 31).
 - Minimum-only and one-time-only loans are simulated independently. Their combined monthly minimum falls as loans are paid off. Monthly/combined playground plans allocate only the shared extra budget; scheduled minimums stop as loans are paid off.
 - Overall payoff is the last loan’s payoff date. Combined remaining interest and future payments are sums of complete individual projections, not an estimate based on an averaged rate. The displayed principal-weighted rate is informational only; if no principal remains, no combined rate is shown.
-- Combined schedules group actual payment dates. Between a loan’s due dates, its displayed balance includes simple interest since its previous payment or the common balance date, rounded consistently with the individual calculation.
+- Combined schedules group projected payment dates. The dashboard rebases all balance dates to today; it does not reconstruct unknown payment history. Between a loan’s due dates, its displayed balance includes simple interest since its previous payment or its own balance date, rounded consistently with the individual calculation.
 - **Remaining interest** includes unpaid interest at the balance date plus newly projected interest. **Total future payments** includes both principal and all remaining interest. Neither includes previously paid amounts.
 - Subsidized and unsubsidized loans are modeled identically during normal repayment. Subsidy eligibility outside repayment is not modeled.
 - No fees, variable rates, capitalization events, deferment, grace periods, income-driven repayment, or forgiveness. This is an estimate, not financial advice or a replacement for a servicer statement. Servicer day-count and rounding rules can differ.

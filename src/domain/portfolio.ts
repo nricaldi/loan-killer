@@ -63,7 +63,7 @@ export function combinePaymentSchedules(loans: ProjectedLoan[]): Payment[] {
       principalCents += state.principalCents
       // Other loans accrue interest even when only one loan makes a payment today.
       accruedInterestCents += state.accruedInterestCents + Math.round(
-        state.principalCents * loan.annualRatePercent / 100 * daysBetween(state.date, date) / 365,
+        state.principalCents * loan.annualRatePercent / 100 * Math.max(0, daysBetween(state.date, date)) / 365,
       )
     }
     const balanceCents = principalCents + accruedInterestCents
@@ -118,9 +118,6 @@ function combineSchedules(loans: ProjectedLoan[]): PaidOffProjection {
 export function validatePortfolio(records: readonly LoanRecord[]): void {
   const first = records[0]
   if (!first) return
-  if (records.some((loan) => loan.balanceDate !== first.balanceDate)) {
-    throw new Error('Use the same balance date for every loan in a combined estimate.')
-  }
   if (new Set(records.map((loan) => loan.id)).size !== records.length) {
     throw new Error('Every loan needs a unique ID.')
   }
@@ -166,7 +163,7 @@ export function summarizePortfolio(loans: ProjectedLoan[]): PortfolioProjection 
 
   return {
     loans,
-    balanceDate: first.balanceDate,
+    balanceDate: records.reduce((date, loan) => loan.balanceDate < date ? loan.balanceDate : date, first.balanceDate),
     principalCents,
     accruedInterestCents,
     monthlyPaymentCents,

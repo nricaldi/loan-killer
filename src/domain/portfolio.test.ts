@@ -172,8 +172,19 @@ describe('minimum-payment portfolio', () => {
     expect(portfolio?.projection.schedule[0]?.paymentCents).toBe(152_500)
   })
 
-  it('rejects mismatched snapshot dates instead of assuming past payments', () => {
-    expect(() => projectPortfolio([first, { ...second, balanceDate: '2025-01-02' }])).toThrow('same balance date')
+  it('supports independent snapshot dates', () => {
+    expect(projectPortfolio([first, { ...second, balanceDate: '2025-01-02' }])?.loans).toHaveLength(2)
+  })
+
+  it('does not accrue backward before a later snapshot and is independent of loan order', () => {
+    const later = { ...second, balanceDate: '2025-03-01', nextPaymentDate: '2025-04-01', annualRatePercent: 10 }
+    const result = projectPortfolio([first, later])!
+    const row = result.projection.schedule[0]!
+    expect(row.date).toBe('2025-02-01')
+    expect(row.newInterestCents).toBe(0)
+    expect(row.balanceCents).toBe(122_500)
+    expect(projectPortfolio([later, first])?.balanceDate).toBe(result.balanceDate)
+    expect(projectPortfolio([later, first])?.projection).toEqual(result.projection)
   })
 
   it('supports duplicate names while requiring distinct loan IDs', () => {

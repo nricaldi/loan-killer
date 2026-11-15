@@ -55,10 +55,7 @@ describe('loan form validation', () => {
     expect(result.loan?.monthlyPaymentCents).toBe(0)
   })
 
-  it('requires new or edited balances to match the other loans’ snapshot date', () => {
-    expect(validateLoanForm(values, values.balanceDate).loan).not.toBeNull()
-    const result = validateLoanForm(values, '2025-01-02')
-    expect(result.loan).toBeNull()
-    expect(result.errors.balanceDate).toContain('match the other loan balances')
+  it('accepts an independently updated balance date', () => {
+    expect(validateLoanForm({ ...values, balanceDate: '2025-01-20' }).loan).not.toBeNull()
   })
 })
