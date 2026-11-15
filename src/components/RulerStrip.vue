@@ -9,10 +9,11 @@ const props = withDefaults(defineProps<{
   label: string
   disabled: boolean
   format: (value: number) => string
+  compact?: boolean
   settledOnly?: boolean
   ariaScale?: number
   valueText?: (value: number) => string
-}>(), { min: 0, settledOnly: false, ariaScale: 1, valueText: undefined })
+}>(), { min: 0, compact: false, settledOnly: false, ariaScale: 1, valueText: undefined })
 const emit = defineEmits<{
   change: [value: number]
   preview: [value: number]
@@ -199,7 +200,7 @@ onMounted(() => {
   window.addEventListener('blur', stop)
   document.addEventListener('visibilitychange', stop)
 })
-defineExpose({ stop, cancel, nudge, selected, moving })
+defineExpose({ stop, cancel, nudge, selected, moving, start, move, finish, cancelGesture })
 onBeforeUnmount(() => {
   cancelMotion()
   releaseCapture()
@@ -210,14 +211,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="strip" class="number-strip" :class="{ disabled }" role="slider" :tabindex="disabled ? -1 : 0" :aria-label="label" :aria-valuemin="min / ariaScale" :aria-valuemax="max / ariaScale" :aria-valuenow="selected / ariaScale" :aria-valuetext="(valueText ?? format)(selected)" :aria-disabled="disabled" @keydown="keydown" @pointerdown="start" @pointermove="move" @pointerup="finish" @pointercancel="cancelGesture" @lostpointercapture="cancelGesture">
-    <span v-for="mark in marks" :key="mark.value" class="ruler-mark" :style="{ transform: `translate3d(${mark.x}px, 0, 0)`, opacity: mark.edgeOpacity }" aria-hidden="true"><span class="tick-label" :style="{ opacity: mark.opacity }">{{ format(mark.value) }}</span><i /></span>
-    <span class="center-notch" aria-hidden="true" />
+  <div ref="strip" class="number-strip" :class="{ disabled, compact }" role="slider" :tabindex="disabled ? -1 : 0" :aria-label="label" :aria-valuemin="min / ariaScale" :aria-valuemax="max / ariaScale" :aria-valuenow="selected / ariaScale" :aria-valuetext="(valueText ?? format)(selected)" :aria-disabled="disabled" @keydown="keydown" @pointerdown="start" @pointermove="move" @pointerup="finish" @pointercancel="cancelGesture" @lostpointercapture="cancelGesture">
+    <span v-for="mark in (compact ? [] : marks)" :key="mark.value" class="ruler-mark" :style="{ transform: `translate3d(${mark.x}px, 0, 0)`, opacity: mark.edgeOpacity }" aria-hidden="true"><span class="tick-label" :style="{ opacity: mark.opacity }">{{ format(mark.value) }}</span><i /></span>
+    <span v-if="!compact" class="center-notch" aria-hidden="true" />
   </div>
 </template>
 
 <style scoped>
-.number-strip { position: relative; height: 64px; margin-top: 0; overflow: hidden; border-radius: 4px; cursor: grab; touch-action: pinch-zoom; user-select: none; -webkit-user-select: none; overscroll-behavior-x: contain; }
+.number-strip { position: relative; height: 54px; margin-top: 0; overflow: hidden; border-radius: 4px; cursor: grab; touch-action: pinch-zoom; user-select: none; -webkit-user-select: none; overscroll-behavior-x: contain; }
+.number-strip.compact::before, .number-strip.compact::after { display: none; }
+.number-strip.compact { height: 44px; background: transparent; }
 .number-strip:active { cursor: grabbing; }
 .number-strip::before, .number-strip::after { content: ''; position: absolute; z-index: 2; top: 0; bottom: 0; width: 16px; pointer-events: none; }
 .number-strip::before { left: 0; background: linear-gradient(to right, var(--surface), transparent); }

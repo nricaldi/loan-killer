@@ -56,8 +56,12 @@ function manual(event: Event) {
   commit(index(month))
 }
 function focus() {
-  ruler.value?.stop()
   engage()
+}
+function forward(event: PointerEvent, action: 'start' | 'move' | 'finish' | 'cancelGesture') {
+  if ((event.target as HTMLElement).closest('button, .number-strip, .date-feedback')) return
+  if (action === 'cancelGesture') ruler.value?.cancelGesture()
+  else ruler.value?.[action](event)
 }
 watch(() => props.month, () => { if (phase.value === 'idle') reconcile() })
 watch(() => props.busy, async (busy, wasBusy) => {
@@ -69,24 +73,26 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="date-ruler">
+  <div class="date-ruler" @pointerdown="forward($event, 'start')" @pointermove="forward($event, 'move')" @pointerup="forward($event, 'finish')" @pointercancel="forward($event, 'cancelGesture')">
     <div class="date-label"><label for="payoff-goal-month">Debt-free by</label><span class="date-feedback"><slot /></span></div>
     <div class="month-navigation">
       <button type="button" aria-label="Pay off one month earlier" :disabled="disabled || !displayMonth || displayIndex === 0" @click="ruler?.nudge(-1)">‹</button>
       <input id="payoff-goal-month" ref="input" type="month" :value="displayMonth" :min="anchor.slice(0, 7)" :max="monthAt(maxMonths)" :disabled="disabled" aria-describedby="goal-help goal-status" @focus="focus" @blur="interaction(false)" @change="manual" />
       <button type="button" aria-label="Pay off one month later" :disabled="disabled || !displayMonth || displayIndex >= maxMonths" @click="ruler?.nudge(1)">›</button>
     </div>
-    <RulerStrip ref="ruler" :value="source" :max="maxMonths" :step="1" label="Debt-free date ruler" :format="value => formatDate(`${monthAt(value)}-01`, true)" :disabled="disabled" settled-only aria-describedby="goal-help goal-status" @preview="preview" @change="commit" @interaction="interaction" />
+    <RulerStrip ref="ruler" compact :value="source" :max="maxMonths" :step="1" label="Debt-free date ruler" :format="value => formatDate(`${monthAt(value)}-01`, true)" :disabled="disabled" settled-only aria-describedby="goal-help goal-status" @preview="preview" @change="commit" @interaction="interaction" />
   </div>
 </template>
 
 <style scoped>
-.date-ruler { min-width: 0; text-align: center; }
-.date-label { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 18px; }
-.date-feedback { position: absolute; top: 0; left: calc(50% + 48px); }
+.date-ruler { touch-action: pinch-zoom; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; text-align: center; }
+.date-label { position: relative; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 18px; }
+.date-feedback { pointer-events: auto; position: absolute; top: 0; left: calc(50% + 48px); }
 label { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
-.month-navigation { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 52px; margin-top: 5px; }
-.month-navigation button { width: 28px; min-height: 44px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); font-size: 22px; }
+.month-navigation { position: relative; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 44px; margin-top: 0; }
+.month-navigation button { pointer-events: auto; width: 28px; min-height: 44px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); font-size: 22px; }
 .month-navigation button:disabled { opacity: .3; cursor: default; }
-.month-navigation input { width: 14rem; max-width: calc(100% - 56px); min-width: 0; min-height: 44px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--text); font: inherit; font-size: clamp(18px, 1.6vw, 20px); font-weight: 650; }
+.month-navigation input { pointer-events: auto; width: 14rem; max-width: calc(100% - 56px); min-width: 0; min-height: 44px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--text); font: inherit; font-size: clamp(18px, 1.6vw, 20px); font-weight: 650; }
+.date-ruler :deep(.number-strip.compact) { position: absolute; inset: 0; height: 100%; }
+@media (max-width: 599px) { .date-ruler { flex-wrap: wrap; justify-content: center; gap: 0; } .date-label { flex: 0 0 100%; } .month-navigation { max-width: 100%; } }
 </style>

@@ -16,12 +16,12 @@ import PaymentPlanSummary from './PaymentPlanSummary.vue'
 
 const props = defineProps<{ loans: readonly LoanRecord[] }>()
 const emit = defineEmits<{ preview: [portfolio: PortfolioProjection | null, label: string]; allocations: [items: { loanId: string; monthlyCents: number; oneTimeCents: number }[]] }>()
-type SavingCard = { id: number; kind: 'monthly' | 'one-time'; amount: string }
-const initialCards = (): SavingCard[] => [{ id: 1, kind: 'one-time', amount: '0' }, { id: 2, kind: 'monthly', amount: '0' }]
+type SavingCard = { id: number; kind: 'monthly' | 'one-time'; amount: string; enabled: boolean }
+const initialCards = (): SavingCard[] => [{ id: 1, kind: 'one-time', amount: '0', enabled: true }, { id: 2, kind: 'monthly', amount: '0', enabled: true }]
 const cards = ref<SavingCard[]>(initialCards())
 const parseExtraAmount = (value: string) => value.trim() === '' ? 0 : parseMoney(value)
 function total(kind: SavingCard['kind']) {
-  const amounts = cards.value.filter(card => card.kind === kind).map(card => parseExtraAmount(card.amount))
+  const amounts = cards.value.filter(card => card.kind === kind && card.enabled).map(card => parseExtraAmount(card.amount))
   if (amounts.some(value => value === null)) return 'invalid'
   return (amounts.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100).toFixed(2)
 }
@@ -115,6 +115,11 @@ function updateAmount(id: number, value: string) {
     card.amount = value
   }
 }
+function toggleAmount(id: number) {
+  cancelGoal()
+  const card = cards.value.find(card => card.id === id)
+  if (card) card.enabled = !card.enabled
+}
 function setGoal(month: string) {
   cancelGoal()
   if (!month || !props.loans.length) return
@@ -145,6 +150,8 @@ function setGoal(month: string) {
     fullPayoffMode.value = message.result.oneTimeCents !== undefined
     const lump = cards.value.find(card => card.kind === 'one-time')!
     const lumpUnchanged = message.result.oneTimeCents === undefined || parseExtraAmount(lump.amount) === message.result.oneTimeCents
+    if (message.result.oneTimeCents !== undefined) lump.enabled = true
+    cards.value.find(card => card.kind === 'monthly')!.enabled = true
     if (message.result.oneTimeCents !== undefined) lump.amount = (message.result.oneTimeCents / 100).toFixed(2)
     goalMonth.value = message.result.payoffDate.slice(0, 7)
     const monthly = cards.value.find(card => card.kind === 'monthly')!
@@ -203,7 +210,7 @@ const controlBindings = computed(() => ({
   goalDisabled: !props.loans.length || !!unavailable.value,
   errors: errors.value,
   hasChanges: hasChanges.value,
-  onAmount: updateAmount, onGoal: setGoal, onSubmit: () => { void compare() },
+  onAmount: updateAmount, onToggle: toggleAmount, onGoal: setGoal, onSubmit: () => { void compare() },
 }))
 onBeforeUnmount(() => { cancelGoal(); goalWorker?.terminate(); goalWorker = undefined })
 async function compare(focusErrors = true) {
@@ -237,7 +244,7 @@ async function compare(focusErrors = true) {
       selected.value = 'one-time'
       return
     }
-    fullPayoffMode.value = false
+    if (cards.value.find(card => card.kind === 'one-time')!.enabled) fullPayoffMode.value = false
   }
   fullPayoff.value = null
   if (oneTimeCents === 0 && extraMonthlyCents === 0) {

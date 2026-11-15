@@ -61,7 +61,7 @@ const chartComparison = computed(() => props.comparison ? {
 
 <style scoped>
 .journey-visual { min-width: 0; }
-.chart-panel { min-width: 0; padding: var(--space-4); }
+.chart-panel { border: 0; min-width: 0; padding: var(--space-4); }
 .chart-panel :deep(.balance-chart) { margin: 0; }
 .visual-outlook { min-width: 0; }
 h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }

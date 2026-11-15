@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
 import MoneyRuler from './MoneyRuler.vue'
-import { parseMoney } from '../domain/loanForm'
 import DateRuler from './DateRuler.vue'
 
 defineProps<{
-  cards: { id: number; kind: 'monthly' | 'one-time'; amount: string }[]
+  cards: { id: number; kind: 'monthly' | 'one-time'; amount: string; enabled: boolean }[]
   disabled: boolean
   balanceCents: number
   minimumCents: number
@@ -20,10 +19,10 @@ defineProps<{
 }>()
 const emit = defineEmits<{
   amount: [id: number, value: string]
+  toggle: [id: number]
   goal: [month: string]
   submit: []
 }>()
-const parseAmount = (value: string) => value.trim() === '' ? 0 : parseMoney(value)
 const inputId = (kind: 'monthly' | 'one-time') => kind === 'monthly' ? 'extra-monthly-amount' : 'extra-payment-amount'
 const rulers = ref<InstanceType<typeof MoneyRuler>[]>([])
 const dateRuler = ref<InstanceType<typeof DateRuler> | null>(null)
@@ -37,6 +36,12 @@ function stopMoney() {
 function changeAmount(id: number, value: string) {
   if (!preparingGoal) { goalIntent++; void dateRuler.value?.reset() }
   emit('amount', id, value)
+}
+function toggle(id: number) {
+  stopMoney()
+  goalIntent++
+  void dateRuler.value?.reset()
+  emit('toggle', id)
 }
 async function chooseGoal(month: string) {
   const intent = ++goalIntent
@@ -52,8 +57,9 @@ async function chooseGoal(month: string) {
     <div class="explore-heading"><h2 id="extra-payment-heading">Explore payments</h2></div>
     <form class="scenario-form" novalidate @submit.prevent="emit('submit')">
       <div class="exploration-options">
-        <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ active: (parseAmount(card.amount) ?? 0) > 0 }">
-          <MoneyRuler :id="inputId(card.kind)" ref="rulers" :label="card.kind === 'monthly' ? 'Extra each month' : 'Pay once'" :value="card.amount" :disabled="disabled" @change="changeAmount(card.id, $event)" />
+        <section v-for="card in cards" :key="card.id" class="saving-card" :class="{ excluded: !card.enabled }">
+          <button class="payment-toggle" type="button" role="switch" :aria-label="card.kind === 'monthly' ? 'Include extra monthly payment' : 'Include one-time payment'" :aria-checked="card.enabled" :disabled="disabled" @click="toggle(card.id)"><span /></button>
+          <MoneyRuler :id="inputId(card.kind)" ref="rulers" :label="card.kind === 'monthly' ? 'Extra each month' : 'Pay once'" :value="card.amount" :disabled="disabled || !card.enabled" @change="changeAmount(card.id, $event)" />
         </section>
       </div>
       <section class="goal-control" :aria-busy="goalBusy">
@@ -74,11 +80,18 @@ async function chooseGoal(month: string) {
 .simulator { margin: 12px 0; min-width: 0; }
 .explore-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h2 { font-size: 16px; margin: 0; }
-.scenario-form { padding: 12px; margin-top: 8px; border-radius: var(--radius-md); background: var(--surface); }
-.exploration-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
-.saving-card { min-width: 0; }
-.saving-card:first-child { padding-right: 12px; border-right: 1px solid var(--border); }
-.goal-control { min-width: 0; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+.scenario-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 8px; }
+.exploration-options { display: contents; }
+.saving-card, .goal-control { position: relative; min-width: 0; padding: 12px; border: 0; border-radius: var(--radius-lg); background: var(--surface); }
+.goal-control { grid-column: 1 / -1; padding: 6px 12px; }
+.excluded :deep(.money-ruler) { opacity: .5; }
+.payment-toggle { position: absolute; z-index: 1; right: 8px; top: 2px; display: flex; align-items: center; width: 44px; height: 36px; padding: 9px 6px; border: 0; background: transparent; cursor: pointer; }
+.payment-toggle::before { content: ''; position: absolute; width: 32px; height: 18px; border-radius: 10px; background: var(--border-strong); }
+.payment-toggle[aria-checked='true']::before { background: var(--text); }
+.payment-toggle span { position: relative; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); transform: translateX(3px); transition: transform 120ms ease; }
+.payment-toggle[aria-checked='true'] span { transform: translateX(17px); }
+.payment-toggle:disabled { cursor: default; opacity: .5; }
+.saving-card :deep(label) { display: block; padding: 0 34px; min-height: 18px; }
 .date-warning { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 8px 0 0; }
 .goal-feedback-slot { display: flex; align-items: center; justify-content: center; width: 20px; height: 18px; flex: 0 0 20px; }
 .goal-feedback { position: relative; }
@@ -90,14 +103,12 @@ h2 { font-size: 16px; margin: 0; }
 @media (prefers-reduced-motion: reduce) { .goal-spinner { animation: none; } }
 .field-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; }
 @media (max-width: 39.99rem) {
-  .exploration-options { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .saving-card:first-child { padding-right: 0; border-right: 0; }
-  .saving-card + .saving-card { border-top: 1px solid var(--border); padding-top: 10px; }
+  .scenario-form { grid-template-columns: minmax(0, 1fr); }
 }
+@media (min-width: 600px) { .goal-feedback p { left: 0; transform: none; } }
 @media (min-width: 64rem) {
-  .scenario-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-  .exploration-options { display: contents; }
-  .goal-control { margin-top: 0; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--border); }
-  .scenario-form > .field-error, .scenario-form > .date-warning { grid-column: 1 / -1; }
+  .scenario-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.scenario-form > .field-error, .scenario-form > .date-warning { grid-column: 1 / -1; }
+@media (prefers-reduced-motion: reduce) { .payment-toggle span { transition: none; } }
 </style>
