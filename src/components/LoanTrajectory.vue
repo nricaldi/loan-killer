@@ -72,7 +72,7 @@ h3 { font-size: var(--font-sm); margin: 0; font-weight: 650; }
 .repayment-track > span { height: 100%; flex: 0 1 auto; min-width: 0; border-radius: 5px; transition: width 180ms ease-out; }
 .repayment-track > .empty { display: none; }
 .debt-segment, .debt-key { background: var(--highlight-background); }
-.interest-segment, .interest-key { background: var(--blue-primary); }
+.interest-segment, .interest-key { background: var(--chart-interest); }
 .saved-segment, .saved-key { background: var(--savings); }
 .segment-labels > :last-child b { color: var(--savings-text); }
 .segment-labels > .extra-cost b { color: var(--danger); }

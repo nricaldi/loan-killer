@@ -32,7 +32,7 @@ const plans = computed(() => props.result.scenarios.filter(({ id }) => id === 'm
 h3 { margin: 0 0 var(--space-3); font-size: var(--font-md); font-weight: 600; }
 .plan-list { display: grid; gap: var(--space-2); }
 .plan-row { display: grid; grid-template-columns: minmax(9rem, 1fr) 3fr; align-items: center; gap: var(--space-4); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.selected-plan { background: var(--blue-light); border-color: var(--blue-border); }
+.selected-plan { background: var(--surface-muted); border-color: var(--border-strong); }
 h4 { font-size: var(--font-sm); font-weight: 400; margin: 0; }
 button { min-height: var(--size-touch-target); padding: var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-link); font-size: var(--font-sm); text-align: left; }
 button[aria-pressed='true'] { border-color: var(--chart-line); font-weight: 650; }

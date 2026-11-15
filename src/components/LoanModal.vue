@@ -44,7 +44,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .loan-modal { width: min(36rem, calc(100% - var(--space-6))); max-height: calc(100dvh - var(--space-6)); padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-modal); overflow: auto; }
-.loan-modal::backdrop { background: #20354180; }
+.loan-modal::backdrop { background: #20202080; }
 .modal-content { position: relative; }
 .close-button { position: absolute; top: var(--space-4); right: var(--space-4); display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-secondary); font-size: 1.5rem; line-height: 1; }
 </style>

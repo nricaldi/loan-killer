@@ -111,7 +111,7 @@ li {
 }
 
 .icon-button { display: grid; place-items: center; width: var(--size-icon-button); height: var(--size-icon-button); padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-link); }
-.icon-button:hover { background: var(--blue-primary); }
+.icon-button:hover { background: var(--surface-muted); }
 .icon-button:last-child:hover { color: var(--danger); }
 .icon-button svg { width: var(--size-icon); height: var(--size-icon); }
 

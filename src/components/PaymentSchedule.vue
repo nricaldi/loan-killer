@@ -39,6 +39,6 @@ th, td { padding: var(--space-3); text-align: right; white-space: nowrap; border
 th:first-child { text-align: left; }
 thead th { background: var(--surface-muted); position: sticky; top: 0; }
 tbody th { font-weight: 400; }
-tbody tr:last-child { background: var(--blue-light); }
-.extra-tag { display: inline-block; margin-left: var(--space-2); padding: var(--space-1) var(--space-2); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); background: var(--blue-light); color: var(--text-link); font-size: 0.65rem; }
+tbody tr:last-child { background: var(--surface-muted); }
+.extra-tag { display: inline-block; margin-left: var(--space-2); padding: var(--space-1) var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-link); font-size: 0.65rem; }
 </style>

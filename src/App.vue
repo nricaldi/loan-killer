@@ -204,7 +204,7 @@ function removeLoan(id: string) {
 .app-shell { max-width: 78rem; margin: 0 auto; padding: 0 var(--space-8); }
 .site-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: var(--space-3); color: var(--text); text-decoration: none; font-size: 1.5rem; letter-spacing: -0.055em; font-weight: 700; }
-.brand-icon { width: 2.5rem; height: 2.5rem; display: grid; place-items: center; background: var(--blue-primary); border: 1px solid var(--blue-border); border-radius: var(--radius-md); }
+.brand-icon { width: 2.5rem; height: 2.5rem; display: grid; place-items: center; background: var(--surface-muted); border: 1px solid var(--border-strong); border-radius: var(--radius-md); }
 .brand-icon svg { width: 1.75rem; height: 1.75rem; }
 .brand-light { font-weight: 400; }
 .brand-period { color: var(--chart-line); }

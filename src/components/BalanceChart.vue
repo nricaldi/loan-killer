@@ -102,8 +102,8 @@ function describe(projection: Projection, label: string, data: { date: string; b
           <desc :id="descriptionId">{{ money(initialBalanceCents) }} on {{ formatDate(balanceDate) }}. {{ describe(projection, label ?? 'Minimum payments only', points) }} {{ comparison ? describe(comparison.projection, comparison.label, comparisonPoints) : '' }} This is a projection, not actual payment history.</desc>
           <defs>
             <linearGradient :id="gradientId" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" :stop-color="comparison ? '#a8d6f5' : '#c9d3db'" stop-opacity="0.55" />
-              <stop offset="100%" :stop-color="comparison ? '#a8d6f5' : '#c9d3db'" stop-opacity="0.05" />
+              <stop offset="0%" :stop-color="comparison ? '#b8b8b8' : '#dedede'" stop-opacity="0.55" />
+              <stop offset="100%" :stop-color="comparison ? '#b8b8b8' : '#dedede'" stop-opacity="0.05" />
             </linearGradient>
           </defs>
           <path :d="area" :fill="`url(#${gradientId})`" />

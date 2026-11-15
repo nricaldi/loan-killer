@@ -44,6 +44,6 @@ caption { text-align: left; color: var(--text-secondary); margin-bottom: var(--s
 th, td { padding: var(--space-3); text-align: left; border-bottom: 1px solid var(--border-strong); vertical-align: top; }
 tbody th { font-weight: 400; }
 td { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.recommended { background: var(--blue-light); }
+.recommended { background: var(--surface-muted); }
 .recommended th { font-weight: 600; }
 </style>

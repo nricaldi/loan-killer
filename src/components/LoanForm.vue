@@ -263,8 +263,8 @@ function useExample() {
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .panel-heading small { margin-left: var(--space-2); font-size: var(--font-xs); font-weight: 400; color: var(--text-muted); }
 .panel-heading { padding-right: var(--space-9); }
-.example-button { color: var(--text-link); background: var(--blue-light); width: 100%; padding: var(--space-3); border: 1px solid var(--blue-border); border-radius: var(--radius-sm); font-size: var(--font-sm); font-weight: 600; text-align: left; display: flex; justify-content: space-between; gap: var(--space-2); }
-.example-button:hover { background: var(--blue-primary); }
+.example-button { color: var(--text-link); background: var(--surface-muted); width: 100%; padding: var(--space-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: var(--font-sm); font-weight: 600; text-align: left; display: flex; justify-content: space-between; gap: var(--space-2); }
+.example-button:hover { background: var(--surface-muted); }
 form { margin-top: var(--space-4); }
 .field { min-width: 0; margin-bottom: var(--space-4); }
 .field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-3); }
