@@ -61,7 +61,7 @@ describe('versioned local loan records', () => {
   it('rejects the whole saved plan rather than silently dropping a bad loan', () => {
     expect(() => decodeLoans(JSON.stringify({ version: 1, loans: [loan, { ...loan, id: 'loan-b', monthlyPaymentCents: -1 }] }))).toThrow()
     expect(() => encodeLoans([loan, { ...loan, id: loan.id }])).toThrow('unique ID')
-    expect(() => encodeLoans([loan, { ...loan, id: 'loan-b', balanceDate: '2025-01-02' }])).toThrow('same balance date')
+    expect(decodeLoans(encodeLoans([loan, { ...loan, id: 'loan-b', balanceDate: '2025-01-02' }]))).toHaveLength(2)
   })
 
   it('allows duplicate names with distinct IDs and does not change historical dates', () => {

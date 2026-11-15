@@ -167,9 +167,9 @@ describe('loan management', () => {
   it('prevents invalid edits from replacing a valid estimate', async () => {
     await enterLoan()
     await editLoan()
-    await wrapper.get('#next-payment-date').setValue('2024-12-31')
+    await wrapper.get('#next-payment-date').setValue('')
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.get('#next-date-error').text()).toContain('on or after the balance date')
+    expect(wrapper.get('#next-date-error').text()).toContain('valid date')
     expect(wrapper.get('[data-testid="payoff-date"]').text()).toBe('May 1, 2025')
   })
 
@@ -242,22 +242,30 @@ describe('loan management', () => {
     expect(wrapper.get('[data-testid="monthly-minimum"]').text()).toBe('$550.00')
   })
 
-  it('prepopulates a new loan’s snapshot date and locks it to the existing loan', async () => {
+  it('defaults a new loan to today independently of existing snapshots', async () => {
     await enterLoan({ '#balance-date': '2024-12-15' })
     await wrapper.get('.add-button').trigger('click')
-    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2024-12-15')
+    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-01-01')
     expect(wrapper.get<HTMLInputElement>('#balance-date').element.readOnly).toBe(true)
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('')
-    expect(wrapper.text()).toContain('Same balance date for all loans.')
+    expect(wrapper.text()).toContain('Forecasts start today automatically.')
     expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
   })
 
-  it('rejects a mismatched balance date even if a read-only field is programmatically changed', async () => {
+  it('lets a returning user update loans independently and persists their dates', async () => {
     await enterLoan()
-    await addSecondLoan({ '#balance-date': '2025-01-02' })
-    expect(wrapper.get('#balance-date-error').text()).toContain('match the other loan balances')
-    expect(wrapper.findAll('.loan-list li')).toHaveLength(1)
-    expect(wrapper.get('[data-testid="starting-balance"]').text()).toBe('$1,025.00')
+    await addSecondLoan()
+    vi.setSystemTime(new Date(2025, 2, 15, 12))
+    await editLoan()
+    await wrapper.get('#balance-date').setValue('2025-03-15')
+    await wrapper.get('#next-payment-date').setValue('2025-04-01')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(wrapper.findAll('.loan-list li')).toHaveLength(2)
+    wrapper.unmount()
+    wrapper = mount(App, { attachTo: document.body })
+    await editLoan()
+    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-03-15')
   })
 
   it('keeps the portfolio unchanged when an invalid new loan is submitted', async () => {
@@ -392,17 +400,29 @@ describe('local loan persistence', () => {
     expect(localStorage.getItem(LOAN_STORAGE_KEY)).toBe(saved)
   })
 
-  it('keeps snapshot dates and entered balances instead of assuming real payments happened overnight', async () => {
+  it('starts forecasts today on return without requiring date edits or changing money', async () => {
     await enterLoan()
-    vi.setSystemTime(new Date(2025, 2, 1, 12))
+    vi.setSystemTime(new Date(2025, 2, 15, 12))
     remountApp()
     await editLoan()
-    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-01-01')
-    expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-02-01')
+    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-03-15')
+    expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-04-01')
     expect(wrapper.get<HTMLInputElement>('#principal').element.value).toBe('1000.00')
-    await wrapper.get('.close-button').trigger('click')
+    await wrapper.get('#principal').setValue('900')
+    await wrapper.get('form').trigger('submit')
     await wrapper.get('#extra-payment-amount').setValue('100')
-    expect(wrapper.text()).toContain('A next payment date is in the past')
+    await wrapper.get('.scenario-form').trigger('submit')
+    expect(wrapper.text()).not.toContain('A next payment date is in the past')
+    expect(wrapper.find('.payment-summary').exists()).toBe(true)
+  })
+
+  it('refreshes the forecast date when an open dashboard is revisited after midnight', async () => {
+    await enterLoan()
+    vi.setSystemTime(new Date(2025, 2, 15, 12))
+    window.dispatchEvent(new Event('focus'))
+    await editLoan()
+    expect(wrapper.get<HTMLInputElement>('#balance-date').element.value).toBe('2025-03-15')
+    expect(wrapper.get<HTMLInputElement>('#next-payment-date').element.value).toBe('2025-04-01')
   })
 
   it('restores explicitly labeled example loans and never writes unrelated site storage', async () => {

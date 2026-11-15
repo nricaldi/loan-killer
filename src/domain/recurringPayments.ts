@@ -142,7 +142,7 @@ function projectWithCalendar(
     }
     // Snowball priorities use today's balances after minimums, not the initial loan sizes.
     const priority = ledgers
-      .filter(({ balance }) => balance.principalCents + balance.accruedInterestCents > 0)
+      .filter(({ balance }) => balance.date <= date && balance.principalCents + balance.accruedInterestCents > 0)
       .map((ledger) => ({ ledger, balanceCents: balanceAtDate(ledger.loan, ledger.balance, date) }))
       .sort((left, right) => (strategy === 'highest-rate'
         ? right.ledger.loan.annualRatePercent - left.ledger.loan.annualRatePercent

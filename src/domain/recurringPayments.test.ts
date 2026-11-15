@@ -187,10 +187,10 @@ describe('extra monthly budget', () => {
     expect(() => projectRecurringPayments([loan], amount)).toThrow()
   })
 
-  it('validates record identity, shared dates, loan values and one-time targets', () => {
+  it('validates record identity, loan values and one-time targets', () => {
     expect(projectRecurringPayments([], 100)).toBeNull()
     expect(() => projectRecurringPayments([loan, { ...other, id: loan.id }], 100)).toThrow('unique ID')
-    expect(() => projectRecurringPayments([loan, { ...other, balanceDate: '2025-01-02' }], 100)).toThrow('same balance date')
+    expect(projectRecurringPayments([loan, { ...other, balanceDate: '2025-01-02' }], 100)?.loans).toHaveLength(2)
     expect(() => projectRecurringPayments([{ ...loan, annualRatePercent: -1 }], 100)).toThrow()
     expect(() => projectRecurringPayments([loan], 100, { loanId: 'missing', date: loan.balanceDate, amountCents: 100 })).toThrow('existing loan')
     expect(() => projectRecurringPayments([loan], 100, { loanId: loan.id, date: loan.balanceDate, amountCents: -1 })).toThrow()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import LoanForm from './components/LoanForm.vue'
 import LoanList from './components/LoanList.vue'
 import LoanModal from './components/LoanModal.vue'
@@ -9,11 +9,33 @@ import LoanStorageNotice from './components/LoanStorageNotice.vue'
 import PaymentControls from './components/PaymentControls.vue'
 import PaymentSimulator from './components/PaymentSimulator.vue'
 import { useLoanStorage } from './composables/useLoanStorage'
+import { today } from './domain/dates'
+import { currentLoan } from './domain/currentLoan'
 import type { Loan } from './domain/loan'
 import { projectPortfolio, type LoanRecord, type PortfolioProjection } from './domain/portfolio'
 import { formatDate, money } from './format'
 
-const { loans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
+const { loans: savedLoans, issue: storageIssue, requiresReplacement, setLoans, retrySaving, replaceSavedCopy } = useLoanStorage()
+const currentDate = ref(today())
+const loans = computed(() => savedLoans.value.map(loan => currentLoan(loan, currentDate.value)))
+function refreshDate() {
+  const date = today()
+  if (currentDate.value === date) return
+  currentDate.value = date
+  preview.value = null
+  portfolioRevision.value++
+}
+let dateTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  window.addEventListener('focus', refreshDate)
+  document.addEventListener('visibilitychange', refreshDate)
+  dateTimer = setInterval(refreshDate, 30_000)
+})
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshDate)
+  document.removeEventListener('visibilitychange', refreshDate)
+  clearInterval(dateTimer)
+})
 const editingId = ref<string | null>(null)
 const hiddenLoanIds = ref<string[]>([])
 const allocations = ref<{ loanId: string; monthlyCents: number; oneTimeCents: number }[]>([])
@@ -30,7 +52,6 @@ const selectedLoans = computed(() => sortedLoans.value.filter(loan => !hiddenLoa
 const portfolio = computed(() => projectPortfolio(sortedLoans.value))
 const preview = shallowRef<{ portfolio: PortfolioProjection; label: string } | null>(null)
 const editingLoan = computed(() => loans.value.find((loan) => loan.id === editingId.value) ?? null)
-const sharedBalanceDate = computed(() => loans.value.find((loan) => loan.id !== editingId.value)?.balanceDate)
 const visiblePortfolio = computed(() => projectPortfolio(selectedLoans.value))
 const announcement = computed(() => {
   if (!portfolio.value) return `${lastAction.value} Enter a loan to see your estimate.`.trim()
@@ -140,7 +161,6 @@ function removeLoan(id: string) {
     <LoanModal v-if="editorOpen" :editing="!!editingLoan" @close="closeEditor">
       <LoanForm
         :initial-loan="editingLoan"
-        :shared-balance-date="sharedBalanceDate"
         :from-example="editingLoan?.fromExample"
         @submit="saveLoan"
         @cancel="closeEditor"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { currentLoan } from '../domain/currentLoan'
 import { vZeroOnFocus } from '../directives/zeroOnFocus'
 import { computed, nextTick, reactive, ref } from 'vue'
-import { addMonths, today } from '../domain/dates'
+import { addMonths, parseDate, today } from '../domain/dates'
 import { projectLoan, type Loan } from '../domain/loan'
 import { suggestMonthlyPayment } from '../domain/paymentSuggestion'
 import { money } from '../format'
@@ -10,7 +11,6 @@ import { validateLoanForm, type FormErrors, type LoanFormValues } from '../domai
 
 const props = defineProps<{
   initialLoan?: Loan | null
-  sharedBalanceDate?: string
   fromExample?: boolean
 }>()
 const emit = defineEmits<{ submit: [loan: Loan, fromExample: boolean]; cancel: [] }>()
@@ -23,8 +23,8 @@ function emptyValues(): LoanFormValues {
     accruedInterest: '0',
     annualRate: '',
     monthlyPayment: '',
-    balanceDate: props.sharedBalanceDate ?? today(),
-    nextPaymentDate: addMonths(props.sharedBalanceDate ?? today(), 1),
+    balanceDate: today(),
+    nextPaymentDate: addMonths(today(), 1),
   }
 }
 
@@ -35,8 +35,8 @@ const initialValues: LoanFormValues = props.initialLoan ? {
   accruedInterest: (props.initialLoan.accruedInterestCents / 100).toFixed(2),
   annualRate: String(props.initialLoan.annualRatePercent),
   monthlyPayment: (props.initialLoan.monthlyPaymentCents / 100).toFixed(2),
-  balanceDate: props.initialLoan.balanceDate,
-  nextPaymentDate: props.initialLoan.nextPaymentDate,
+  balanceDate: today(),
+  nextPaymentDate: currentLoan(props.initialLoan, today()).nextPaymentDate,
 } : emptyValues()
 const values = reactive<LoanFormValues>(initialValues)
 const errors = ref<FormErrors>({})
@@ -46,12 +46,12 @@ const exampleLoaded = ref(props.fromExample ?? false)
 const hasChanges = computed(() => savedValues.value !== null && savedValues.value !== JSON.stringify(values))
 
 const minimumWarning = computed(() => {
-  const { loan } = validateLoanForm(values, props.sharedBalanceDate)
+  const { loan } = validateLoanForm(values)
   return loan ? paymentWarning(projectLoan(loan)) : null
 })
 
 const suggestion = computed(() => {
-  const { loan } = validateLoanForm(values, props.sharedBalanceDate)
+  const { loan } = validateLoanForm(values)
   return minimumWarning.value && loan ? suggestMonthlyPayment(loan) : null
 })
 function useSuggestion() {
@@ -59,7 +59,11 @@ function useSuggestion() {
 }
 
 async function submit() {
-  const result = validateLoanForm(values, props.sharedBalanceDate)
+  const date = today()
+  const nextPaymentDate = parseDate(values.nextPaymentDate)
+    ? currentLoan({ nextPaymentDate: values.nextPaymentDate }, date).nextPaymentDate
+    : values.nextPaymentDate
+  const result = validateLoanForm({ ...values, balanceDate: date, nextPaymentDate })
   errors.value = result.errors
   if (!result.loan) {
     await nextTick()
@@ -78,8 +82,8 @@ function useExample() {
     accruedInterest: '75',
     annualRate: '5.5',
     monthlyPayment: '200',
-    balanceDate: props.sharedBalanceDate ?? today(),
-    nextPaymentDate: addMonths(props.sharedBalanceDate ?? today(), 1),
+    balanceDate: today(),
+    nextPaymentDate: addMonths(today(), 1),
   } satisfies LoanFormValues)
   exampleLoaded.value = true
   void submit()
@@ -213,40 +217,43 @@ function useExample() {
         </div>
       </div>
 
-      <div class="field-row date-row">
-        <div class="field">
-          <label for="balance-date">Balance as of</label>
-          <input
-            id="balance-date"
-            v-model="values.balanceDate"
-            name="balanceDate"
-            type="date"
-            min="1900-01-01"
-            max="2100-12-31"
-            required
-            :readonly="!!sharedBalanceDate"
-            :aria-invalid="!!errors.balanceDate"
-            :aria-describedby="errors.balanceDate ? 'balance-date-error' : sharedBalanceDate ? 'balance-date-help' : undefined"
-          />
-          <p v-if="sharedBalanceDate" id="balance-date-help" class="field-hint">Same balance date for all loans.</p>
-          <p v-if="errors.balanceDate" id="balance-date-error" class="field-error">{{ errors.balanceDate }}</p>
+      <details :open="!!errors.nextPaymentDate || !!errors.balanceDate">
+        <summary>Payment timing (optional)</summary>
+        <div class="field-row date-row">
+          <div class="field">
+            <label for="balance-date">Balance as of</label>
+            <input
+              id="balance-date"
+              v-model="values.balanceDate"
+              readonly
+              name="balanceDate"
+              type="date"
+              min="1900-01-01"
+              max="2100-12-31"
+              required
+              :aria-invalid="!!errors.balanceDate"
+              :aria-describedby="errors.balanceDate ? 'balance-date-error' : 'balance-date-help'"
+            />
+            <p id="balance-date-help" class="field-hint">Forecasts start today automatically. Enter your current balances.</p>
+            <p v-if="errors.balanceDate" id="balance-date-error" class="field-error">{{ errors.balanceDate }}</p>
+          </div>
+          <div class="field">
+            <label for="next-payment-date">Next payment</label>
+            <input
+              id="next-payment-date"
+              v-model="values.nextPaymentDate"
+              name="nextPaymentDate"
+              type="date"
+              :min="values.balanceDate || '1900-01-01'"
+              max="2100-12-31"
+              required
+              :aria-invalid="!!errors.nextPaymentDate"
+              :aria-describedby="errors.nextPaymentDate ? 'next-date-error' : undefined"
+            />
+            <p v-if="errors.nextPaymentDate" id="next-date-error" class="field-error">{{ errors.nextPaymentDate }}</p>
+          </div>
         </div>
-        <div class="field">
-          <label for="next-payment-date">Next payment</label>
-          <input
-            id="next-payment-date"
-            v-model="values.nextPaymentDate"
-            name="nextPaymentDate"
-            type="date"
-            :min="values.balanceDate || '1900-01-01'"
-            max="2100-12-31"
-            required
-            :aria-invalid="!!errors.nextPaymentDate"
-            :aria-describedby="errors.nextPaymentDate ? 'next-date-error' : undefined"
-          />
-          <p v-if="errors.nextPaymentDate" id="next-date-error" class="field-error">{{ errors.nextPaymentDate }}</p>
-        </div>
-      </div>
+      </details>
 
       <p v-if="Object.keys(errors).length" class="form-message field-error" role="alert">Check the highlighted fields to calculate your estimate.</p>
       <p v-else-if="hasChanges" class="form-message" role="status">You have changes. Update to refresh your estimate.</p>
