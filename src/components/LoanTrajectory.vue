@@ -38,7 +38,7 @@ const chartComparison = computed(() => props.comparison ? {
     <p class="sr-only">With <strong data-testid="monthly-minimum">{{ money(portfolio.monthlyPaymentCents) }}</strong> in monthly minimums</p>
     <div class="visual-outlook" aria-live="polite" aria-atomic="true">
       <section class="repayment-visual" aria-labelledby="repayment-heading">
-        <div class="metric-heading"><h3 id="repayment-heading">Total to repay</h3><strong v-if="currentPaid" data-testid="total-payments">{{ money(currentPaid.totalPaymentsCents) }}</strong><strong v-else>No complete estimate</strong></div>
+        <div class="metric-heading"><h3 id="repayment-heading" tabindex="-1">Total to repay</h3><strong v-if="currentPaid" data-testid="total-payments">{{ money(currentPaid.totalPaymentsCents) }}</strong><strong v-else>No complete estimate</strong></div>
 
         <div class="repayment-track" :class="{ incomplete: !currentPaid }" role="img" :aria-label="currentPaid ? `Amount owed ${money(balanceCents)} including ${money(portfolio.accruedInterestCents)} accrued interest, future interest ${money(newInterestCents)}${interestSaved !== null ? `, ${money(Math.abs(interestSaved))} ${interestSaved >= 0 ? 'saved' : 'more to repay'} compared with minimums (${money(paidOffProjection!.totalPaymentsCents)} total)` : '. Baseline savings unavailable'}` : 'No complete repayment estimate. Try increasing the monthly payment.'">
           <template v-if="currentPaid"><span class="debt-segment" :style="{ width: `${debtPercent}%` }" /><span class="interest-segment" :class="{ empty: !newInterestCents }" :style="{ width: `${interestPercent}%` }" /><span class="saved-segment" :class="{ empty: !savedPercent }" :style="{ width: `${savedPercent}%` }" /></template>

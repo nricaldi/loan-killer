@@ -42,6 +42,7 @@ async function cancelRemoval() {
       </div>
       <slot name="add" />
     </div>
+    <slot name="navigation" />
 
     <ul>
       <li v-for="{ loan } in loans" :key="loan.id" :data-loan-id="loan.id">

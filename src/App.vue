@@ -21,6 +21,9 @@ const editorOpen = ref(false)
 const addButton = ref<HTMLButtonElement | null>(null)
 let editorTrigger: HTMLElement | null = null
 const lastAction = ref('')
+function focusResults() {
+  document.getElementById('repayment-heading')?.focus({ preventScroll: true })
+}
 const portfolioRevision = ref(0)
 const sortedLoans = computed(() => [...loans.value].sort((left, right) => left.name.localeCompare(right.name, 'en', { numeric: true, sensitivity: 'base' })))
 const selectedLoans = computed(() => sortedLoans.value.filter(loan => !hiddenLoanIds.value.includes(loan.id)))
@@ -163,6 +166,7 @@ function removeLoan(id: string) {
                   @remove="removeLoan"
                 >
                   <template #add><button ref="addButton" class="add-button small-add" type="button" @click="addLoan">+ Add loan</button></template>
+                  <template #navigation><a v-if="portfolio.loans.length >= 4 && visiblePortfolio" class="results-shortcut" href="#repayment-heading" @click="focusResults">View results ↓</a></template>
                 </LoanList>
                 <p id="loan-payment-help" class="sr-only">Use each eye button to hide or include a loan in the estimate. Minimum edits save automatically. Extra payments are hypothetical.</p>
               </div>
@@ -210,6 +214,10 @@ function removeLoan(id: string) {
 .brand-period { color: var(--chart-line); }
 main { display: flex; flex-direction: column; gap: var(--space-5); padding-block: var(--space-5); }
 .workspace, .results-area { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.results-shortcut { display: none; }
+@media (max-width: 45.999rem) {
+  .results-shortcut { display: inline-flex; align-items: center; min-height: var(--size-touch-target); color: var(--text-link); font-size: var(--font-sm); text-underline-offset: .2em; }
+}
 .storage-status.needs-attention { order: -1; }
 .small-add { min-height: 36px; padding: 6px 10px; background: transparent; color: var(--text-link); border: 0; font: inherit; font-size: var(--font-sm); font-weight: 600; }
 .hidden-empty { padding: 24px; color: var(--text-secondary); }

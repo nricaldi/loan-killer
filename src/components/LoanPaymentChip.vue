@@ -64,8 +64,8 @@ function updatePayment(event: Event) {
 
 <style scoped>
 .loan-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); align-items: center; min-width: 0; padding: 14px; background: var(--surface); border: 0; border-radius: var(--radius-md); }
-.loan-chip.hidden { opacity: 0.5; }
-.loan-chip.hidden:focus-within, .loan-chip.hidden:hover { opacity: 0.8; }
+.loan-chip.hidden { opacity: 0.85; }
+.loan-chip.hidden:focus-within, .loan-chip.hidden:hover { opacity: 1; }
 .chip-name { grid-column: 1; grid-row: 1; min-width: 0; min-height: var(--size-touch-target); padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; }
 .loan-name { display: block; white-space: normal; overflow-wrap: anywhere; font-size: var(--font-sm); font-weight: 600; color: var(--text-link); }
 .chip-facts { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--space-2); margin-top: var(--space-1); }
